@@ -1,0 +1,8 @@
+﻿node_modules/
+.dev-data/
+.env
+.env.*
+!.env.example
+.vercel/
+*.zip
+

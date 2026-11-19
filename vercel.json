@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/simulasi", "destination": "/simulasi.html" }
+  ],
+  "functions": { "api/index.mjs": { "maxDuration": 30 } }
+}

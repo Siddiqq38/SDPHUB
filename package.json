@@ -1,0 +1,35 @@
+{
+  "name": "sdp-ops",
+  "version": "1.0.0",
+  "description": "SDP - Tigalapan Operations System (maklon DTF dan Sublim)",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "node --test test/unit.test.ts",
+    "dev": "node --no-warnings scripts/dev-server.mjs",
+    "test:e2e": "node test/e2e.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "build:vercel": "node scripts/build-vercel.mjs",
+    "docs": "node --no-warnings scripts/gen-docs.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "^2.1.9",
+    "@supabase/supabase-js": "^2.119.1",
+    "hono": "^4.13.19",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}
