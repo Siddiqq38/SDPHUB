@@ -17,7 +17,7 @@ stateRoutes.get('/', async (c) => {
   const has = (...p: Page[]) => p.some((x) => pages.includes(x));
   const raw = await loadSettings(db);
   const out: Record<string, unknown> = {
-    api: 3, // versi kontrak; layar memberi peringatan bila server belum diperbarui
+    api: 4, // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
     today: localDay(now(), calendarOf(raw)),

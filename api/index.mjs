@@ -33030,7 +33030,7 @@ stateRoutes.get("/", async (c) => {
   const has = (...p) => p.some((x) => pages.includes(x));
   const raw2 = await loadSettings(db);
   const out = {
-    api: 3,
+    api: 4,
     // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
@@ -33310,6 +33310,7 @@ fileRoutes.post("/init", async (c) => {
   if (!Number.isInteger(size) || size > MAX_FILE_BYTES) throw bad(`Ukuran file maksimal ${MAX_FILE_BYTES / 1024 / 1024} MB`);
   const name = reqStr(b, "file_name", 200).replace(/[^\w.\- ]/g, "_").slice(0, 120) || "file";
   const contentType2 = typeof b.content_type === "string" && b.content_type.length < 100 ? b.content_type : "application/octet-stream";
+  if (kind === "qc_photo" && !/^image\/(jpeg|png|webp|heic|heif)$/.test(contentType2)) throw bad("Foto QC harus berupa gambar JPG, PNG, WEBP, atau HEIC");
   const key = `${kind}/${randomToken(16)}`;
   const upload = await c.env.FILES.createUpload(key, contentType2);
   await c.env.DB.prepare("INSERT INTO files (key, kind, file_name, content_type, size_bytes, uploaded_by, uploaded_at, confirmed) VALUES (?,?,?,?,?,?,?,0)").bind(key, kind, name, contentType2, size, u.id, now()).run();

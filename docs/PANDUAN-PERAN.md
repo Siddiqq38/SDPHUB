@@ -29,6 +29,12 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 - SPV: tambah **Lembur** di Antrian Produksi bila kapasitas perlu ditambah.
 - Kapasitas = jam efektif (09.00-12.00, 13.00-21.30) dibagi norma waktu, dijual 90%. Finishing masih estimasi (DTF 30 menit, sublim 60 menit). Semua angka dapat diubah di Pengaturan.
 
+## Foto QC dari HP
+
+- Operator login di HP, buka **QC**, lalu tekan **Ambil foto** atau **Pilih dari galeri**. Foto langsung diunggah sesuai aslinya (maksimal 20 MB).
+- Tunggu tanda **Tersimpan di Drive**, lalu kirim laporan. Bila gagal, tekan **Coba Lagi**.
+- Foto tersimpan di Drive: **SDP Print Hub - File / QC Pagi / bulan / tanggal**. Seperti WOS, siapa pun yang memegang tautan foto dapat melihatnya. Berkas customer tetap privat.
+
 ## Kelola Data (hanya Master Akun)
 
 Untuk masa simulasi: ubah atau hapus order, pembayaran, pelanggan, laporan QC pagi, catatan loss, dan angka stok. Akun dapat diubah atau dihapus di menu **Pengguna**.

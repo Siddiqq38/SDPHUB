@@ -23,6 +23,7 @@ fileRoutes.post('/init', async (c) => {
   if (!Number.isInteger(size) || size > MAX_FILE_BYTES) throw bad(`Ukuran file maksimal ${MAX_FILE_BYTES / 1024 / 1024} MB`);
   const name = reqStr(b, 'file_name', 200).replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'file';
   const contentType = typeof b.content_type === 'string' && b.content_type.length < 100 ? b.content_type : 'application/octet-stream';
+  if (kind === 'qc_photo' && !/^image\/(jpeg|png|webp|heic|heif)$/.test(contentType)) throw bad('Foto QC harus berupa gambar JPG, PNG, WEBP, atau HEIC');
   const key = `${kind}/${randomToken(16)}`;
   const upload = await c.env.FILES.createUpload(key, contentType);
   await c.env.DB.prepare('INSERT INTO files (key, kind, file_name, content_type, size_bytes, uploaded_by, uploaded_at, confirmed) VALUES (?,?,?,?,?,?,?,0)')

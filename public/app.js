@@ -36,7 +36,7 @@ const ICONS={grid:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',chart:'M5
  archive:'M4 4h16v5H4zM5 9v11h14V9M10 13h4',trend:'M3 7l6 6 4-4 8 8M21 11v6h-6',tag:'M3 12V4h8l10 10-8 8zM7.5 8.5h.01',sliders:'M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4',
  user:'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',database:'M5 6c0-4 14-4 14 0s-14 4-14 0zM5 6v12c0 4 14 4 14 0V6M5 12c0 4 14 4 14 0',
  login:'M14 4h5v16h-5M3 12h11M10 8l4 4-4 4',logout:'M10 4H5v16h5M9 12h11M16 8l4 4-4 4',refresh:'M20 11a8 8 0 0 0-14-4.5L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4.5l2-2.5M20 20v-5h-5',
- truck:'M3 6h11v10H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',coins:'M4 7c0-3 11-3 11 0s-11 3-11 0zM4 7v8c0 2 4 3 7 2M4 11c0 2 4 3 7 2M11 15c0-3 10-3 10 0s-10 3-10 0zM11 15v4c0 3 10 3 10 0v-4',alert:'M12 4l10 17H2zM12 10v5M12 18h.01'};
+ truck:'M3 6h11v10H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',coins:'M4 7c0-3 11-3 11 0s-11 3-11 0zM4 7v8c0 2 4 3 7 2M4 11c0 2 4 3 7 2M11 15c0-3 10-3 10 0s-10 3-10 0zM11 15v4c0 3 10 3 10 0v-4',alert:'M12 4l10 17H2zM12 10v5M12 18h.01',camera:'M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',image:'M4 5h16v14H4zM4 16l5-5 5 5 2-2 4 4M15.5 9.5h.01'};
 const PAGE_ICON={masuk:'login',dashboard:'grid',laporan:'chart',input:'plusbox',cs:'headset',toko:'store',pelanggan:'users',lacak:'search',cekfile:'file',produksi:'layers',qc:'check',serah:'box',bayar:'wallet',stok:'archive',loss:'trend',layanan:'tag',atur:'sliders',pengguna:'user',akses:'shield',data:'database',akun:'user'};
 function icon(name){const NS='http://www.w3.org/2000/svg',svg=document.createElementNS(NS,'svg'),p=document.createElementNS(NS,'path');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','i');svg.setAttribute('aria-hidden','true');p.setAttribute('d',ICONS[name]);svg.append(p);return svg;}
 
@@ -63,11 +63,11 @@ const copy=(text,ok)=>navigator.clipboard.writeText(text).then(()=>toast(ok),()=
 const checklist=items=>{const boxes=items.map(()=>h('input',{type:'checkbox'}));return{view:items.map((t,i)=>h('label',{class:'row'},boxes[i],t)),values:()=>boxes.map(b=>b.checked),all:()=>boxes.every(b=>b.checked)};};
 
 // ---------- Komunikasi dengan server ----------
-const TIMEOUT=45000;
+const TIMEOUT=45000,UPLOAD_TIMEOUT=300000; // unggah foto asli lewat jaringan HP bisa lama
 // Galat "network" berarti server tidak terjangkau atau bermasalah; layar menawarkan Coba Lagi.
 const netError=(m,extra)=>Object.assign(new Error(m),{network:true},extra);
 async function send(method,path,body){
- const ctl=new AbortController(),limit=setTimeout(()=>ctl.abort(),TIMEOUT);
+ const ctl=new AbortController(),limit=setTimeout(()=>ctl.abort(),path==='/api/files/upload'?UPLOAD_TIMEOUT:TIMEOUT);
  try{
   if(SHEETS){
    // text/plain menghindari preflight CORS, yang tidak didukung Apps Script.
@@ -126,18 +126,25 @@ async function act(ev,fn,msg){
  catch(e){oops(e);if(b){b.disabled=false;b.classList.remove('wait');}}
 }
 // Unggah dua langkah: izin dari server, unggah langsung ke storage, lalu konfirmasi.
-async function upload(kind,file){
+const PHOTO_MAX=20*1024*1024;
+// Sebagian HP tidak mengisi jenis berkas, terutama HEIC.
+const mimeOf=f=>f.type||({jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',heic:'image/heic',heif:'image/heif'})[f.name.split('.').pop().toLowerCase()]||'application/octet-stream';
+/** Berkas dikirim apa adanya (tanpa diperkecil atau dikompres ulang). */
+async function uploadFile(kind,file,label){
+ const quiet=kind==='qc_photo'; // foto QC punya status sendiri per foto
  if(SHEETS){
-  if(file.size>SHEETS_MAX)throw new Error('Maksimal 8 MB selama memakai spreadsheet. Untuk file lebih besar, isi tautan Drive.');
+  const max=kind==='qc_photo'&&S?.api>=4?PHOTO_MAX:SHEETS_MAX;
+  if(file.size>max)throw new Error('Maksimal '+max/1048576+' MB selama memakai spreadsheet.'+(quiet?'':' Untuk file lebih besar, isi tautan Drive.'));
   const data=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]||'');r.onerror=()=>no(new Error('File tidak dapat dibaca'));r.readAsDataURL(file);});
-  return(await api('POST','/api/files/upload',{kind,file_name:file.name,content_type:file.type||'application/octet-stream',data})).key;
+  return api('POST','/api/files/upload',{kind,label,file_name:file.name,content_type:mimeOf(file),data},quiet);
  }
- const init=await api('POST','/api/files/init',{kind,file_name:file.name,content_type:file.type||'application/octet-stream',size_bytes:file.size});
+ const init=await api('POST','/api/files/init',{kind,file_name:file.name,content_type:mimeOf(file),size_bytes:file.size},quiet);
  const{url,method,fields,file_field}=init.upload,fd=new FormData();
  for(const[k,v]of Object.entries(fields))fd.set(k,v);fd.set(file_field,file,file.name);
  const put=await fetch(url,{method,body:fd}).catch(()=>{throw netError('Unggah ke penyimpanan gagal. Periksa koneksi internet.');});if(!put.ok)throw new Error('Unggah ke penyimpanan gagal ('+put.status+')');
- await api('POST','/api/files/confirm',{key:init.key});return init.key;
+ await api('POST','/api/files/confirm',{key:init.key},quiet);return{key:init.key};
 }
+const upload=async(kind,file)=>(await uploadFile(kind,file)).key;
 
 // ---------- Bantuan data ----------
 const role=()=>me?.role||'public';
@@ -363,14 +370,39 @@ V.produksi=()=>{const est=estimates(),run=is('op','spv'),lead=is('spv');return[h
  return card(h('div',{class:'row'},h('h2',{},d.n),svcTag(d.svc),qcTag(m),h('span',{class:'tag'},n?num(n/60)+' menit per meter':'Norma belum diatur')),m==='dtf'?h('p',{class:'small muted'},'Curing standar: 130 sampai 150 °C, 60 sampai 90 detik, tekstur kulit jeruk merata.'):null,table([['Order',o=>h('span',{},o.id,o.priority?h('span',{class:'tag warn'},'Prioritas'):null,h('br'),h('span',{class:'small muted'},o.customer))],['Meter',o=>num(meterOf(o))],['File',fileView],['Status',stTag],['Estimasi selesai',o=>dt(est[o.id])],['Deadline',o=>o.deadline?h('span',{},dlText(o.deadline),' ',lateTag(o,est[o.id])):'-'],['Aksi',o=>h('div',{class:'row'},action(o))]],q,'Antrian kosong'));})];};
 
 let qcMachine='dtf';
-function morningForm(m){const rows=[],photos=[];
- const groups=MORNING[m].map(g=>h('div',{class:'mt'},h('h3',{},g.time+' · '+g.title),g.checks.map(t=>{const s=sel(t,[['','Pilih'],['OK','OK'],['NG','Tidak sesuai']],{style:'width:150px'});rows.push(s);return h('div',{class:'row',style:'justify-content:space-between;margin-bottom:6px'},h('span',{style:'flex:1;min-width:200px'},t),s);}),
-  g.photo?(()=>{const file=h('input',{type:'file',accept:'image/*','aria-label':'Foto '+g.photo});photos.push({label:g.photo,file});return h('label',{class:'row small'},'Foto wajib: '+g.photo,file);})():null));
- const note=h('input',{placeholder:'Temuan (wajib bila ada yang tidak sesuai)','aria-label':'Temuan'}),action=h('input',{placeholder:'Tindakan awal (wajib bila ada yang tidak sesuai)','aria-label':'Tindakan awal'});
+// Isian QC pagi disimpan sementara per mesin dan hari, agar tidak hilang bila HP memuat ulang halaman setelah membuka kamera.
+const drafts={},painters={};
+const draftKey=m=>'sdp-qc-'+me.code+'-'+m+'-'+S.today;
+function draftOf(m){const k=draftKey(m);if(!drafts[k]){try{drafts[k]=JSON.parse(sessionStorage.getItem(k));}catch(e){}drafts[k]=drafts[k]||{answers:[],note:'',action:'',photos:{}};}return drafts[k];}
+function saveDraft(m){const k=draftKey(m),d=drafts[k];if(!d)return;const photos=Object.fromEntries(Object.entries(d.photos).filter(([,p])=>p.key).map(([l,p])=>[l,{key:p.key,drive:p.drive,size:p.size,status:'ok'}]));try{sessionStorage.setItem(k,JSON.stringify({...d,photos}));}catch(e){}}
+function dropDraft(m){const k=draftKey(m);delete drafts[k];try{sessionStorage.removeItem(k);}catch(e){}}
+const driveThumb=(id,w)=>'https://drive.google.com/thumbnail?id='+encodeURIComponent(id)+'&sz=w'+w;
+const driveView=id=>'https://drive.google.com/file/d/'+encodeURIComponent(id)+'/view';
+const driveLink=(id,text)=>h('a',{href:driveView(id),target:'_blank',rel:'noopener noreferrer'},text);
+const photoView=p=>p.drive?h('a',{class:'thumb',href:driveView(p.drive),target:'_blank',rel:'noopener noreferrer'},h('img',{src:driveThumb(p.drive,200),alt:'',loading:'lazy',onerror:e=>e.target.remove()}),h('span',{},p.label)):h('div',{},h('a',{href:'/api/files/'+p.key},p.label));
+function photoBox(m,label){const d=draftOf(m),id=draftKey(m)+label,box=h('div',{class:'photo'});
+ async function start(file){const p={file,preview:URL.createObjectURL(file),size:file.size,status:'upload'};d.photos[label]=p;painters[id]();
+  try{const r=await uploadFile('qc_photo',file,MACHINES[m].n+' '+label);Object.assign(p,{key:r.key,drive:r.drive_id,status:'ok'});}catch(e){Object.assign(p,{status:'fail',error:e.message});}
+  if(d.photos[label]===p){saveDraft(m);painters[id]();}}
+ const pick=(text,ic,camera,main)=>{const input=h('input',{type:'file',accept:'image/*',capture:camera?'environment':null,hidden:true,'aria-label':text+' '+label,onchange:e=>{const f=e.target.files[0];e.target.value='';if(f)start(f);}});
+  return h('span',{},h('button',{type:'button',class:main?'pri':'',onclick:()=>input.click()},icon(ic),text),input);};
+ painters[id]=()=>{const p=d.photos[label],src=p&&(p.preview||(p.drive&&driveThumb(p.drive,600))),size=p?.size?' · '+num(p.size/1048576)+' MB':'';
+  box.replaceChildren(h('b',{},'Foto wajib: '+label),...[src?h('img',{src,alt:'Pratinjau '+label,onerror:e=>e.target.remove()}):null,
+   !p?null:p.status==='upload'?h('div',{class:'row',role:'status'},h('span',{class:'spin'}),'Mengunggah kualitas asli'+size+'…')
+    :p.status==='fail'?h('div',{class:'err',role:'alert'},'Gagal diunggah: '+p.error+' ',h('button',{type:'button',onclick:()=>start(p.file)},'Coba Lagi'))
+    :h('div',{class:'row'},h('span',{class:'tag ok'},(p.drive?'Tersimpan di Drive':'Terunggah')+size),p.drive?driveLink(p.drive,'Buka di Drive'):null),
+   h('div',{class:'row'},pick(p?'Foto ulang':'Ambil foto','camera',true,!p),pick('Pilih dari galeri','image',false,false))].filter(Boolean));};
+ painters[id]();return box;}
+function morningForm(m){const d=draftOf(m),rows=[],labels=[];
+ const groups=MORNING[m].map(g=>h('div',{class:'mt'},h('h3',{},g.time+' · '+g.title),g.checks.map(t=>{const i=rows.length,s=sel(t,[['','Pilih'],['OK','OK'],['NG','Tidak sesuai']],{style:'width:150px',value:d.answers[i]||'',onchange:e=>{d.answers[i]=e.target.value;saveDraft(m);}});rows.push(s);return h('div',{class:'row',style:'justify-content:space-between;margin-bottom:6px'},h('span',{style:'flex:1;min-width:200px'},t),s);}),
+  g.photo?(labels.push(g.photo),photoBox(m,g.photo)):null));
+ const field=(k,ph,aria)=>h('input',{placeholder:ph,'aria-label':aria,value:d[k],oninput:e=>{d[k]=e.target.value;saveDraft(m);}});
+ const note=field('note','Temuan (wajib bila ada yang tidak sesuai)','Temuan'),action=field('action','Tindakan awal (wajib bila ada yang tidak sesuai)','Tindakan awal');
  const send=ev=>{if(rows.some(r=>!r.value))return toast('Setiap butir wajib dipilih OK atau Tidak sesuai.');
-  const miss=photos.find(p=>!p.file.files.length);if(miss)return toast('Lampirkan foto '+miss.label+'.');if(rows.some(r=>r.value==='NG')&&(!note.value.trim()||!action.value.trim()))return toast('Temuan dan tindakan awal wajib diisi.');
-  act(ev,async()=>{const up=[];for(const p of photos)up.push({label:p.label,key:await upload('qc_photo',p.file.files[0])});return api('POST','/api/qc/morning',{machine:m,answers:rows.map(r=>r.value),photos:up,note:note.value,action:action.value});},'Laporan QC pagi terkirim, menunggu persetujuan leader.');};
- return[groups,h('div',{class:'f mt'},note,action),h('div',{class:'mt'},h('button',{class:'pri',onclick:send},'Kirim laporan QC pagi'))];}
+  const miss=labels.find(l=>d.photos[l]?.status!=='ok');if(miss)return toast(d.photos[miss]?.status==='upload'?'Tunggu foto '+miss+' selesai diunggah.':'Lampirkan foto '+miss+'.');
+  if(rows.some(r=>r.value==='NG')&&(!note.value.trim()||!action.value.trim()))return toast('Temuan dan tindakan awal wajib diisi.');
+  act(ev,async()=>{await api('POST','/api/qc/morning',{machine:m,answers:rows.map(r=>r.value),photos:labels.map(l=>({label:l,key:d.photos[l].key})),note:note.value,action:action.value});dropDraft(m);},'Laporan QC pagi terkirim, menunggu persetujuan leader.');};
+ return[groups,h('div',{class:'f mt'},note,action),h('div',{class:'mt'},h('button',{class:'pri big',onclick:send},'Kirim laporan QC pagi'))];}
 function qcApproval(r){const ln=h('input',{placeholder:'Catatan leader','aria-label':'Catatan leader',style:'width:200px'});
  const decide=st=>ev=>act(ev,()=>api('POST',`/api/qc/morning/${r.id}/decide`,{decision:st,note:ln.value}),st==='siap'?'Disetujui. Mesin siap produksi.':'Produksi ditahan.');
  return h('div',{class:'row'},is('spv')&&r.status==='menunggu'?[ln,h('button',{class:'pri',onclick:decide('siap')},'Setujui'),h('button',{class:'d',onclick:decide('tahan')},'Tahan produksi')]:h('span',{class:'small muted'},r.approvedBy?'Oleh '+r.approvedBy+(r.leaderNote?': '+r.leaderNote:''):'Menunggu SPV'));}
@@ -379,7 +411,7 @@ V.qc=()=>{const wait=S.orders.filter(o=>o.status==='qc'),pack=S.orders.filter(o=
  card(h('h2',{},'QC pagi mesin (STD-OPR-006, 08.30 sampai 09.00)'),h('div',{class:'row'},Object.entries(MACHINES).map(([m,d])=>h('button',{class:qcMachine===m?'pri':'',onclick:()=>{qcMachine=m;render();}},d.n))),h('div',{class:'mt'},qcTag(qcMachine)),
   qcMachine!=='dtf'?h('p',{class:'small muted'},'Checklist mesin sublim masih usulan, menunggu SOP final.'):null,
   !acting?null:cur&&cur.status!=='tahan'?h('p',{class:'small muted mt'},'Laporan hari ini sudah dikirim.'):morningForm(qcMachine)),
- card(h('h2',{},'Laporan QC pagi'),table([['Waktu',r=>dt(r.at)],['Mesin',r=>MACHINES[r.machine].n],['Operator',r=>r.by],['Hasil',r=>r.ng.length?h('span',{},h('span',{class:'tag bad'},r.ng.length+' tidak sesuai'),h('br'),h('span',{class:'small'},r.note+'. Tindakan: '+r.action)):h('span',{class:'tag ok'},'Semua OK')],['Foto',r=>r.photos.map(p=>h('div',{},h('a',{href:'/api/files/'+p.key},p.label)))],['Status',r=>h('span',{class:'tag '+QC_STATE[r.status][1]},QC_STATE[r.status][0].replace('QC pagi: ',''))],['Persetujuan leader',qcApproval]],reports,'Belum ada laporan')),
+ card(h('h2',{},'Laporan QC pagi'),table([['Waktu',r=>dt(r.at)],['Mesin',r=>MACHINES[r.machine].n],['Operator',r=>r.by],['Hasil',r=>r.ng.length?h('span',{},h('span',{class:'tag bad'},r.ng.length+' tidak sesuai'),h('br'),h('span',{class:'small'},r.note+'. Tindakan: '+r.action)):h('span',{class:'tag ok'},'Semua OK')],['Foto',r=>h('div',{class:'thumbs'},r.photos.map(photoView))],['Status',r=>h('span',{class:'tag '+QC_STATE[r.status][1]},QC_STATE[r.status][0].replace('QC pagi: ',''))],['Persetujuan leader',qcApproval]],reports,'Belum ada laporan')),
  h('h2',{class:'mt'},'Inspeksi hasil cetak'),wait.length?wait.map(o=>{const c=checklist(QC_CHECKS[o.service]),rj=h('input',{type:'number',min:0,step:'0.01',placeholder:'Reject (m)','aria-label':'Meter reject',style:'width:110px'});
   return card(h('div',{class:'row'},h('h3',{},o.id+' · '+o.customer),svcTag(o.service)),h('p',{},itemsText(o)+' · '+num(meterOf(o))+' m'+(o.process?' · '+o.process:'')),o.service==='sub'?h('p',{class:'small muted'},'Butir QC sublim masih usulan, menunggu SOP final.'):null,acting?[c.view,h('div',{class:'row mt'},h('button',{class:'pri',onclick:ev=>{if(!c.all())return toast('Centang semua butir, atau catat reject.');act(ev,()=>api('POST',`/api/orders/${o.dbId}/qc`,{pass:true,checks:c.values()}),'Lolos QC. Lanjut kemas dan label.');}},'Lolos QC'),rj,h('button',{class:'d',onclick:ev=>{if(!(Number(rj.value)>0))return toast('Isi meter reject.');act(ev,()=>api('POST',`/api/orders/${o.dbId}/qc`,{pass:false,reject_m:Number(rj.value)}),'Reject dicatat di Log QC. Masuk antrian cetak ulang, lalu QC ulang.');}},'Tidak lolos'))]:null);}):card(h('p',{},'Tidak ada hasil menunggu QC.')),
  h('h2',{class:'mt'},'Kemas dan label'),card(table([['Order',o=>o.id+' · '+o.customer],['Layanan',o=>svcTag(o.service)],['Aksi',o=>acting?h('button',{class:'pri',onclick:ev=>act(ev,()=>api('POST',`/api/orders/${o.dbId}/pack`,{}),'Ditempatkan di area siap kirim.')},'Sudah dikemas dan berlabel'):'Menunggu petugas']],pack,'Tidak ada yang perlu dikemas'))];};
@@ -442,7 +474,7 @@ function render(){
  document.getElementById('menu').replaceChildren(...GROUPS.flatMap(([title,keys])=>{const ks=keys.filter(k=>ok.includes(k));return ks.length?[h('span',{class:'grp'},title),...ks.map(k=>h('a',{href:'#'+k,'aria-current':k===p?'page':null},icon(PAGE_ICON[k]),PAGES[k]))]:[];}));
  if(p!==shownPage){shownPage=p;const nav=document.getElementById('menu'),on=nav.querySelector('[aria-current]');if(on){const n=nav.getBoundingClientRect(),r=on.getBoundingClientRect();if(r.top<n.top||r.bottom>n.bottom)nav.scrollTop+=r.top-n.top-n.height/2;if(r.left<n.left||r.right>n.right)nav.scrollLeft+=r.left-n.left-12;}}
  try{const made=S&&(p==='cs'||p==='toko')&&S.orders.find(o=>o.dbId===newOrder);
-  const top=[S&&!(S.api>=3)?h('div',{class:'card notice',role:'alert'},h('b',{},'Server spreadsheet belum diperbarui. '),'Tempel Code.gs terbaru di Apps Script lalu deploy versi baru. Sebelum itu fitur terbaru (jam deadline, resi, kapasitas, lembur) belum aktif.'):null,
+  const top=[S&&!(S.api>=4)?h('div',{class:'card notice',role:'alert'},h('b',{},'Server spreadsheet belum diperbarui. '),'Tempel Code.gs terbaru di Apps Script lalu deploy versi baru. Sebelum itu fitur terbaru (misalnya foto QC ke Drive hingga 20 MB) belum aktif.'):null,
    made?h('div',{class:'card notice ok'},h('div',{class:'row'},h('h2',{},'Order '+made.id+' tersimpan'),h('button',{onclick:()=>{newOrder=null;render();}},'Tutup')),h('p',{},'Kirim nomor resi ini ke customer untuk melacak order.'),resiBox(made)):null];
   document.getElementById('view').replaceChildren(...[top,V[p]()].flat(Infinity).filter(Boolean));}
  catch(e){console.error(e);document.getElementById('view').replaceChildren(card(h('p',{},'Halaman gagal ditampilkan: '+e.message)));}

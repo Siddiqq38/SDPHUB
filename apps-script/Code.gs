@@ -26,6 +26,8 @@ var SCHEMA = {
 var PBKDF2_ITER = 20000;               // tersimpan per akun; server Supabase memverifikasi hash yang sama
 var SESSION_TTL_MS = 12 * 3600 * 1000;
 var MAX_FILE_BYTES = 8 * 1024 * 1024;  // batas praktis unggah lewat Apps Script
+var MAX_PHOTO_BYTES = 20 * 1024 * 1024; // foto QC dari HP disimpan sesuai aslinya
+var PHOTO_TYPES = /^image\/(jpeg|png|webp|heic|heif)$/;
 
 // ---------- Aturan bisnis (harus sama dengan src/domain.ts) ----------
 var ROLES = ['master', 'manager', 'spv', 'cs', 'crm', 'store', 'op', 'qc', 'gudang', 'fat'];
@@ -302,6 +304,10 @@ function validBlocks_(v) {
     previous = m[3];
     return true;
   });
+}
+function childFolder_(parent, name) {
+  var it = parent.getFoldersByName(name);
+  return it.hasNext() ? it.next() : parent.createFolder(name);
 }
 function pages_(db, role) {
   var row = db.find('role_access', function (r) { return r.role === role; });
@@ -773,7 +779,7 @@ function state_(ctx) {
   var pages = master ? GRANTABLE.concat(['atur', 'pengguna', 'akses', 'data', 'akun']) : pages_(db, u.role).concat(['akun']);
   function has() { return Array.prototype.slice.call(arguments).some(function (p) { return pages.indexOf(p) >= 0; }); }
   var raw = settings_(db), cal = calendar_(raw);
-  var out = { api: 3, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
+  var out = { api: 4, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
   if (ORDER_PAGES.some(function (p) { return pages.indexOf(p) >= 0; })) {
     var custCode = {};
     db.all('customers').forEach(function (c) { custCode[c.id] = c.code; });
@@ -799,7 +805,9 @@ function state_(ctx) {
     out.capacity = { days: days_(jobs, t, cfg), slots: plan_(jobs, t, cfg).slots, slaDue: slaDue_(t, cfg.cal), overtime: overtimeOf_(raw).filter(function (o) { return o.day >= out.today; }) };
   }
   if (has('loss', 'dashboard', 'laporan')) out.loss = db.all('logs').slice(-300).reverse().map(function (l) { return { logId: l.id, id: l.order_no, type: l.type, reason: l.reason, value: l.value, count: l.counted, at: l.at }; });
-  if (has('qc', 'produksi')) out.qcReports = db.all('qc_reports').slice(-60).map(function (r) { return { id: r.id, machine: r.machine, day: r.day, ng: JSON.parse(r.ng), note: r.note || '', action: r.action || '', photos: JSON.parse(r.photos), status: r.status, by: r.by_user, at: r.at, approvedBy: r.approved_by, leaderNote: r.leader_note || '' }; });
+  var driveIds = {};
+  if (has('qc', 'produksi')) db.all('files').forEach(function (f) { if (f.kind === 'qc_photo') driveIds[f.key] = f.drive_id; });
+  if (has('qc', 'produksi')) out.qcReports = db.all('qc_reports').slice(-60).map(function (r) { return { id: r.id, machine: r.machine, day: r.day, ng: JSON.parse(r.ng), note: r.note || '', action: r.action || '', photos: JSON.parse(r.photos).map(function (p) { return { label: p.label, key: p.key, drive: driveIds[p.key] || null }; }), status: r.status, by: r.by_user, at: r.at, approvedBy: r.approved_by, leaderNote: r.leader_note || '' }; });
   if (master) {
     out.users = db.all('users').map(function (x) { return { id: x.id, code: x.code, name: x.name, role: x.role, store: x.store, active: x.active, must_change_password: x.must_change_password }; });
     Object.keys(ACCESS_DEFAULT).forEach(function (r) { out.access[r] = pages_(db, r); });
@@ -901,13 +909,30 @@ function route_(req) {
     if ((kind === 'artwork' ? ['master', 'cs', 'store'] : ['master', 'op', 'qc', 'spv']).indexOf(me.role) < 0) throw err_(403, 'Tidak punya hak akses');
     var name = str_(b, 'file_name', 200).replace(/[^\w.\- ]/g, '_').slice(0, 120) || 'file';
     var type = typeof b.content_type === 'string' && b.content_type.length < 100 ? b.content_type : 'application/octet-stream';
-    var bytes = Utilities.base64Decode(str_(b, 'data', Math.ceil(MAX_FILE_BYTES * 4 / 3) + 8));
-    if (!bytes.length || bytes.length > MAX_FILE_BYTES) throw err_(400, 'Ukuran file maksimal 8 MB. File lebih besar: bagikan tautan Drive.');
-    var file = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('FOLDER_ID')).createFile(Utilities.newBlob(bytes, type, name));
+    var photo = kind === 'qc_photo', limit = photo ? MAX_PHOTO_BYTES : MAX_FILE_BYTES;
+    if (photo && !PHOTO_TYPES.test(type)) throw err_(400, 'Foto QC harus berupa gambar JPG, PNG, WEBP, atau HEIC');
+    var bytes = Utilities.base64Decode(str_(b, 'data', Math.ceil(limit * 4 / 3) + 8));
+    if (!bytes.length || bytes.length > limit) throw err_(400, 'Ukuran file maksimal ' + limit / 1048576 + ' MB' + (photo ? '' : '. File lebih besar: bagikan tautan Drive.'));
+    var folder = DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('FOLDER_ID'));
+    var driveName = name;
+    if (photo) {
+      // SDP Print Hub - File / QC Pagi / yyyy-MM / yyyy-MM-dd
+      var local = new Date(Date.now() + calendar_(settings_(db)).offsetMin * 60000).toISOString();
+      var day = local.slice(0, 10), label = String(opt_(b, 'label', 100) || 'foto').replace(/[^\w.\- ]/g, '_').replace(/ +/g, '-');
+      folder = childFolder_(childFolder_(childFolder_(folder, 'QC Pagi'), day.slice(0, 7)), day);
+      driveName = day + '_' + local.slice(11, 19).replace(/:/g, '') + '_' + label + '_' + me.code + (/\.[A-Za-z0-9]{3,4}$/.exec(name) || ['.jpg'])[0];
+    }
+    var file = folder.createFile(Utilities.newBlob(bytes, type, driveName));
+    var shared = false;
+    if (photo) {
+      // Seperti WOS: siapa pun yang memegang tautan dapat melihat. Hanya foto QC; berkas customer tetap privat.
+      try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); shared = true; }
+      catch (e) { console.warn('Berbagi tautan ditolak oleh pengaturan akun Google: ' + e.message); }
+    }
     var key = kind + '/' + random_(16);
-    db.insert('files', { key: key, kind: kind, file_name: name, content_type: type, size_bytes: bytes.length, uploaded_by: me.id, uploaded_at: Date.now(), confirmed: 1, drive_id: file.getId() });
+    db.insert('files', { key: key, kind: kind, file_name: driveName, content_type: type, size_bytes: bytes.length, uploaded_by: me.id, uploaded_at: Date.now(), confirmed: 1, drive_id: file.getId() });
     audit_(ctx, 'file_uploaded', 'file', key);
-    return { status: 201, data: { ok: true, key: key, file_name: name, size_bytes: bytes.length } };
+    return { status: 201, data: { ok: true, key: key, file_name: driveName, size_bytes: bytes.length, drive_id: photo ? file.getId() : null, shared: shared } };
   }
   if (method === 'GET' && (m = /^\/api\/files\/(artwork|qc_photo)\/([A-Za-z0-9_-]+)$/.exec(path))) {
     var f = db.find('files', function (x) { return x.key === m[1] + '/' + m[2]; });

@@ -27,7 +27,7 @@ const PW = 'Awal12345abc', PW2 = 'Final12345xyz';
 let n = 0;
 const key = () => 'req-' + Date.now() + '-' + ++n;
 async function upload(cl, kind, name = 'file.pdf') {
-  const blob = new Blob(['isi uji ' + name], { type: 'application/pdf' });
+  const blob = new Blob(['isi uji ' + name], { type: kind === 'qc_photo' ? 'image/jpeg' : 'application/pdf' });
   if (SHEETS) return call(cl, 'POST', '/api/files/upload', { kind, file_name: name, content_type: blob.type, data: Buffer.from(await blob.arrayBuffer()).toString('base64') });
   const init = await call(cl, 'POST', '/api/files/init', { kind, file_name: name, content_type: blob.type, size_bytes: blob.size });
   if (init.status !== 201) return init;
@@ -216,7 +216,7 @@ async function main() {
   r = await call(anon, 'GET', '/api/public/track/' + resi.toLowerCase());
   check('lacak dengan resi, huruf kecil diterima', r.status === 200 && r.data.status === 'antrian', r);
   check('resi acak lain 404', (await call(anon, 'GET', '/api/public/track/RS-00000-00000')).status === 404);
-  check('versi server dikirim', (await state(C.CS)).api === 3);
+  check('versi server dikirim', (await state(C.CS)).api === 4);
 
   console.log('# Kapasitas produksi');
   let cap = (await state(C.CS)).capacity;
@@ -283,6 +283,24 @@ async function main() {
   const uid = (await state(master)).users.find((u) => u.code === 'OPR').id;
   await call(master, 'PATCH', `/api/admin/users/${uid}`, { active: false });
   check('akun nonaktif: sesi dicabut', (await call(C.OPR, 'GET', '/api/state')).status === 401);
+
+  console.log('# Foto QC');
+  const bad = SHEETS
+    ? await call(C.QC1, 'POST', '/api/files/upload', { kind: 'qc_photo', file_name: 'a.pdf', content_type: 'application/pdf', data: Buffer.from('x').toString('base64') })
+    : await call(C.QC1, 'POST', '/api/files/init', { kind: 'qc_photo', file_name: 'a.pdf', content_type: 'application/pdf', size_bytes: 1 });
+  check('foto QC selain gambar ditolak', bad.status === 400, bad);
+  if (SHEETS) {
+    const send = (cl, kind, mb, type) => call(cl, 'POST', '/api/files/upload', { kind, label: 'Printer DTF Nozzle check', file_name: 'IMG_1.jpg', content_type: type, data: Buffer.alloc(mb * 1048576, 7).toString('base64') });
+    r = await send(C.QC1, 'qc_photo', 12, 'image/jpeg');
+    check('foto 12 MB diterima utuh', r.status === 201 && r.data.size_bytes === 12 * 1048576 && r.data.drive_id && r.data.shared === true, r.data?.error ?? r.status);
+    check('foto di atas 20 MB ditolak', (await send(C.QC1, 'qc_photo', 21, 'image/jpeg')).status === 400);
+    check('berkas customer tetap maksimal 8 MB', (await send(C.CS, 'artwork', 9, 'application/pdf')).status === 400);
+    const files = await (await fetch(BASE + '/__drive')).json();
+    const photo = files.find((f) => f.size === 12 * 1048576);
+    check('foto masuk folder QC Pagi per tanggal', /^SDP\/QC Pagi\/\d{4}-\d\d\/\d{4}-\d\d-\d\d$/.test(photo.path) && /^\d{4}-\d\d-\d\d_\d{6}_Printer-DTF-Nozzle-check_QC1\.jpg$/.test(photo.name), photo);
+    check('hanya foto QC yang dibagikan lewat tautan', files.every((f) => !!f.shared === f.path.includes('QC Pagi')) && photo.shared === 'LINK/VIEW', files.filter((f) => f.shared).length);
+    check('laporan QC membawa tautan Drive', (await state(C.SPV)).qcReports.every((q) => q.photos.every((p) => p.drive)));
+  }
 
   console.log('# Lacak publik');
   r = await call(anon, 'GET', '/api/public/track/' + trackA);

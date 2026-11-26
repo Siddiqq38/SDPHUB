@@ -38,8 +38,17 @@ export function loadGas() {
     return sh;
   };
   const ss = { getSheetByName: (n) => sheets.get(n) ?? null, insertSheet: (n) => { const s = makeSheet(); sheets.set(n, s); return s; } };
-  const fileObj = (id) => ({ getId: () => id, getName: () => drive.get(id).name, getBlob: () => ({ getBytes: () => drive.get(id).bytes }) });
-  const folder = { getId: () => 'folder-1', createFile: (blob) => { const id = randomUUID(); drive.set(id, blob); return fileObj(id); } };
+  const fileObj = (id) => ({ getId: () => id, getName: () => drive.get(id).name, getBlob: () => ({ getBytes: () => drive.get(id).bytes }), setSharing: (access, perm) => { drive.get(id).shared = access + '/' + perm; } });
+  const makeFolder = (path) => {
+    const children = new Map();
+    return {
+      getId: () => 'folder-1',
+      createFile: (blob) => { const id = randomUUID(); drive.set(id, { ...blob, path }); return fileObj(id); },
+      getFoldersByName: (n) => { const f = children.get(n); let done = false; return { hasNext: () => !!f && !done, next: () => { done = true; return f; } }; },
+      createFolder: (n) => { const f = makeFolder(path + '/' + n); children.set(n, f); return f; },
+    };
+  };
+  const folder = makeFolder('SDP');
   const context = {
     console, Date, JSON, Math,
     SpreadsheetApp: { getActiveSpreadsheet: () => ss, openById: () => ss, flush: () => {} },
@@ -52,21 +61,22 @@ export function loadGas() {
       base64Encode: (b) => Buffer.from(b).toString('base64'),
       newBlob: (bytes, type, name) => ({ bytes: typeof bytes === 'string' ? [...Buffer.from(bytes)] : bytes, type, name }),
     },
-    DriveApp: { createFolder: () => folder, getFolderById: () => folder, getFileById: (id) => fileObj(id) },
+    DriveApp: { createFolder: () => folder, getFolderById: () => folder, getFileById: (id) => fileObj(id), Access: { ANYONE_WITH_LINK: 'LINK' }, Permission: { VIEW: 'VIEW' } },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (text) => ({ text, setMimeType() { return this; } }) },
   };
   vm.createContext(context);
   vm.runInContext(readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8'), context, { filename: 'Code.gs' });
   vm.runInContext('setup()', context);
-  return { context, sheets, props };
+  return { context, sheets, props, drive };
 }
 
 if (process.argv[1]?.endsWith('gas-harness.mjs')) {
-  const { context } = loadGas();
+  const { context, drive } = loadGas();
   const PORT = Number(process.env.PORT ?? 8788);
   createServer(async (req, res) => {
     const chunks = [];
     for await (const c of req) chunks.push(c);
+    if (req.url === '/__drive') { res.writeHead(200); res.end(JSON.stringify([...drive.values()].map((f) => ({ path: f.path, name: f.name, shared: f.shared ?? null, size: f.bytes.length })))); return; }
     if (req.url === '/__export') { res.writeHead(200); res.end(context.buatSqlSupabase_()); return; }
     // Pratinjau layar dalam mode spreadsheet: berkas statis, config.js diarahkan ke /exec (tiruan URL Web App).
     const path = req.url.split('?')[0];

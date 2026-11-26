@@ -85,6 +85,10 @@ a.stat{color:inherit;text-decoration:none;transition:border-color .15s,transform
 .bar{display:block;height:9px;border-radius:99px;background:var(--soft);overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}.bar.high i{background:var(--brand)}.bar.full i{background:var(--bad)}
 .capcell{display:flex;flex-direction:column;gap:4px;min-width:150px}.notice h2{margin:0}
 
+.photo{display:flex;flex-direction:column;align-items:flex-start;gap:8px;border:1px dashed var(--line);border-radius:10px;padding:12px;margin:4px 0 6px}
+.photo>img{max-width:min(100%,320px);max-height:240px;border-radius:8px;object-fit:contain;background:var(--soft)}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px}.thumb{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12.5px;max-width:110px;text-align:center}.thumb img{width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+
 /* Masuk */
 .login{max-width:420px}.login .f{grid-template-columns:1fr}.login .f .big{width:100%;justify-content:center}
 .brand{height:auto;width:240px;margin:2px auto 20px;display:block}.brand.on-dark{display:none}
@@ -112,5 +116,6 @@ main>.login{margin:4vh auto 0}
 .who{flex-direction:row;flex-wrap:wrap;justify-content:space-between;align-items:center;padding-block:10px}.who .acts>*{flex:none}
 .body{min-height:0}
 .stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stat{flex-direction:column;gap:8px;padding:13px}.ico{width:40px;height:40px}.kpi{font-size:23px}
+.photo{align-items:stretch}.photo>img{max-width:100%}.photo .row>span{flex:1}.photo .row button{width:100%;justify-content:center;padding:11px 10px}
 .head h1{font-size:28px}.kpi.l{font-size:20px}.kpi.xl{font-size:17px}
 }
