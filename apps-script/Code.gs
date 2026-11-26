@@ -33,17 +33,17 @@ var PHOTO_TYPES = /^image\/(jpeg|png|webp|heic|heif)$/;
 
 // ---------- Aturan bisnis (harus sama dengan src/domain.ts) ----------
 var ROLES = ['master', 'manager', 'spv', 'cs', 'crm', 'store', 'op', 'qc', 'gudang', 'fat'];
-var GRANTABLE = ['dashboard', 'laporan', 'input', 'cs', 'toko', 'pelanggan', 'cekfile', 'produksi', 'qc', 'serah', 'bayar', 'stok', 'loss', 'layanan', 'lacak'];
+var GRANTABLE = ['dashboard', 'laporan', 'analysis', 'input', 'cs', 'toko', 'pelanggan', 'cekfile', 'produksi', 'qc', 'serah', 'bayar', 'stok', 'loss', 'layanan', 'lacak'];
 var ACCESS_DEFAULT = {
-  manager: ['dashboard', 'laporan', 'pelanggan', 'produksi', 'bayar', 'stok', 'loss', 'layanan', 'lacak'],
-  spv: ['dashboard', 'laporan', 'cs', 'cekfile', 'produksi', 'qc', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
+  manager: ['dashboard', 'laporan', 'analysis', 'pelanggan', 'produksi', 'bayar', 'stok', 'loss', 'layanan', 'lacak'],
+  spv: ['dashboard', 'laporan', 'analysis', 'cs', 'cekfile', 'produksi', 'qc', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
   cs: ['dashboard', 'input', 'cs', 'pelanggan', 'bayar', 'produksi', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
   crm: ['pelanggan', 'layanan', 'lacak'],
   store: ['input', 'toko', 'layanan', 'lacak'],
   op: ['cekfile', 'produksi', 'qc', 'stok'],
   qc: ['qc', 'produksi'],
   gudang: ['stok', 'serah'],
-  fat: ['bayar', 'laporan', 'layanan', 'lacak']
+  fat: ['bayar', 'laporan', 'analysis', 'layanan', 'lacak']
 };
 var ORDER_PAGES = ['dashboard', 'laporan', 'input', 'cs', 'toko', 'pelanggan', 'cekfile', 'produksi', 'qc', 'serah', 'bayar'];
 var RETAIL = {
@@ -578,6 +578,101 @@ function consumeForOrder_(ctx, o, input) {
   return ready.length;
 }
 
+// ---------- Analysis (sama dengan src/lib/analytics.ts) ----------
+var TARGETS = { ontimeMin: 95, rejectMax: 2, wasteMax: 3, utilMin: 70, utilMax: 90 };
+function round1_(n) { return Math.round(n * 10) / 10; }
+function pct_(a, b) { return b > 0 ? round1_((a / b) * 100) : null; }
+function isoDay_(t) { return new Date(t).toISOString().slice(0, 10); }
+function ranges_(period, date, cal) {
+  var D = 864e5, base = Date.parse(date + 'T00:00:00Z'), d = new Date(base), first = date, previous;
+  var next;
+  if (period === 'day') {
+    next = isoDay_(base + D);
+    var p = base - D;
+    for (var i = 0; i < 14 && !effective_(dayStart_(isoDay_(p), cal), dayStart_(isoDay_(p), cal) + D, cal); i++) p -= D;
+    previous = isoDay_(p);
+  } else if (period === 'week') {
+    var monday = base - ((d.getUTCDay() + 6) % 7) * D;
+    first = isoDay_(monday); next = isoDay_(monday + 7 * D); previous = isoDay_(monday - 7 * D);
+  } else if (period === 'month') {
+    first = isoDay_(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)); next = isoDay_(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)); previous = isoDay_(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1));
+  } else {
+    first = d.getUTCFullYear() + '-01-01'; next = (d.getUTCFullYear() + 1) + '-01-01'; previous = (d.getUTCFullYear() - 1) + '-01-01';
+  }
+  var current = { from: dayStart_(first, cal), to: dayStart_(next, cal) };
+  var prev = period === 'day' ? { from: dayStart_(previous, cal), to: dayStart_(previous, cal) + D } : { from: dayStart_(previous, cal), to: current.from };
+  return { current: current, previous: prev };
+}
+function summarize_(data, range, now, cfg) {
+  var inside = function (t) { return t !== null && t !== undefined && t >= range.from && t < range.to; };
+  var sum = function (list, f) { return list.reduce(function (a, x) { return a + f(x); }, 0); };
+  var created = data.orders.filter(function (o) { return inside(o.created_at) && o.status !== 'ditolak'; });
+  var value = sum(created, function (o) { return o.total; });
+  var summary = { orders: created.length, meter: round1_(sum(created, function (o) { return o.meter; })), value: value,
+    paid: sum(data.payments.filter(function (p) { return inside(p.at); }), function (p) { return p.amount; }), aov: created.length ? Math.round(value / created.length) : 0 };
+  var finished = data.orders.filter(function (o) { return inside(o.finished_at); });
+  var meterOf = function (service) { return sum(finished.filter(function (o) { return o.service === service; }), function (o) { return o.meter; }); };
+  var end = Math.min(range.to, now);
+  var begin = data.firstOrderAt === null ? end : Math.max(range.from, dayStart_(localDay_(data.firstOrderAt, cfg.cal), cfg.cal));
+  var machines = MACHINE_LIST.map(function (m) {
+    var meter = round1_(meterOf(m === 'dtf' ? 'dtf' : 'sub')), norm = cfg.norms[m];
+    var capacity = norm && end > begin ? round1_(effective_(begin, end, cfg.cal) / norm) : null;
+    return { machine: m, meter: meter, capacity: capacity, util: capacity ? pct_(meter, capacity) : null };
+  });
+  var byId = {};
+  data.orders.forEach(function (o) { byId[o.id] = o; });
+  var done = data.ready.filter(function (r) { return inside(r.at) && byId[r.id]; }).map(function (r) { return { o: byId[r.id], at: r.at }; });
+  var onTime = done.filter(function (x) { return x.at <= (x.o.deadline ? deadlineTime_(x.o.deadline, cfg.cal) : slaDue_(x.o.approved_at === null ? x.o.created_at : x.o.approved_at, cfg.cal)); }).length;
+  var leads = done.filter(function (x) { return x.o.approved_at; }).map(function (x) { return (x.at - x.o.approved_at) / 3600000; });
+  var ready = { count: done.length, ontime: onTime, pct: pct_(onTime, done.length), leadHours: leads.length ? round1_(sum(leads, function (x) { return x; }) / leads.length) : null };
+  var produced = round1_(sum(finished, function (o) { return o.meter; }));
+  var rejectM = round1_(sum(data.logs.filter(function (l) { return l.type === 'Reject' && inside(l.at); }), function (l) { var m = /([0-9]+(?:\.[0-9]+)?) m /.exec(l.reason); return m ? Number(m[1]) : 0; }));
+  var used = data.ledger.filter(function (l) { return inside(l.at) && l.qty < 0 && data.meterSkus.indexOf(l.sku_code) >= 0 && ['Produksi', 'Test print', 'Reject', 'Waste'].indexOf(l.type) >= 0; });
+  var usedOf = function (type) { return round1_(sum(used.filter(function (l) { return !type || l.type === type; }), function (l) { return -l.qty; })); };
+  var quality = { produced: produced, rejectM: rejectM, rejectPct: pct_(rejectM, produced), usedM: usedOf(), testM: usedOf('Test print'), wasteM: usedOf('Waste'), wastePct: pct_(usedOf('Waste'), usedOf()) };
+  var group = function (keys, of) {
+    return keys.map(function (key) {
+      var list = created.filter(function (o) { return of(o) === key; });
+      return { key: key, orders: list.length, meter: round1_(sum(list, function (o) { return o.meter; })), value: sum(list, function (o) { return o.total; }) };
+    });
+  };
+  var unique = function (list) { return list.filter(function (x, i) { return list.indexOf(x) === i; }); };
+  var sales = {
+    service: group(['dtf', 'sub'], function (o) { return o.service; }),
+    type: group(['retail', 'maklon'], function (o) { return o.type; }),
+    source: group(['WhatsApp', 'Datang langsung', 'Toko'], function (o) { return o.source; }),
+    top: group(unique(created.map(function (o) { return o.customer_name; })), function (o) { return o.customer_name; }).sort(function (a, b) { return b.value - a.value || (a.key < b.key ? -1 : 1); }).slice(0, 10)
+  };
+  var lost = data.logs.filter(function (l) { return l.type === 'Loss Sales' && l.counted && inside(l.at); });
+  var reasonOf = function (r) { return r.indexOf('Kapasitas penuh') === 0 ? 'Kapasitas penuh' : r; };
+  var reasons = unique(lost.map(function (l) { return reasonOf(l.reason); })).map(function (reason) {
+    var list = lost.filter(function (l) { return reasonOf(l.reason) === reason; });
+    return { reason: reason, count: list.length, value: sum(list, function (l) { return l.value || 0; }) };
+  }).sort(function (a, b) { return b.value - a.value || (a.reason < b.reason ? -1 : 1); });
+  return { summary: summary, machines: machines, ready: ready, quality: quality, sales: sales, loss: { count: lost.length, value: sum(lost, function (l) { return l.value || 0; }), reasons: reasons } };
+}
+function report_(data, period, date, now, cfg) {
+  var r = ranges_(period, date, cfg.cal);
+  return { period: period, date: date, targets: TARGETS,
+    from: localDay_(r.current.from, cfg.cal), to: localDay_(r.current.to - 1, cfg.cal), previousFrom: localDay_(r.previous.from, cfg.cal), previousTo: localDay_(r.previous.to - 1, cfg.cal),
+    current: summarize_(data, r.current, now, cfg), previous: summarize_(data, r.previous, now, cfg) };
+}
+function analytics_(ctx, b) {
+  allow_(ctx, ['manager', 'spv', 'fat'], 'analysis');
+  var db = ctx.db, period = one_(b, 'period', ['day', 'week', 'month', 'year']), date = str_(b, 'date', 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(Date.parse(date + 'T00:00:00Z'))) throw err_(400, 'Tanggal tidak valid');
+  var cfg = planConfig_(settings_(db));
+  var data = {
+    orders: db.all('orders').slice().sort(function (a, c) { return a.id - c.id; }),
+    payments: db.all('payments'), logs: db.all('logs'),
+    ledger: db.all('stock_ledger').map(function (l) { return { sku_code: l.sku_code, type: l.type, qty: l.qty || 0, at: l.at }; }),
+    meterSkus: db.filter('skus', function (k) { return k.unit === 'meter' && PACKAGE_SKUS.indexOf(k.code) < 0; }).map(function (k) { return k.code; }),
+    ready: db.filter('audit_log', function (a) { return a.action === 'pack' || a.action === 'packed'; }).map(function (a) { return { id: Number(a.entity_id), at: a.at }; })
+  };
+  data.firstOrderAt = data.orders.length ? data.orders.reduce(function (m, o) { return Math.min(m, o.created_at); }, Infinity) : null;
+  return { status: 200, data: report_(data, period, date, Date.now(), cfg) };
+}
+
 // ---------- Order ----------
 function buildItems_(b, s) {
   if (b.service === 'dtfr') {
@@ -1008,7 +1103,7 @@ function state_(ctx) {
   var pages = master ? GRANTABLE.concat(['atur', 'pengguna', 'akses', 'data', 'akun']) : pages_(db, u.role).concat(['akun']);
   function has() { return Array.prototype.slice.call(arguments).some(function (p) { return pages.indexOf(p) >= 0; }); }
   var raw = settings_(db), cal = calendar_(raw);
-  var out = { api: 6, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
+  var out = { api: 7, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
   if (ORDER_PAGES.some(function (p) { return pages.indexOf(p) >= 0; })) {
     var custCode = {};
     db.all('customers').forEach(function (c) { custCode[c.id] = c.code; });
@@ -1147,6 +1242,7 @@ function route_(req) {
   if (path === '/api/orders' && method === 'POST') return createOrder_(ctx, b);
   if (method === 'POST' && (m = /^\/api\/orders\/(\d+)\/([a-z-]+)$/.exec(path))) return orderAction_(ctx, Number(m[1]), m[2], b);
 
+  if (method === 'POST' && path === '/api/analytics') return analytics_(ctx, b);
   if (method === 'POST' && (m = /^\/api\/capacity\/(check|loss|overtime)$/.exec(path))) return capacityRoute_(ctx, m[1], b);
 
   if (path === '/api/files/upload' && method === 'POST') {

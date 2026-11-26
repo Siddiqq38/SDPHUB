@@ -264,7 +264,7 @@ async function main() {
   r = await call(anon, 'GET', '/api/public/track/' + resi.toLowerCase());
   check('lacak dengan resi, huruf kecil diterima', r.status === 200 && r.data.status === 'antrian', r);
   check('resi acak lain 404', (await call(anon, 'GET', '/api/public/track/RS-00000-00000')).status === 404);
-  check('versi server dikirim', (await state(C.CS)).api === 6);
+  check('versi server dikirim', (await state(C.CS)).api === 7);
 
   console.log('# Kapasitas produksi');
   let cap = (await state(C.CS)).capacity;
@@ -349,6 +349,25 @@ async function main() {
     check('hanya foto QC yang dibagikan lewat tautan', files.every((f) => !!f.shared === f.path.includes('QC Pagi')) && photo.shared === 'LINK/VIEW', files.filter((f) => f.shared).length);
     check('laporan QC membawa tautan Drive', (await state(C.SPV)).qcReports.every((q) => q.photos.every((p) => p.drive)));
   }
+
+  console.log('# Analysis');
+  const today = (await state(master)).today;
+  const ana = (cl, period, date = today) => call(cl, 'POST', '/api/analytics', { period, date });
+  r = await ana(C.MGR, 'day');
+  const day = r.data?.current;
+  check('manager melihat rekap harian', r.status === 200 && day.summary.orders > 3 && day.summary.value > 0 && day.summary.paid > 0, r);
+  check('ketepatan waktu dan lead time dihitung', day.ready.count >= 2 && day.ready.pct !== null && day.ready.leadHours !== null, day.ready);
+  check('reject dan pemakaian bahan masuk rekap', day.quality.rejectM === 3 && day.quality.testM >= 0.5 && day.quality.produced >= 30, day.quality);
+  check('utilisasi mesin DTF dihitung', day.machines.find((m) => m.machine === 'dtf').meter >= 10, day.machines);
+  check('loss sales dikelompokkan', day.loss.reasons.some((x) => x.reason === 'Kapasitas penuh') && day.loss.reasons.some((x) => x.reason === 'Customer batal') && !day.loss.reasons.some((x) => x.reason === 'Double input'), day.loss);
+  check('penjualan per layanan cocok dengan total', day.sales.service.reduce((a, x) => a + x.value, 0) === day.summary.value && day.sales.top.length > 0, day.sales);
+  for (const p of ['week', 'month', 'year']) {
+    r = await ana(C.SPV, p);
+    check('rekap ' + p + ' memuat data hari ini', r.status === 200 && r.data.current.summary.orders >= day.summary.orders && r.data.from <= today && r.data.to >= today && r.data.previousTo < r.data.from, r.data?.from);
+  }
+  check('FAT boleh melihat Analysis', (await ana(C.FAT, 'month')).status === 200);
+  check('CS tidak boleh melihat Analysis', (await ana(C.CS, 'day')).status === 403);
+  check('tanggal tidak valid ditolak', (await ana(C.MGR, 'day', '2026-13-45')).status === 400);
 
   console.log('# Lacak publik');
   r = await call(anon, 'GET', '/api/public/track/' + trackA);

@@ -104,6 +104,10 @@ a.stat{color:inherit;text-decoration:none;transition:border-color .15s,transform
 
 .finish{border:2px solid var(--brand)}.material{border:1px dashed var(--line);border-radius:10px;padding:12px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}.material .f{width:100%}
 
+.metrics{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}.metric{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+.up{color:var(--ok);font-weight:600}.down{color:var(--bad);font-weight:600}
+@media print{.side,.foot,.noprint,#busy,#net,#toast,.notice{display:none!important}.shell{display:block}body{background:#fff;color:#000}.card,.metric{break-inside:avoid;box-shadow:none}main.in{max-width:none;padding:0}.tw{overflow:visible}}
+
 /* Masuk */
 .login{max-width:420px}.login .f{grid-template-columns:1fr}.login .f .big{width:100%;justify-content:center}
 .brand{height:auto;width:240px;margin:2px auto 20px;display:block}.brand.on-dark{display:none}

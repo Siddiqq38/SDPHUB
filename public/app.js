@@ -3,9 +3,9 @@
 // pemeriksaan di sini hanya untuk tampilan. Data dinamis dirender lewat textContent.
 const ROLES={master:'Master Akun',manager:'Manager',spv:'SPV SDP',cs:'CS (DTF + Sublim)',crm:'CRM',store:'Store Head',op:'Operator Produksi',qc:'QC',gudang:'Gudang',fat:'FAT / Finance'};
 const PAGES={masuk:'Masuk',dashboard:'Dashboard',input:'Input Order',cs:'Meja CS',cekfile:'Cek File',toko:'Order Toko Saya',produksi:'Antrian Produksi',qc:'QC',serah:'Serah Terima',bayar:'Pembayaran',
-pelanggan:'Pelanggan B2B',stok:'SKU & Inventory',loss:'Loss Sales & Log QC',laporan:'Report',layanan:'Layanan & Harga',lacak:'Lacak Order',atur:'Pengaturan',pengguna:'Pengguna',akses:'Hak Akses',data:'Kelola Data',akun:'Akun Saya'};
-const GROUPS=[['Ringkasan',['dashboard','laporan']],['Order',['input','cs','toko','pelanggan','lacak']],['Produksi',['cekfile','produksi','qc','serah']],['Keuangan dan data',['bayar','stok','loss']],['Referensi',['layanan']],['Admin',['atur','pengguna','akses','data']],['Akun',['masuk','akun']]];
-const GRANTABLE=['dashboard','laporan','input','cs','toko','pelanggan','cekfile','produksi','qc','serah','bayar','stok','loss','layanan','lacak'];
+pelanggan:'Pelanggan B2B',stok:'SKU & Inventory',loss:'Loss Sales & Log QC',laporan:'Report',analysis:'Analysis',layanan:'Layanan & Harga',lacak:'Lacak Order',atur:'Pengaturan',pengguna:'Pengguna',akses:'Hak Akses',data:'Kelola Data',akun:'Akun Saya'};
+const GROUPS=[['Ringkasan',['dashboard','laporan','analysis']],['Order',['input','cs','toko','pelanggan','lacak']],['Produksi',['cekfile','produksi','qc','serah']],['Keuangan dan data',['bayar','stok','loss']],['Referensi',['layanan']],['Admin',['atur','pengguna','akses','data']],['Akun',['masuk','akun']]];
+const GRANTABLE=['dashboard','laporan','analysis','input','cs','toko','pelanggan','cekfile','produksi','qc','serah','bayar','stok','loss','layanan','lacak'];
 const STAFF_ROLES=Object.keys(ROLES).filter(r=>r!=='master');
 // Konstanta berikut harus sama dengan src/domain.ts (server yang menentukan harga dan aturan).
 const RETAIL={'DTF Logo':{s:'10 x 15 cm',w:15,l:10,p:[6000,5500,4500]},'DTF A':{s:'A5, 15 x 21 cm',w:21,l:15,p:[10000,9000,7000]},'DTF B':{s:'A4, 21 x 30 cm',w:30,l:21,p:[17000,16000,12000]},'DTF C':{s:'A3, 30 x 42 cm',w:42,l:30,p:[25000,23000,18000]},'DTF D':{s:'A2, 42 x 59 cm',w:59,l:42,p:[45000,41000,32000]}};
@@ -37,7 +37,7 @@ const ICONS={grid:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',chart:'M5
  user:'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',database:'M5 6c0-4 14-4 14 0s-14 4-14 0zM5 6v12c0 4 14 4 14 0V6M5 12c0 4 14 4 14 0',
  login:'M14 4h5v16h-5M3 12h11M10 8l4 4-4 4',logout:'M10 4H5v16h5M9 12h11M16 8l4 4-4 4',refresh:'M20 11a8 8 0 0 0-14-4.5L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4.5l2-2.5M20 20v-5h-5',
  truck:'M3 6h11v10H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',coins:'M4 7c0-3 11-3 11 0s-11 3-11 0zM4 7v8c0 2 4 3 7 2M4 11c0 2 4 3 7 2M11 15c0-3 10-3 10 0s-10 3-10 0zM11 15v4c0 3 10 3 10 0v-4',alert:'M12 4l10 17H2zM12 10v5M12 18h.01',camera:'M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',image:'M4 5h16v14H4zM4 16l5-5 5 5 2-2 4 4M15.5 9.5h.01'};
-const PAGE_ICON={masuk:'login',dashboard:'grid',laporan:'chart',input:'plusbox',cs:'headset',toko:'store',pelanggan:'users',lacak:'search',cekfile:'file',produksi:'layers',qc:'check',serah:'box',bayar:'wallet',stok:'archive',loss:'trend',layanan:'tag',atur:'sliders',pengguna:'user',akses:'shield',data:'database',akun:'user'};
+const PAGE_ICON={masuk:'login',dashboard:'grid',laporan:'chart',analysis:'trend',input:'plusbox',cs:'headset',toko:'store',pelanggan:'users',lacak:'search',cekfile:'file',produksi:'layers',qc:'check',serah:'box',bayar:'wallet',stok:'archive',loss:'trend',layanan:'tag',atur:'sliders',pengguna:'user',akses:'shield',data:'database',akun:'user'};
 function icon(name){const NS='http://www.w3.org/2000/svg',svg=document.createElementNS(NS,'svg'),p=document.createElementNS(NS,'path');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','i');svg.setAttribute('aria-hidden','true');p.setAttribute('d',ICONS[name]);svg.append(p);return svg;}
 
 let me=null,S=null,PUB=null;
@@ -417,6 +417,54 @@ V.dashboard=()=>{const from=since(),orders=S.orders.filter(o=>o.created>=from),n
 V.laporan=()=>{const group=(title,keys,get)=>card(h('h2',{},title),table([[title,k=>k[1]],['Order',k=>live().filter(o=>get(o)===k[0]).length],['Meter',k=>num(sumOf(live().filter(o=>get(o)===k[0]),o=>o.meter))],['Nilai order',k=>money(sumOf(live().filter(o=>get(o)===k[0]),o=>o.total))],['Dibayar',k=>money(sumOf(live().filter(o=>get(o)===k[0]),paidOf))]],keys));
  return[h('h1',{},'Report'),h('p',{class:'muted'},'Mencakup semua order berjalan dan 300 order selesai atau ditolak terakhir. Nilai order, pembayaran, dan loss sales dipisah.'),group('Layanan',[['dtf','DTF'],['sub','Sublim']],o=>o.service),group('Jenis customer',[['retail','Retail'],['maklon','B2B Maklon']],o=>o.type),group('Sumber order',[['WhatsApp','WhatsApp'],['Datang langsung','Datang langsung'],['Toko','Toko']],o=>o.source)];};
 
+// ---------- Analysis: rekap per periode dari server, dibandingkan periode sebelumnya ----------
+const ANA_PERIODS=[['day','Daily'],['week','Weekly'],['month','Monthly'],['year','Yearly']];
+let ana={period:'day',date:'',data:null,error:'',loading:false,key:''};
+async function loadAnalysis(){const key=ana.period+ana.date;ana={...ana,loading:true,error:'',key};
+ try{const data=await api('POST','/api/analytics',{period:ana.period,date:ana.date});if(ana.key!==key)return;ana={...ana,data,loading:false};}
+ catch(e){if(ana.key!==key)return;ana={...ana,data:null,loading:false,error:e.message};}
+ if(location.hash==='#analysis')render();}
+const anaRange=(a,b)=>a===b?dayText(a)+' '+a.slice(0,4):dayText(a)+' - '+dayText(b)+' '+b.slice(0,4);
+function delta(now,before,goodUp=true){if(now==null||before==null)return null;if(!before)return h('span',{class:'small muted'},now?'periode lalu 0':'sama');
+ const d=Math.round((now-before)/before*1000)/10;if(!d)return h('span',{class:'small muted'},'sama');
+ return h('span',{class:'small '+((d>0)===goodUp?'up':'down')},(d>0?'▲ ':'▼ ')+num(Math.abs(d))+'% dari periode lalu');}
+const pctText=v=>v==null?'Belum ada data':num(v)+'%';
+const targetTag=(v,ok,label)=>v==null?null:h('span',{class:'tag '+(ok?'ok':'bad')},label);
+const metric=(title,value,...extra)=>h('div',{class:'metric'},h('div',{class:'small muted'},title),h('div',{class:'kpi'+(String(value).length>11?' l':'')},value),extra);
+const SALES_NAME={dtf:'DTF',sub:'Sublim',retail:'Retail',maklon:'B2B Maklon'};
+/** Baris rekap yang sama dipakai untuk layar dan unduhan Excel. */
+function anaSheets(r){const c=r.current,p=r.previous,t=r.targets,u=v=>v??'';
+ return[['Ringkasan',['Ukuran','Periode ini','Periode lalu'],[['Order',c.summary.orders,p.summary.orders],['Meter',c.summary.meter,p.summary.meter],['Nilai order (Rp)',c.summary.value,p.summary.value],['Pembayaran diterima (Rp)',c.summary.paid,p.summary.paid],['Rata-rata per order (Rp)',c.summary.aov,p.summary.aov]]],
+  ['Produksi',['Mesin','Meter','Kapasitas (m)','Utilisasi (%)'],c.machines.map(m=>[MACHINES[m.machine].n,m.meter,u(m.capacity),u(m.util)])],
+  ['Mutu dan waktu',['Ukuran','Periode ini','Periode lalu','Target'],[['Order siap',c.ready.count,p.ready.count,''],['Tepat waktu (%)',u(c.ready.pct),u(p.ready.pct),'minimal '+t.ontimeMin],['Lead time lunas ke siap (jam)',u(c.ready.leadHours),u(p.ready.leadHours),''],['Reject (m)',c.quality.rejectM,p.quality.rejectM,''],['Reject (%)',u(c.quality.rejectPct),u(p.quality.rejectPct),'maksimal '+t.rejectMax],['Test print (m)',c.quality.testM,p.quality.testM,''],['Waste (m)',c.quality.wasteM,p.quality.wasteM,''],['Waste (%)',u(c.quality.wastePct),u(p.quality.wastePct),'maksimal '+t.wasteMax]]],
+  ...[['Per layanan',c.sales.service],['Per jenis customer',c.sales.type],['Per sumber order',c.sales.source],['10 customer terbesar',c.sales.top]].map(([n,list])=>[n,['Nama','Order','Meter','Nilai (Rp)'],list.map(x=>[SALES_NAME[x.key]||x.key,x.orders,x.meter,x.value])]),
+  ['Loss sales',['Alasan','Kejadian','Nilai (Rp)'],c.loss.reasons.map(x=>[x.reason,x.count,x.value])]];}
+// CSV dengan pemisah titik koma (pengaturan Excel Indonesia). Teks yang bisa dibaca sebagai rumus diberi apostrof.
+function downloadAnalysis(r){const cell=v=>{let s=typeof v==='number'?String(v).replace('.',','):String(v);if(typeof v!=='number'&&/^[=+\-@\t\r]/.test(s))s="'"+s;return'"'+s.replace(/"/g,'""')+'"';};
+ const lines=['sep=;',cell('SDP Print Hub - Analysis '+ANA_PERIODS.find(x=>x[0]===r.period)[1]),cell('Periode '+r.from+' s/d '+r.to+'; pembanding '+r.previousFrom+' s/d '+r.previousTo),''];
+ for(const[name,head,rows]of anaSheets(r))lines.push(cell(name),head.map(cell).join(';'),...rows.map(x=>x.map(cell).join(';')),'');
+ const url=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'})),link=h('a',{href:url,download:'SDP-analysis-'+r.period+'-'+r.from+'.csv'});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
+function anaBody(r){const c=r.current,p=r.previous,t=r.targets,q=c.quality;
+ const sales=(title,list)=>card(h('h2',{},title),table([['Nama',x=>SALES_NAME[x.key]||x.key],['Order',x=>x.orders],['Meter',x=>num(x.meter)],['Nilai order',x=>money(x.value)]],list));
+ return[h('p',{},h('b',{},anaRange(r.from,r.to)),h('span',{class:'muted'},' · dibandingkan '+anaRange(r.previousFrom,r.previousTo))),
+  h('h2',{class:'mt'},'Ringkasan'),h('div',{class:'metrics'},metric('Order',c.summary.orders,delta(c.summary.orders,p.summary.orders)),metric('Meter',num(c.summary.meter)+' m',delta(c.summary.meter,p.summary.meter)),metric('Nilai order',money(c.summary.value),delta(c.summary.value,p.summary.value)),metric('Pembayaran diterima',money(c.summary.paid),delta(c.summary.paid,p.summary.paid)),metric('Rata-rata per order',money(c.summary.aov),delta(c.summary.aov,p.summary.aov))),
+  h('h2',{class:'mt'},'Produksi dan mutu'),h('div',{class:'metrics'},metric('Tepat waktu',pctText(c.ready.pct),targetTag(c.ready.pct,c.ready.pct>=t.ontimeMin,'target minimal '+t.ontimeMin+'%'),h('span',{class:'small muted'},c.ready.ontime+' dari '+c.ready.count+' order siap')),
+   metric('Lead time lunas ke siap',c.ready.leadHours==null?'Belum ada data':num(c.ready.leadHours)+' jam',delta(c.ready.leadHours,p.ready.leadHours,false)),
+   metric('Reject',pctText(q.rejectPct),targetTag(q.rejectPct,q.rejectPct<=t.rejectMax,'target maksimal '+t.rejectMax+'%'),h('span',{class:'small muted'},num(q.rejectM)+' m dari '+num(q.produced)+' m')),
+   metric('Waste bahan',pctText(q.wastePct),targetTag(q.wastePct,q.wastePct<=t.wasteMax,'target maksimal '+t.wasteMax+'%'),h('span',{class:'small muted'},'waste '+num(q.wasteM)+' m · test print '+num(q.testM)+' m'))),
+  card(h('h2',{},'Utilisasi mesin'),table([['Mesin',m=>MACHINES[m.machine].n],['Meter selesai',m=>num(m.meter)],['Kapasitas periode',m=>m.capacity!=null?num(m.capacity)+' m':S.settings[MACHINES[m.machine].norm]?'Belum beroperasi':'Norma belum diatur'],['Utilisasi',m=>m.util==null?'-':h('div',{class:'capcell'},h('span',{},num(m.util)+'%'),h('span',{class:'bar'+(m.util>t.utilMax?' full':m.util<t.utilMin?' high':''),role:'img','aria-label':num(m.util)+'% utilisasi'},h('i',{style:'width:'+Math.min(100,m.util)+'%'})))],['Penilaian',m=>m.util==null?'-':h('span',{class:'tag '+(m.util>t.utilMax?'bad':m.util<t.utilMin?'warn':'ok')},m.util>t.utilMax?'Terlalu padat':m.util<t.utilMin?'Di bawah target':'Sesuai target')]],c.machines),h('p',{class:'small muted'},'Target utilisasi '+t.utilMin+' sampai '+t.utilMax+'%. Kapasitas dihitung dari jam efektif sejak order pertama sampai sekarang. Meter dihitung saat tahap akhir selesai; print sublim mengikuti press.')),
+  h('h2',{class:'mt'},'Penjualan'),h('div',{class:'grid'},sales('Per layanan',c.sales.service),sales('Per jenis customer',c.sales.type)),sales('Per sumber order',c.sales.source),
+  card(h('h2',{},'10 customer terbesar'),table([['Customer',x=>x.key],['Order',x=>x.orders],['Meter',x=>num(x.meter)],['Nilai order',x=>money(x.value)]],c.sales.top,'Belum ada order pada periode ini')),
+  card(h('h2',{},'Loss sales'),h('div',{class:'row'},h('span',{class:'total'},money(c.loss.value)),h('span',{class:'muted'},c.loss.count+' kejadian'),delta(c.loss.value,p.loss.value,false)),table([['Alasan',x=>x.reason],['Kejadian',x=>x.count],['Nilai',x=>money(x.value)]],c.loss.reasons,'Tidak ada loss sales pada periode ini'))];}
+V.analysis=()=>{const head=h('div',{},h('h1',{},'Analysis'),h('p',{class:'muted'},'Rekap Daily, Weekly (Senin sampai Sabtu), Monthly, dan Yearly dari seluruh data.'));
+ if(!(S.api>=7))return[head,card(h('p',{},'Analysis aktif setelah Code.gs diperbarui.'))];
+ if(!ana.date)ana.date=S.today;
+ if(ana.key!==ana.period+ana.date)loadAnalysis();
+ const date=h('input',{type:'date',value:ana.date,'aria-label':'Tanggal laporan',style:'width:auto',onchange:e=>{if(e.target.value){ana.date=e.target.value;render();}}});
+ return[head,h('div',{class:'row noprint'},h('div',{class:'tabs'},ANA_PERIODS.map(([k,n])=>h('button',{'aria-pressed':String(ana.period===k),onclick:()=>{ana.period=k;render();}},n))),date,
+   h('button',{onclick:()=>{ana.key='';render();}},icon('refresh'),'Hitung ulang'),ana.data&&!ana.loading?[h('button',{class:'pri',onclick:()=>downloadAnalysis(ana.data)},'Unduh Excel (CSV)'),h('button',{onclick:()=>print()},'Cetak / PDF')]:null),
+  ana.loading?spinner('Menghitung rekap…'):ana.error?card(h('p',{class:'err',role:'alert'},ana.error),h('button',{class:'pri',onclick:()=>{ana.key='';render();}},'Coba Lagi')):ana.data?anaBody(ana.data):null];};
+
 V.cs=()=>{const list=S.orders.filter(o=>['cek','revisi','bayar'].includes(o.status)),acting=is('cs','spv');
  return[h('h1',{},'Meja CS'),h('p',{class:'muted'},'Satu CS menangani DTF dan Sublim: terima file, teruskan permintaan revisi dari Operator, dan pastikan order lunas sebelum antrian.'),list.length?list.map(o=>{
  const why=sel('Alasan tolak',['Harga tidak cocok','Customer batal','Deadline tidak terkejar','Bahan habis','Double input'].map(x=>[x,x]));
@@ -606,7 +654,7 @@ function render(){
  document.getElementById('menu').replaceChildren(...GROUPS.flatMap(([title,keys])=>{const ks=keys.filter(k=>ok.includes(k));return ks.length?[h('span',{class:'grp'},title),...ks.map(k=>h('a',{href:'#'+k,'aria-current':k===p?'page':null},icon(PAGE_ICON[k]),PAGES[k]))]:[];}));
  if(p!==shownPage){shownPage=p;const nav=document.getElementById('menu'),on=nav.querySelector('[aria-current]');if(on){const n=nav.getBoundingClientRect(),r=on.getBoundingClientRect();if(r.top<n.top||r.bottom>n.bottom)nav.scrollTop+=r.top-n.top-n.height/2;if(r.left<n.left||r.right>n.right)nav.scrollLeft+=r.left-n.left-12;}}
  try{const made=S&&(p==='cs'||p==='toko')&&S.orders.find(o=>o.dbId===newOrder);
-  const top=[S&&!(S.api>=6)?h('div',{class:'card notice',role:'alert'},h('b',{},'Server spreadsheet belum diperbarui. '),'Tempel Code.gs terbaru di Apps Script lalu deploy versi baru. Sebelum itu fitur terbaru (misalnya rekomendasi roll) belum aktif.'):null,
+  const top=[S&&!(S.api>=7)?h('div',{class:'card notice',role:'alert'},h('b',{},'Server spreadsheet belum diperbarui. '),'Tempel Code.gs terbaru di Apps Script lalu deploy versi baru. Sebelum itu fitur terbaru (misalnya panel Analysis) belum aktif.'):null,
    made?h('div',{class:'card notice ok'},h('div',{class:'row'},h('h2',{},'Order '+made.id+' tersimpan'),h('button',{onclick:()=>{newOrder=null;render();}},'Tutup')),h('p',{},'Kirim nomor resi ini ke customer untuk melacak order.'),resiBox(made)):null];
   document.getElementById('view').replaceChildren(...[top,V[p]()].flat(Infinity).filter(Boolean));}
  catch(e){console.error(e);document.getElementById('view').replaceChildren(card(h('p',{},'Halaman gagal ditampilkan: '+e.message)));}

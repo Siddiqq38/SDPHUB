@@ -44,6 +44,13 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 - Saat **Selesai curing / cetak / press**, roll saran sudah terisi. Operator menambah test print, reject, atau waste. Memakai roll di luar saran wajib diberi alasan.
 - Bila bahan belum pernah di-GR, produksi tetap bisa diselesaikan tanpa catatan bahan.
 
+## Analysis
+
+- Akses: Master, Manager, SPV, dan FAT. Pilih **Daily, Weekly, Monthly, Yearly** dan tanggalnya; angka dibandingkan dengan periode sebelumnya (harian: hari kerja sebelumnya).
+- Target: tepat waktu minimal 95%, reject maksimal 2%, waste maksimal 3%, utilisasi mesin 70 sampai 90%.
+- Tepat waktu: dikemas sebelum deadline, atau sebelum SLA bila tanpa deadline. Meter produksi dihitung saat tahap akhir selesai.
+- **Unduh Excel (CSV)** atau **Cetak / PDF**.
+
 ## Monitoring produksi
 
 - Buka **Antrian Produksi**: ikon printer per mesin menunjukkan order yang sedang dikerjakan. Arahkan kursor (di HP: ketuk) untuk melihat order dan customer.

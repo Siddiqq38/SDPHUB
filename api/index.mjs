@@ -23602,9 +23602,9 @@ var require_postgres_interval = __commonJS({
     var NUMBER = "([+-]?\\d+)";
     var YEAR = NUMBER + "\\s+years?";
     var MONTH = NUMBER + "\\s+mons?";
-    var DAY3 = NUMBER + "\\s+days?";
+    var DAY4 = NUMBER + "\\s+days?";
     var TIME = "([+-])?([\\d]*):(\\d\\d):(\\d\\d)\\.?(\\d{1,6})?";
-    var INTERVAL = new RegExp([YEAR, MONTH, DAY3, TIME].map(function(regexString) {
+    var INTERVAL = new RegExp([YEAR, MONTH, DAY4, TIME].map(function(regexString) {
       return "(" + regexString + ")?";
     }).join("\\s*"));
     var positions = {
@@ -31943,17 +31943,17 @@ function validUsername(u) {
 
 // src/domain.ts
 var ROLES = ["master", "manager", "spv", "cs", "crm", "store", "op", "qc", "gudang", "fat"];
-var GRANTABLE = ["dashboard", "laporan", "input", "cs", "toko", "pelanggan", "cekfile", "produksi", "qc", "serah", "bayar", "stok", "loss", "layanan", "lacak"];
+var GRANTABLE = ["dashboard", "laporan", "analysis", "input", "cs", "toko", "pelanggan", "cekfile", "produksi", "qc", "serah", "bayar", "stok", "loss", "layanan", "lacak"];
 var ACCESS_DEFAULT = {
-  manager: ["dashboard", "laporan", "pelanggan", "produksi", "bayar", "stok", "loss", "layanan", "lacak"],
-  spv: ["dashboard", "laporan", "cs", "cekfile", "produksi", "qc", "serah", "stok", "loss", "layanan", "lacak"],
+  manager: ["dashboard", "laporan", "analysis", "pelanggan", "produksi", "bayar", "stok", "loss", "layanan", "lacak"],
+  spv: ["dashboard", "laporan", "analysis", "cs", "cekfile", "produksi", "qc", "serah", "stok", "loss", "layanan", "lacak"],
   cs: ["dashboard", "input", "cs", "pelanggan", "bayar", "produksi", "serah", "stok", "loss", "layanan", "lacak"],
   crm: ["pelanggan", "layanan", "lacak"],
   store: ["input", "toko", "layanan", "lacak"],
   op: ["cekfile", "produksi", "qc", "stok"],
   qc: ["qc", "produksi"],
   gudang: ["stok", "serah"],
-  fat: ["bayar", "laporan", "layanan", "lacak"]
+  fat: ["bayar", "laporan", "analysis", "layanan", "lacak"]
 };
 var ORDER_PAGES = ["dashboard", "laporan", "input", "cs", "toko", "pelanggan", "cekfile", "produksi", "qc", "serah", "bayar"];
 var RETAIL = {
@@ -33273,7 +33273,7 @@ stateRoutes.get("/", async (c) => {
   const has = (...p) => p.some((x) => pages.includes(x));
   const raw2 = await loadSettings(db);
   const out = {
-    api: 6,
+    api: 7,
     // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
@@ -33648,6 +33648,140 @@ publicRoutes.get("/track/:code", async (c) => {
   });
 });
 
+// src/lib/analytics.ts
+var TARGETS = { ontimeMin: 95, rejectMax: 2, wasteMax: 3, utilMin: 70, utilMax: 90 };
+var DAY3 = 864e5;
+var round1 = (n) => Math.round(n * 10) / 10;
+var pct = (a, b) => b > 0 ? round1(a / b * 100) : null;
+var dayStart2 = (day, cal) => Date.parse(day + "T00:00:00Z") - cal.offsetMin * 6e4;
+var iso = (t) => new Date(t).toISOString().slice(0, 10);
+function ranges(period, date, cal) {
+  const base = Date.parse(date + "T00:00:00Z");
+  const d = new Date(base);
+  let first = date, next, previous;
+  if (period === "day") {
+    next = iso(base + DAY3);
+    let p = base - DAY3;
+    for (let i = 0; i < 14 && !effectiveSeconds(dayStart2(iso(p), cal), dayStart2(iso(p), cal) + DAY3, cal); i++) p -= DAY3;
+    previous = iso(p);
+  } else if (period === "week") {
+    const monday = base - (d.getUTCDay() + 6) % 7 * DAY3;
+    first = iso(monday);
+    next = iso(monday + 7 * DAY3);
+    previous = iso(monday - 7 * DAY3);
+  } else if (period === "month") {
+    first = iso(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+    next = iso(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+    previous = iso(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1));
+  } else {
+    first = `${d.getUTCFullYear()}-01-01`;
+    next = `${d.getUTCFullYear() + 1}-01-01`;
+    previous = `${d.getUTCFullYear() - 1}-01-01`;
+  }
+  const current = { from: dayStart2(first, cal), to: dayStart2(next, cal) };
+  const prev = period === "day" ? { from: dayStart2(previous, cal), to: dayStart2(previous, cal) + DAY3 } : { from: dayStart2(previous, cal), to: current.from };
+  return { current, previous: prev };
+}
+function summarize(data, range, now2, cfg) {
+  const inside = (t) => t != null && t >= range.from && t < range.to;
+  const sum = (list, f) => list.reduce((a, x) => a + f(x), 0);
+  const created = data.orders.filter((o) => inside(o.created_at) && o.status !== "ditolak");
+  const value = sum(created, (o) => o.total);
+  const summary = {
+    orders: created.length,
+    meter: round1(sum(created, (o) => o.meter)),
+    value,
+    paid: sum(data.payments.filter((p) => inside(p.at)), (p) => p.amount),
+    aov: created.length ? Math.round(value / created.length) : 0
+  };
+  const finished = data.orders.filter((o) => inside(o.finished_at));
+  const meterOf2 = (service) => sum(finished.filter((o) => o.service === service), (o) => o.meter);
+  const end = Math.min(range.to, now2);
+  const begin = data.firstOrderAt === null ? end : Math.max(range.from, dayStart2(localDay(data.firstOrderAt, cfg.cal), cfg.cal));
+  const machines = ["dtf", "subp", "cal"].map((m) => {
+    const meter = round1(meterOf2(m === "dtf" ? "dtf" : "sub"));
+    const norm2 = cfg.norms[m];
+    const capacity = norm2 && end > begin ? round1(effectiveSeconds(begin, end, cfg.cal) / norm2) : null;
+    return { machine: m, meter, capacity, util: capacity ? pct(meter, capacity) : null };
+  });
+  const byId = new Map(data.orders.map((o) => [o.id, o]));
+  const done = data.ready.filter((r) => inside(r.at) && byId.has(r.id)).map((r) => ({ o: byId.get(r.id), at: r.at }));
+  const onTime = done.filter(({ o, at }) => at <= (o.deadline ? deadlineTime(o.deadline, cfg.cal) : slaDue(o.approved_at ?? o.created_at, cfg.cal))).length;
+  const leads = done.filter(({ o }) => o.approved_at).map(({ o, at }) => (at - o.approved_at) / 36e5);
+  const ready = { count: done.length, ontime: onTime, pct: pct(onTime, done.length), leadHours: leads.length ? round1(sum(leads, (x) => x) / leads.length) : null };
+  const produced = round1(sum(finished, (o) => o.meter));
+  const rejectM = round1(sum(data.logs.filter((l) => l.type === "Reject" && inside(l.at)), (l) => Number(/([0-9]+(?:\.[0-9]+)?) m /.exec(l.reason)?.[1] ?? 0)));
+  const used = data.ledger.filter((l) => inside(l.at) && l.qty < 0 && data.meterSkus.includes(l.sku_code) && ["Produksi", "Test print", "Reject", "Waste"].includes(l.type));
+  const usedOf = (type) => round1(sum(used.filter((l) => !type || l.type === type), (l) => -l.qty));
+  const quality = { produced, rejectM, rejectPct: pct(rejectM, produced), usedM: usedOf(), testM: usedOf("Test print"), wasteM: usedOf("Waste"), wastePct: pct(usedOf("Waste"), usedOf()) };
+  const group = (keys, of) => keys.map((key) => {
+    const list = created.filter((o) => of(o) === key);
+    return { key, orders: list.length, meter: round1(sum(list, (o) => o.meter)), value: sum(list, (o) => o.total) };
+  });
+  const names = [...new Set(created.map((o) => o.customer_name))];
+  const sales = {
+    service: group(["dtf", "sub"], (o) => o.service),
+    type: group(["retail", "maklon"], (o) => o.type),
+    source: group(["WhatsApp", "Datang langsung", "Toko"], (o) => o.source),
+    top: group(names, (o) => o.customer_name).sort((a, b) => b.value - a.value || (a.key < b.key ? -1 : 1)).slice(0, 10)
+  };
+  const lost = data.logs.filter((l) => l.type === "Loss Sales" && l.counted && inside(l.at));
+  const reasonOf = (r) => r.startsWith("Kapasitas penuh") ? "Kapasitas penuh" : r;
+  const reasons = [...new Set(lost.map((l) => reasonOf(l.reason)))].map((reason) => {
+    const list = lost.filter((l) => reasonOf(l.reason) === reason);
+    return { reason, count: list.length, value: sum(list, (l) => l.value ?? 0) };
+  }).sort((a, b) => b.value - a.value || (a.reason < b.reason ? -1 : 1));
+  const loss = { count: lost.length, value: sum(lost, (l) => l.value ?? 0), reasons };
+  return { summary, machines, ready, quality, sales, loss };
+}
+function report(data, period, date, now2, cfg) {
+  const r = ranges(period, date, cfg.cal);
+  return {
+    period,
+    date,
+    targets: TARGETS,
+    from: localDay(r.current.from, cfg.cal),
+    to: localDay(r.current.to - 1, cfg.cal),
+    previousFrom: localDay(r.previous.from, cfg.cal),
+    previousTo: localDay(r.previous.to - 1, cfg.cal),
+    current: summarize(data, r.current, now2, cfg),
+    previous: summarize(data, r.previous, now2, cfg)
+  };
+}
+
+// src/routes/analytics.ts
+var analyticsRoutes = new Hono3();
+analyticsRoutes.use("*", authn);
+analyticsRoutes.post("/", async (c) => {
+  await allow(c, ["manager", "spv", "fat"], "analysis");
+  const b = await readJson(c);
+  const period = oneOf(b, "period", ["day", "week", "month", "year"]);
+  const date = reqStr(b, "date", 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date + "T00:00:00Z"))) throw bad("Tanggal tidak valid");
+  const db = c.env.DB;
+  const cfg = planConfig(await loadSettings(db));
+  const since = ranges(period, date, cfg.cal).previous.from;
+  const all = async (sql, ...args) => (await db.prepare(sql).bind(...args).all()).results;
+  const ready = (await all("SELECT entity_id, at FROM audit_log WHERE action IN ('packed','pack') AND at >= ?", since)).map((r) => ({ id: Number(r.entity_id), at: r.at }));
+  const data = {
+    orders: await all(
+      `SELECT id, service, type, source, status, stage, customer_name, meter, total, deadline, created_at, approved_at, finished_at FROM orders
+       WHERE created_at >= ? OR finished_at >= ? OR id IN (SELECT entity_id::bigint FROM audit_log WHERE action IN ('packed','pack') AND at >= ?) ORDER BY id`,
+      since,
+      since,
+      since
+    ),
+    payments: await all("SELECT amount, at FROM payments WHERE at >= ?", since),
+    logs: await all("SELECT type, reason, value, counted, at FROM logs WHERE at >= ? ORDER BY id", since),
+    ledger: await all("SELECT sku_code, type, qty, at FROM stock_ledger WHERE at >= ?", since),
+    meterSkus: (await all("SELECT code FROM skus WHERE unit = 'meter' ORDER BY code")).map((k) => k.code).filter((k) => !PACKAGE_SKUS.includes(k)),
+    ready,
+    firstOrderAt: (await all("SELECT MIN(created_at) AS t FROM orders"))[0].t
+  };
+  c.header("Cache-Control", "private, no-store");
+  return c.json(report(data, period, date, now(), cfg));
+});
+
 // src/index.ts
 function createApp(getEnv) {
   const app2 = new Hono3();
@@ -33670,6 +33804,7 @@ function createApp(getEnv) {
   app2.route("/api/orders", orderRoutes);
   app2.route("/api/capacity", capacityRoutes);
   app2.route("/api/stock", inventoryRoutes);
+  app2.route("/api/analytics", analyticsRoutes);
   app2.route("/api/files", fileRoutes);
   app2.route("/api/manage", manageRoutes);
   app2.route("/api", opsRoutes);

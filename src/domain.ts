@@ -3,19 +3,19 @@
 export const ROLES = ['master', 'manager', 'spv', 'cs', 'crm', 'store', 'op', 'qc', 'gudang', 'fat'] as const;
 export type Role = (typeof ROLES)[number];
 
-export const GRANTABLE = ['dashboard', 'laporan', 'input', 'cs', 'toko', 'pelanggan', 'cekfile', 'produksi', 'qc', 'serah', 'bayar', 'stok', 'loss', 'layanan', 'lacak'] as const;
+export const GRANTABLE = ['dashboard', 'laporan', 'analysis', 'input', 'cs', 'toko', 'pelanggan', 'cekfile', 'produksi', 'qc', 'serah', 'bayar', 'stok', 'loss', 'layanan', 'lacak'] as const;
 export type Page = (typeof GRANTABLE)[number] | 'atur' | 'pengguna' | 'akses' | 'data' | 'akun';
 
 export const ACCESS_DEFAULT: Record<Exclude<Role, 'master'>, Page[]> = {
-  manager: ['dashboard', 'laporan', 'pelanggan', 'produksi', 'bayar', 'stok', 'loss', 'layanan', 'lacak'],
-  spv: ['dashboard', 'laporan', 'cs', 'cekfile', 'produksi', 'qc', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
+  manager: ['dashboard', 'laporan', 'analysis', 'pelanggan', 'produksi', 'bayar', 'stok', 'loss', 'layanan', 'lacak'],
+  spv: ['dashboard', 'laporan', 'analysis', 'cs', 'cekfile', 'produksi', 'qc', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
   cs: ['dashboard', 'input', 'cs', 'pelanggan', 'bayar', 'produksi', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
   crm: ['pelanggan', 'layanan', 'lacak'],
   store: ['input', 'toko', 'layanan', 'lacak'],
   op: ['cekfile', 'produksi', 'qc', 'stok'],
   qc: ['qc', 'produksi'],
   gudang: ['stok', 'serah'],
-  fat: ['bayar', 'laporan', 'layanan', 'lacak'],
+  fat: ['bayar', 'laporan', 'analysis', 'layanan', 'lacak'],
 };
 
 // Menu yang menampilkan data order. Tanpa salah satunya, data order tidak dikirim ke browser.
