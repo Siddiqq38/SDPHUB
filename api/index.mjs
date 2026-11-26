@@ -23370,14 +23370,14 @@ var require_postgres_array = __commonJS({
         this.recorded.push(character);
       }
       newEntry(includeEmpty) {
-        var entry;
+        var entry2;
         if (this.recorded.length > 0 || includeEmpty) {
-          entry = this.recorded.join("");
-          if (entry === "NULL" && !includeEmpty) {
-            entry = null;
+          entry2 = this.recorded.join("");
+          if (entry2 === "NULL" && !includeEmpty) {
+            entry2 = null;
           }
-          if (entry !== null) entry = this.transform(entry);
-          this.entries.push(entry);
+          if (entry2 !== null) entry2 = this.transform(entry2);
+          this.entries.push(entry2);
           this.recorded = [];
         }
       }
@@ -23708,19 +23708,19 @@ var require_textParsers = __commonJS({
     }
     function parseBigIntegerArray(value) {
       if (!value) return null;
-      return array.parse(value, allowNull(function(entry) {
-        return parseBigInteger(entry).trim();
+      return array.parse(value, allowNull(function(entry2) {
+        return parseBigInteger(entry2).trim();
       }));
     }
     var parsePointArray = function(value) {
       if (!value) {
         return null;
       }
-      var p = arrayParser.create(value, function(entry) {
-        if (entry !== null) {
-          entry = parsePoint(entry);
+      var p = arrayParser.create(value, function(entry2) {
+        if (entry2 !== null) {
+          entry2 = parsePoint(entry2);
         }
-        return entry;
+        return entry2;
       });
       return p.parse();
     };
@@ -23728,11 +23728,11 @@ var require_textParsers = __commonJS({
       if (!value) {
         return null;
       }
-      var p = arrayParser.create(value, function(entry) {
-        if (entry !== null) {
-          entry = parseFloat(entry);
+      var p = arrayParser.create(value, function(entry2) {
+        if (entry2 !== null) {
+          entry2 = parseFloat(entry2);
         }
-        return entry;
+        return entry2;
       });
       return p.parse();
     };
@@ -23747,11 +23747,11 @@ var require_textParsers = __commonJS({
       if (!value) {
         return null;
       }
-      var p = arrayParser.create(value, function(entry) {
-        if (entry !== null) {
-          entry = parseDate(entry);
+      var p = arrayParser.create(value, function(entry2) {
+        if (entry2 !== null) {
+          entry2 = parseDate(entry2);
         }
-        return entry;
+        return entry2;
       });
       return p.parse();
     };
@@ -23759,11 +23759,11 @@ var require_textParsers = __commonJS({
       if (!value) {
         return null;
       }
-      var p = arrayParser.create(value, function(entry) {
-        if (entry !== null) {
-          entry = parseInterval(entry);
+      var p = arrayParser.create(value, function(entry2) {
+        if (entry2 !== null) {
+          entry2 = parseInterval(entry2);
         }
-        return entry;
+        return entry2;
       });
       return p.parse();
     };
@@ -24909,8 +24909,8 @@ var require_pg_connection_string = __commonJS({
         err.input && (err.input = "*****REDACTED*****");
         throw err;
       }
-      for (const entry of result.searchParams.entries()) {
-        config[entry[0]] = entry[1];
+      for (const entry2 of result.searchParams.entries()) {
+        config[entry2[0]] = entry2[1];
       }
       config.user = config.user || decodeURIComponent(result.username);
       config.password = config.password || decodeURIComponent(result.password);
@@ -26839,23 +26839,23 @@ var require_helper2 = __commonJS({
       }
       return true;
     };
-    var matcher = module.exports.match = function(connInfo, entry) {
+    var matcher = module.exports.match = function(connInfo, entry2) {
       return fieldNames.slice(0, -1).reduce(function(prev, field, idx) {
         if (idx == 1) {
-          if (Number(connInfo[field] || defaultPort) === Number(entry[field])) {
+          if (Number(connInfo[field] || defaultPort) === Number(entry2[field])) {
             return prev && true;
           }
         }
-        return prev && (entry[field] === "*" || entry[field] === connInfo[field]);
+        return prev && (entry2[field] === "*" || entry2[field] === connInfo[field]);
       }, true);
     };
     module.exports.getPassword = function(connInfo, stream, cb) {
       var pass;
       var lineStream = stream.pipe(split());
       function onLine(line) {
-        var entry = parseLine(line);
-        if (entry && isValidEntry(entry) && matcher(connInfo, entry)) {
-          pass = entry[passKey];
+        var entry2 = parseLine(line);
+        if (entry2 && isValidEntry(entry2) && matcher(connInfo, entry2)) {
+          pass = entry2[passKey];
           lineStream.end();
         }
       }
@@ -26906,7 +26906,7 @@ var require_helper2 = __commonJS({
       obj = Object.keys(obj).length === nrOfFields ? obj : null;
       return obj;
     };
-    var isValidEntry = module.exports.isValidEntry = function(entry) {
+    var isValidEntry = module.exports.isValidEntry = function(entry2) {
       var rules = {
         // host
         0: function(x) {
@@ -26935,7 +26935,7 @@ var require_helper2 = __commonJS({
       };
       for (var idx = 0; idx < fieldNames.length; idx += 1) {
         var rule2 = rules[idx];
-        var value = entry[fieldNames[idx]] || "";
+        var value = entry2[fieldNames[idx]] || "";
         var res = rule2(value);
         if (!res) {
           return false;
@@ -31947,7 +31947,7 @@ var GRANTABLE = ["dashboard", "laporan", "input", "cs", "toko", "pelanggan", "ce
 var ACCESS_DEFAULT = {
   manager: ["dashboard", "laporan", "pelanggan", "produksi", "bayar", "stok", "loss", "layanan", "lacak"],
   spv: ["dashboard", "laporan", "cs", "cekfile", "produksi", "qc", "serah", "stok", "loss", "layanan", "lacak"],
-  cs: ["dashboard", "input", "cs", "pelanggan", "bayar", "produksi", "serah", "loss", "layanan", "lacak"],
+  cs: ["dashboard", "input", "cs", "pelanggan", "bayar", "produksi", "serah", "stok", "loss", "layanan", "lacak"],
   crm: ["pelanggan", "layanan", "lacak"],
   store: ["input", "toko", "layanan", "lacak"],
   op: ["cekfile", "produksi", "qc", "stok"],
@@ -32549,7 +32549,6 @@ capacityRoutes.post("/overtime", async (c) => {
 var orderRoutes = new Hono3();
 orderRoutes.use("*", authn);
 var METHODS2 = ["Transfer", "QRIS", "Tunai"];
-var round2 = (n) => Math.round(n * 100) / 100;
 async function withOrder(c, id, fn) {
   return c.env.DB.tx(async (db) => {
     const o = await db.prepare("SELECT * FROM orders WHERE id = ? FOR UPDATE").bind(id).first();
@@ -32695,18 +32694,18 @@ orderRoutes.post("/:id/reject", async (c) => {
 orderRoutes.post("/:id/payments", async (c) => {
   await allow(c, ["cs", "store"]);
   const b = await readJson(c);
-  const amount = reqNum(b, "amount", 0);
-  if (!Number.isInteger(amount)) throw bad("Nominal rupiah harus bilangan bulat");
+  const amount2 = reqNum(b, "amount", 0);
+  if (!Number.isInteger(amount2)) throw bad("Nominal rupiah harus bilangan bulat");
   const method = oneOf(b, "method", METHODS2);
   const requestKey = reqStr(b, "request_key", 64);
   return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
     if (await db.prepare("SELECT 1 FROM payments WHERE request_key = ?").bind(requestKey).first()) return { ok: true, duplicate: true, released: false };
     if (o.status === "ditolak") throw conflict("Order sudah ditolak");
     const left = o.total - await paidOf(db, o.id);
-    if (amount > left) throw conflict(`Nominal melebihi sisa tagihan (${left})`);
-    await db.prepare("INSERT INTO payments (order_id, amount, method, by_user, at, request_key) VALUES (?,?,?,?,?,?)").bind(o.id, amount, method, c.get("user").code, now(), requestKey).run();
+    if (amount2 > left) throw conflict(`Nominal melebihi sisa tagihan (${left})`);
+    await db.prepare("INSERT INTO payments (order_id, amount, method, by_user, at, request_key) VALUES (?,?,?,?,?,?)").bind(o.id, amount2, method, c.get("user").code, now(), requestKey).run();
     const released = await release(db, o.id);
-    await audit(db, c.get("user").id, "payment_recorded", "order", o.id, { amount });
+    await audit(db, c.get("user").id, "payment_recorded", "order", o.id, { amount: amount2 });
     return { ok: true, released };
   }), 201);
 });
@@ -32759,19 +32758,13 @@ orderRoutes.post("/:id/finish", async (c) => {
       process2 = `${temp} \xB0C, ${sec} detik`;
     }
     const meter = o.rework_m ?? o.meter;
-    const skus = await db.prepare("SELECT code, use_per_m FROM skus WHERE machine = ? AND use_per_m IS NOT NULL AND use_per_m > 0").bind(o.stage).all();
-    for (const k of skus.results) {
-      const q = round2(k.use_per_m * meter);
-      await db.prepare("UPDATE skus SET stock = ROUND((stock - ?)::numeric, 2) WHERE code = ?").bind(q, k.code).run();
-      await db.prepare("INSERT INTO stock_ledger (sku_code, type, qty, ref, by_user, at) VALUES (?, 'Pakai', ?,?,?,?)").bind(k.code, -q, o.order_no, c.get("user").code, now()).run();
-    }
     if (o.stage === "subp") {
       await db.prepare("UPDATE orders SET status = 'antrian', stage = 'cal' WHERE id = ?").bind(o.id).run();
     } else {
       await db.prepare("UPDATE orders SET status = 'qc', process = ?, finished_at = ? WHERE id = ?").bind(process2, now(), o.id).run();
     }
     await audit(db, c.get("user").id, "production_finish", "order", o.id, { stage: o.stage, meter });
-    return { ok: true, next: o.stage === "subp" ? "press" : "qc", deducted: skus.results.length };
+    return { ok: true, next: o.stage === "subp" ? "press" : "qc" };
   }));
 });
 orderRoutes.post("/:id/qc", async (c) => {
@@ -32892,32 +32885,6 @@ opsRoutes.post("/customers/import", async (c) => {
   });
   return c.json({ ok: true, added, skipped: rows.length - added }, 201);
 });
-opsRoutes.post("/stock/move", async (c) => {
-  await allow(c, ["gudang", "op", "spv"], "stok");
-  const b = await readJson(c);
-  const code = reqStr(b, "sku", 60);
-  const type = oneOf(b, "type", ["Stok masuk", "Waste", "Cleaning", "Koreksi kurang"]);
-  const qty = reqNum(b, "qty", 0);
-  const delta = type === "Stok masuk" ? qty : -qty;
-  await c.env.DB.tx(async (db) => {
-    const k = await db.prepare("SELECT stock FROM skus WHERE code = ? FOR UPDATE").bind(code).first();
-    if (!k) throw notFound("SKU tidak ditemukan");
-    if (k.stock + delta < 0) throw conflict("Stok tidak cukup");
-    await db.prepare("UPDATE skus SET stock = ROUND((stock + ?)::numeric, 2) WHERE code = ?").bind(delta, code).run();
-    await db.prepare("INSERT INTO stock_ledger (sku_code, type, qty, ref, by_user, at) VALUES (?,?,?,?,?,?)").bind(code, type, delta, optStr(b, "ref", 100) ?? "manual", c.get("user").code, now()).run();
-  });
-  return c.json({ ok: true }, 201);
-});
-opsRoutes.put("/stock/sku/:code", async (c) => {
-  await allow(c, ["gudang", "spv"], "stok");
-  const b = await readJson(c);
-  const min = reqNum(b, "min", 0, true);
-  const use = b.use === null || b.use === "" ? null : reqNum(b, "use", 0, true);
-  const r = await c.env.DB.prepare("UPDATE skus SET min_stock = ?, use_per_m = ? WHERE code = ?").bind(min, use, c.req.param("code")).run();
-  if (!r.meta.changes) throw notFound("SKU tidak ditemukan");
-  await audit(c.env.DB, c.get("user").id, "sku_updated", "sku", c.req.param("code"), { min, use });
-  return c.json({ ok: true });
-});
 opsRoutes.post("/admin/users", async (c) => {
   await allow(c, []);
   const b = await readJson(c);
@@ -33030,7 +32997,7 @@ stateRoutes.get("/", async (c) => {
   const has = (...p) => p.some((x) => pages.includes(x));
   const raw2 = await loadSettings(db);
   const out = {
-    api: 4,
+    api: 5,
     // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
@@ -33104,10 +33071,15 @@ stateRoutes.get("/", async (c) => {
     out.customers = (await db.prepare("SELECT id, code, name, wa, source, status FROM customers ORDER BY name LIMIT 5000").all()).results;
   }
   if (has("stok", "dashboard")) {
-    out.skus = (await db.prepare("SELECT code, name, svc, unit, stock, min_stock AS min, use_per_m AS use, machine FROM skus ORDER BY code").all()).results;
+    out.skus = (await db.prepare(`SELECT code, name, svc, unit, ROUND((SELECT COALESCE(SUM(l.qty_left), 0) FROM lots l WHERE l.sku_code = skus.code AND l.status = 'tersedia')::numeric, 3)::float8 AS stock, min_stock AS min, machine FROM skus ORDER BY code`).all()).results;
   }
   if (has("stok")) {
-    out.ledger = (await db.prepare("SELECT at, sku_code AS code, type, qty, ref FROM stock_ledger ORDER BY id DESC LIMIT 50").all()).results;
+    out.lots = (await db.prepare(
+      `SELECT lot_code AS lot, sku_code AS sku, batch, qty_initial AS initial, qty_left AS left, bin, status, supplier, doc_no AS doc, received_by AS by, received_at AS at
+       FROM lots WHERE status <> 'habis' OR id IN (SELECT id FROM lots WHERE status = 'habis' ORDER BY id DESC LIMIT 100) ORDER BY id`
+    ).all()).results;
+    out.bins = (await db.prepare("SELECT code, note FROM bins ORDER BY code").all()).results;
+    out.ledger = (await db.prepare("SELECT at, sku_code AS code, lot_code AS lot, type, qty, ref, note, by_user AS by FROM stock_ledger ORDER BY id DESC LIMIT 200").all()).results;
   }
   if (has("loss", "dashboard", "laporan")) {
     out.loss = (await db.prepare('SELECT id AS "logId", order_no AS id, type, reason, value, counted AS count, at FROM logs ORDER BY id DESC LIMIT 300').all()).results;
@@ -33138,6 +33110,179 @@ stateRoutes.get("/", async (c) => {
   return c.json(out);
 });
 
+// src/routes/inventory.ts
+var RECEIVERS = ["gudang", "op", "cs", "spv", "manager"];
+var USERS_OF_STOCK = ["gudang", "op", "spv"];
+var KEEPERS = ["gudang", "spv"];
+var USAGE = { produksi: "Produksi", test: "Test print", reject: "Reject", waste: "Waste" };
+var round3 = (n) => Math.round(n * 1e3) / 1e3;
+var CODE = /^[A-Z0-9][A-Z0-9._-]{1,29}$/;
+var codeOf = (b, k, label) => {
+  const v = reqStr(b, k, 30).toUpperCase();
+  if (!CODE.test(v)) throw bad(`${label} 2 sampai 30 huruf, angka, titik, garis, tanpa spasi`);
+  return v;
+};
+var amount = (v, label) => {
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1e6 || Math.abs(round3(v) - v) > 1e-9) throw bad(`${label} harus angka 0 atau lebih, maksimal 3 angka desimal`);
+  return v;
+};
+async function recount(db, sku) {
+  await db.prepare("UPDATE skus SET stock = ROUND((SELECT COALESCE(SUM(qty_left), 0) FROM lots WHERE sku_code = ? AND status = 'tersedia')::numeric, 3) WHERE code = ?").bind(sku, sku).run();
+}
+async function lotOf(db, code) {
+  const lot = await db.prepare("SELECT * FROM lots WHERE lot_code = ? FOR UPDATE").bind(code).first();
+  if (!lot) throw notFound("Roll / lot tidak ditemukan");
+  return lot;
+}
+var entry = (db, sku, lot, type, qty, ref, note, by, key = null) => db.prepare("INSERT INTO stock_ledger (sku_code, lot_code, type, qty, ref, note, by_user, at, request_key) VALUES (?,?,?,?,?,?,?,?,?)").bind(sku, lot, type, qty, ref, note, by, now(), key).run();
+var inventoryRoutes = new Hono3();
+inventoryRoutes.use("*", authn);
+inventoryRoutes.post("/sku", async (c) => {
+  await allow(c, KEEPERS, "stok");
+  const b = await readJson(c);
+  const code = codeOf(b, "code", "Kode SKU");
+  const machine = oneOf(b, "machine", ["dtf", "subp", "cal"]);
+  const unit = oneOf(b, "unit", ["meter", "ml", "gram", "pcs"]);
+  const min = reqNum(b, "min", 0, true);
+  const name = reqStr(b, "name", 150);
+  if (await c.env.DB.prepare("SELECT 1 FROM skus WHERE code = ?").bind(code).first()) throw conflict("Kode SKU sudah dipakai");
+  await c.env.DB.prepare("INSERT INTO skus (code, name, svc, unit, stock, min_stock, machine) VALUES (?,?,?,?,0,?,?)").bind(code, name, machine === "dtf" ? "dtf" : "sub", unit, min, machine).run();
+  await audit(c.env.DB, c.get("user").id, "sku_created", "sku", code);
+  return c.json({ ok: true }, 201);
+});
+inventoryRoutes.put("/sku/:code", async (c) => {
+  await allow(c, KEEPERS, "stok");
+  const b = await readJson(c);
+  const min = reqNum(b, "min", 0, true);
+  const r = await c.env.DB.prepare("UPDATE skus SET min_stock = ? WHERE code = ?").bind(min, c.req.param("code")).run();
+  if (!r.meta.changes) throw notFound("SKU tidak ditemukan");
+  await audit(c.env.DB, c.get("user").id, "sku_updated", "sku", c.req.param("code"), { min });
+  return c.json({ ok: true });
+});
+inventoryRoutes.post("/bin", async (c) => {
+  await allow(c, KEEPERS, "stok");
+  const b = await readJson(c);
+  const code = codeOf(b, "code", "Kode bin");
+  await c.env.DB.tx(async (db) => {
+    if (b.remove === true) {
+      if (await db.prepare("SELECT 1 FROM lots WHERE bin = ? AND status <> 'habis'").bind(code).first()) throw conflict("Bin masih berisi barang");
+      if (!(await db.prepare("DELETE FROM bins WHERE code = ?").bind(code).run()).meta.changes) throw notFound("Bin tidak ditemukan");
+    } else {
+      if (await db.prepare("SELECT 1 FROM bins WHERE code = ?").bind(code).first()) throw conflict("Kode bin sudah ada");
+      await db.prepare("INSERT INTO bins (code, note, created_at) VALUES (?,?,?)").bind(code, optStr(b, "note", 100), now()).run();
+    }
+    await audit(db, c.get("user").id, b.remove === true ? "bin_removed" : "bin_created", "bin", code);
+  });
+  return c.json({ ok: true }, 201);
+});
+inventoryRoutes.post("/gr", async (c) => {
+  await allow(c, RECEIVERS, "stok");
+  const b = await readJson(c);
+  const requestKey = reqStr(b, "request_key", 64);
+  const sku = reqStr(b, "sku", 60);
+  const batch = codeOf(b, "batch", "Nomor batch");
+  const rolls = reqNum(b, "rolls", 0);
+  if (!Number.isInteger(rolls) || rolls > 100) throw bad("Jumlah roll / kemasan 1 sampai 100");
+  const qty = amount(b.qty, "Isi per roll");
+  if (!qty) throw bad("Isi per roll harus lebih dari 0");
+  const supplier = reqStr(b, "supplier", 150);
+  const docNo = optStr(b, "doc_no", 60);
+  const u = c.get("user");
+  const result = await c.env.DB.tx(async (db) => {
+    const dup = await db.prepare("SELECT lot_code FROM lots WHERE request_key = ? ORDER BY id").bind(requestKey).all();
+    if (dup.results.length) return { ok: true, duplicate: true, lots: dup.results.map((x) => x.lot_code) };
+    if (!await db.prepare("SELECT 1 FROM skus WHERE code = ? FOR UPDATE").bind(sku).first()) throw notFound("SKU tidak ditemukan");
+    const used = await db.prepare("SELECT lot_code FROM lots WHERE batch = ?").bind(batch).all();
+    let n = used.results.reduce((a, x) => Math.max(a, Number(x.lot_code.slice(batch.length + 1)) || 0), 0);
+    const codes = [];
+    for (let i = 0; i < rolls; i++) {
+      const code = `${batch}-${String(++n).padStart(2, "0")}`;
+      await db.prepare("INSERT INTO lots (lot_code, sku_code, batch, qty_initial, qty_left, status, supplier, doc_no, received_by, received_at, request_key) VALUES (?,?,?,?,?, 'menunggu', ?,?,?,?,?)").bind(code, sku, batch, qty, qty, supplier, docNo, u.code, now(), requestKey).run();
+      await entry(db, sku, code, "GR", qty, docNo ?? "GR", supplier, u.code);
+      codes.push(code);
+    }
+    await audit(db, u.id, "goods_received", "sku", sku, { batch, rolls, qty });
+    return { ok: true, lots: codes };
+  });
+  return c.json(result, 201);
+});
+inventoryRoutes.post("/putaway", async (c) => {
+  await allow(c, RECEIVERS, "stok");
+  const b = await readJson(c);
+  const code = reqStr(b, "lot", 40);
+  const bin = reqStr(b, "bin", 30).toUpperCase();
+  const u = c.get("user");
+  await c.env.DB.tx(async (db) => {
+    const lot = await lotOf(db, code);
+    if (lot.status === "habis") throw conflict("Roll ini sudah habis");
+    if (!await db.prepare("SELECT 1 FROM bins WHERE code = ?").bind(bin).first()) throw bad("Bin belum terdaftar di Master Bin");
+    if (lot.bin === bin) throw conflict("Roll sudah berada di bin tersebut");
+    await db.prepare("UPDATE lots SET bin = ?, status = 'tersedia', putaway_by = ?, putaway_at = ? WHERE id = ?").bind(bin, u.code, now(), lot.id).run();
+    await entry(db, lot.sku_code, code, lot.bin ? "Pindah bin" : "Put away", 0, bin, lot.bin ? `${lot.bin} ke ${bin}` : null, u.code);
+    await recount(db, lot.sku_code);
+  });
+  return c.json({ ok: true });
+});
+inventoryRoutes.post("/use", async (c) => {
+  await allow(c, USERS_OF_STOCK, "stok");
+  const b = await readJson(c);
+  const requestKey = reqStr(b, "request_key", 64);
+  const code = reqStr(b, "lot", 40);
+  const parts = Object.entries(USAGE).map(([k, label]) => ({ label, qty: amount(b[k] ?? 0, label) })).filter((p) => p.qty > 0);
+  if (!parts.length) throw bad("Isi minimal satu jumlah pemakaian");
+  const note = optStr(b, "note", 300);
+  if (!note && parts.some((p) => p.label === "Reject" || p.label === "Waste")) throw bad("Isi keterangan untuk reject atau waste");
+  const orderNo = optStr(b, "order_no", 40);
+  const u = c.get("user");
+  const result = await c.env.DB.tx(async (db) => {
+    if (await db.prepare("SELECT 1 FROM stock_ledger WHERE request_key = ?").bind(requestKey).first()) return { ok: true, duplicate: true };
+    const lot = await lotOf(db, code);
+    if (lot.status !== "tersedia") throw conflict(lot.status === "menunggu" ? "Roll belum di-put away" : "Roll ini sudah habis");
+    if (orderNo && !await db.prepare("SELECT 1 FROM orders WHERE order_no = ?").bind(orderNo).first()) throw bad("Nomor order tidak ditemukan");
+    const total = round3(parts.reduce((a, p) => a + p.qty, 0));
+    if (total > lot.qty_left + 1e-9) throw conflict(`Pemakaian ${total} melebihi sisa ${lot.qty_left}`);
+    const left = round3(lot.qty_left - total);
+    for (const p of parts) await entry(db, lot.sku_code, code, p.label, -p.qty, orderNo ?? "manual", note, u.code, requestKey);
+    await db.prepare("UPDATE lots SET qty_left = ?, status = ? WHERE id = ?").bind(left, left > 0 ? "tersedia" : "habis", lot.id).run();
+    await recount(db, lot.sku_code);
+    return { ok: true, left };
+  });
+  return c.json(result, 201);
+});
+inventoryRoutes.post("/empty", async (c) => {
+  await allow(c, USERS_OF_STOCK, "stok");
+  const b = await readJson(c);
+  const code = reqStr(b, "lot", 40);
+  const u = c.get("user");
+  await c.env.DB.tx(async (db) => {
+    const lot = await lotOf(db, code);
+    if (lot.status !== "tersedia") throw conflict("Hanya roll yang tersedia yang dapat ditandai habis");
+    await entry(db, lot.sku_code, code, "Habis", -lot.qty_left, "manual", optStr(b, "note", 300), u.code);
+    await db.prepare("UPDATE lots SET qty_left = 0, status = 'habis' WHERE id = ?").bind(lot.id).run();
+    await recount(db, lot.sku_code);
+  });
+  return c.json({ ok: true });
+});
+inventoryRoutes.post("/adjust", async (c) => {
+  await allow(c, ["spv"], "stok");
+  const b = await readJson(c);
+  const code = reqStr(b, "lot", 40);
+  const actual = amount(b.qty, "Sisa aktual");
+  const note = reqStr(b, "note", 300);
+  const u = c.get("user");
+  await c.env.DB.tx(async (db) => {
+    const lot = await lotOf(db, code);
+    if (lot.status === "menunggu") throw conflict("Roll belum di-put away");
+    const delta = round3(actual - lot.qty_left);
+    if (!delta) throw conflict("Sisa aktual sama dengan catatan");
+    await entry(db, lot.sku_code, code, "Opname", delta, "opname", note, u.code);
+    await db.prepare("UPDATE lots SET qty_left = ?, status = ? WHERE id = ?").bind(actual, actual > 0 ? "tersedia" : "habis", lot.id).run();
+    await recount(db, lot.sku_code);
+    await audit(db, u.id, "stock_adjusted", "lot", code, { delta });
+  });
+  return c.json({ ok: true });
+});
+
 // src/routes/manage.ts
 var deadlineOf = (b) => {
   const d = optStr(b, "deadline", 16);
@@ -33151,8 +33296,14 @@ manageRoutes.use("*", authn, async (c, next) => {
 });
 var STATUSES = ["cek", "revisi", "bayar", "antrian", "produksi", "curing", "qc", "packing", "siap", "selesai", "ditolak"];
 async function removeOrder(db, o) {
-  const used = await db.prepare("SELECT sku_code, SUM(qty) q FROM stock_ledger WHERE ref = ? AND type = 'Pakai' GROUP BY sku_code").bind(o.order_no).all();
-  for (const k of used.results) await db.prepare("UPDATE skus SET stock = ROUND((stock - ?)::numeric, 2) WHERE code = ?").bind(k.q, k.sku_code).run();
+  const used = await db.prepare("SELECT lot_code, SUM(qty) q FROM stock_ledger WHERE ref = ? AND lot_code IS NOT NULL GROUP BY lot_code").bind(o.order_no).all();
+  for (const k of used.results) {
+    const lot = await db.prepare("SELECT * FROM lots WHERE lot_code = ? FOR UPDATE").bind(k.lot_code).first();
+    if (!lot) continue;
+    const left = Math.round((lot.qty_left - Number(k.q)) * 1e3) / 1e3;
+    await db.prepare("UPDATE lots SET qty_left = ?, status = ? WHERE id = ?").bind(left, left > 0 ? "tersedia" : "habis", lot.id).run();
+    await recount(db, lot.sku_code);
+  }
   await db.prepare("DELETE FROM stock_ledger WHERE ref = ?").bind(o.order_no).run();
   await db.prepare("DELETE FROM payments WHERE order_id = ?").bind(o.id).run();
   await db.prepare("DELETE FROM logs WHERE order_no = ?").bind(o.order_no).run();
@@ -33233,12 +33384,16 @@ manageRoutes.delete("/customers/:id", async (c) => {
   });
   return c.json({ ok: true });
 });
-manageRoutes.put("/stock/:code", async (c) => {
-  const b = await readJson(c);
-  const stock = reqNum(b, "stock", 0, true);
-  const r = await c.env.DB.prepare("UPDATE skus SET stock = ? WHERE code = ?").bind(stock, c.req.param("code")).run();
-  if (!r.meta.changes) throw notFound("SKU tidak ditemukan");
-  await audit(c.env.DB, c.get("user").id, "manage_stock_set", "sku", c.req.param("code"), { stock });
+manageRoutes.delete("/lots/:code", async (c) => {
+  const code = c.req.param("code");
+  await c.env.DB.tx(async (db) => {
+    const lot = await db.prepare("SELECT * FROM lots WHERE lot_code = ? FOR UPDATE").bind(code).first();
+    if (!lot) throw notFound("Roll tidak ditemukan");
+    await db.prepare("DELETE FROM stock_ledger WHERE lot_code = ?").bind(code).run();
+    await db.prepare("DELETE FROM lots WHERE id = ?").bind(lot.id).run();
+    await recount(db, lot.sku_code);
+    await audit(db, c.get("user").id, "manage_lot_delete", "lot", code, lot);
+  });
   return c.json({ ok: true });
 });
 manageRoutes.delete("/users/:id", async (c) => {
@@ -33258,7 +33413,7 @@ manageRoutes.post("/reset", async (c) => {
   const b = await readJson(c);
   if (b.confirm !== "HAPUS SEMUA") throw bad("Ketik HAPUS SEMUA untuk melanjutkan");
   await c.env.DB.tx(async (db) => {
-    for (const t of ["payments", "logs", "stock_ledger", "qc_reports", "orders", "files"]) await db.prepare(`DELETE FROM ${t}`).run();
+    for (const t of ["payments", "logs", "stock_ledger", "lots", "qc_reports", "orders", "files"]) await db.prepare(`DELETE FROM ${t}`).run();
     if (b.customers === true) await db.prepare("DELETE FROM customers").run();
     await db.prepare("UPDATE skus SET stock = 0").run();
     await audit(db, c.get("user").id, "manage_reset", "all", void 0, { customers: b.customers === true });
@@ -33403,6 +33558,7 @@ function createApp(getEnv) {
   app2.route("/api/state", stateRoutes);
   app2.route("/api/orders", orderRoutes);
   app2.route("/api/capacity", capacityRoutes);
+  app2.route("/api/stock", inventoryRoutes);
   app2.route("/api/files", fileRoutes);
   app2.route("/api/manage", manageRoutes);
   app2.route("/api", opsRoutes);

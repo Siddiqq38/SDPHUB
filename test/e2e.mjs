@@ -145,9 +145,42 @@ async function main() {
   const B = r.data.id;
   await post(C.OPR, B, 'file-check', { ok: true, checks: [true, true, true, true] });
   check('lunas saat input -> langsung antrian setelah file layak', (await get(B)).status === 'antrian');
-  check('GDG mengisi stok film', (await call(C.GDG, 'POST', '/api/stock/move', { sku: 'SDP-DTF-FLM-60', type: 'Stok masuk', qty: 100 })).status === 201);
-  check('stok tidak boleh minus lewat mutasi manual', (await call(C.GDG, 'POST', '/api/stock/move', { sku: 'SDP-DTF-FLM-60', type: 'Waste', qty: 500 })).status === 409);
-  check('gudang mengatur pakai per meter', (await call(C.GDG, 'PUT', '/api/stock/sku/SDP-DTF-FLM-60', { min: 20, use: 1.05 })).status === 200);
+  const FILM = 'SDP-DTF-FLM-60';
+  const skuStock = async (code = FILM) => (await state(master)).skus.find((s) => s.code === code).stock;
+  check('GDG membuat bin', (await call(C.GDG, 'POST', '/api/stock/bin', { code: 'a1.2', note: 'Rak A' })).status === 201);
+  check('bin ganda ditolak', (await call(C.GDG, 'POST', '/api/stock/bin', { code: 'A1.2' })).status === 409);
+  check('CS tidak mengubah master bin', (await call(C.CS, 'POST', '/api/stock/bin', { code: 'B1' })).status === 403);
+  const gr = { request_key: key(), sku: FILM, batch: 'FLM001', rolls: 2, qty: 100, supplier: 'PT Pemasok' };
+  r = await call(C.CS, 'POST', '/api/stock/gr', gr);
+  check('CS melakukan GR, tiap roll punya ID', r.status === 201 && r.data.lots.join() === 'FLM001-01,FLM001-02', r);
+  r = await call(C.CS, 'POST', '/api/stock/gr', gr);
+  check('kirim ulang GR tidak menggandakan', r.data.duplicate === true && r.data.lots.length === 2, r);
+  check('stok belum tersedia sebelum put away', (await skuStock()) === 0);
+  check('pemakaian sebelum put away ditolak', (await call(C.OPR, 'POST', '/api/stock/use', { request_key: key(), lot: 'FLM001-01', produksi: 1 })).status === 409);
+  check('bin tak terdaftar ditolak', (await call(C.OPR, 'POST', '/api/stock/putaway', { lot: 'FLM001-01', bin: 'Z9' })).status === 400);
+  check('Operator put away', (await call(C.OPR, 'POST', '/api/stock/putaway', { lot: 'FLM001-01', bin: 'A1.2' })).status === 200);
+  check('Manager put away', (await call(C.MGR, 'POST', '/api/stock/putaway', { lot: 'FLM001-02', bin: 'A1.2' })).status === 200);
+  check('stok tersedia 200 setelah put away', (await skuStock()) === 200);
+  check('bin berisi tidak bisa dihapus', (await call(C.GDG, 'POST', '/api/stock/bin', { code: 'A1.2', remove: true })).status === 409);
+  check('pemakaian melebihi sisa ditolak', (await call(C.GDG, 'POST', '/api/stock/use', { request_key: key(), lot: 'FLM001-02', waste: 500, note: 'x' })).status === 409);
+  check('reject tanpa keterangan ditolak', (await call(C.OPR, 'POST', '/api/stock/use', { request_key: key(), lot: 'FLM001-02', reject: 1 })).status === 400);
+
+  r = await call(C.CS, 'POST', '/api/stock/sku', { code: 'KIM001', name: 'Kain Milano', machine: 'cal', unit: 'meter', min: 20 });
+  check('CS tidak menambah SKU', r.status === 403, r);
+  check('SPV menambah SKU kain', (await call(C.SPV, 'POST', '/api/stock/sku', { code: 'KIM001', name: 'Kain Milano', machine: 'cal', unit: 'meter', min: 20 })).status === 201);
+  await call(C.CS, 'POST', '/api/stock/gr', { request_key: key(), sku: 'KIM001', batch: 'rcvkn001', rolls: 1, qty: 200, supplier: 'PT Kain' });
+  await call(C.CS, 'POST', '/api/stock/putaway', { lot: 'RCVKN001-01', bin: 'A1.2' });
+  const use = { request_key: key(), lot: 'RCVKN001-01', produksi: 99.9, test: 0.1, note: '10 cm untuk test print' };
+  r = await call(C.OPR, 'POST', '/api/stock/use', use);
+  check('contoh kain: 99,9 produksi + 0,1 test = sisa 100', r.status === 201 && r.data.left === 100 && (await skuStock('KIM001')) === 100, r);
+  r = await call(C.OPR, 'POST', '/api/stock/use', use);
+  check('kirim ulang pemakaian tidak memotong dua kali', r.data.duplicate === true && (await skuStock('KIM001')) === 100, r);
+  check('CS tidak mencatat pemakaian', (await call(C.CS, 'POST', '/api/stock/use', { ...use, request_key: key() })).status === 403);
+  check('opname hanya SPV', (await call(C.OPR, 'POST', '/api/stock/adjust', { lot: 'RCVKN001-01', qty: 98, note: 'x' })).status === 403);
+  check('SPV opname', (await call(C.SPV, 'POST', '/api/stock/adjust', { lot: 'RCVKN001-01', qty: 98.5, note: 'hitung ulang' })).status === 200 && (await skuStock('KIM001')) === 98.5);
+  check('tandai habis', (await call(C.OPR, 'POST', '/api/stock/empty', { lot: 'FLM001-02' })).status === 200 && (await skuStock()) === 100);
+  const kain = (await state(C.OPR)).ledger.filter((l) => l.lot === 'RCVKN001-01').map((l) => l.type).reverse().join();
+  check('kartu stok lengkap per roll', kain === 'GR,Put away,Produksi,Test print,Opname', kain);
   check('operator memulai cetak', (await post(C.OPR, B === 0 ? B : A, 'start')).status === 200);
   r = await post(C.OPR, B, 'start');
   check('satu mesin satu order', r.status === 409 && /Mesin/.test(r.data.error), r);
@@ -155,8 +188,10 @@ async function main() {
   check('lanjut curing', (await post(C.OPR, A, 'curing')).status === 200);
   check('suhu curing di luar standar ditolak', (await post(C.OPR, A, 'finish', { temp: 120, seconds: 70 })).status === 400);
   r = await post(C.OPR, A, 'finish', { temp: 140, seconds: 70 });
-  check('curing selesai, stok terpotong', r.status === 200 && r.data.deducted === 1, r);
-  check('stok film 100 - 10,5 = 89,5', (await state(C.GDG)).skus.find((s) => s.code === 'SDP-DTF-FLM-60').stock === 89.5);
+  check('curing selesai', r.status === 200 && r.data.next === 'qc', r);
+  const orderA = (await get(A)).id;
+  check('pemakaian dicatat ke order', (await call(C.OPR, 'POST', '/api/stock/use', { request_key: key(), lot: 'FLM001-01', produksi: 10, test: 0.5, order_no: orderA })).status === 201 && (await skuStock()) === 89.5);
+  check('order tidak dikenal ditolak', (await call(C.OPR, 'POST', '/api/stock/use', { request_key: key(), lot: 'FLM001-01', produksi: 1, order_no: 'SDP-X' })).status === 400);
   check('kemas sebelum QC ditolak', (await post(C.OPR, A, 'pack')).status === 409);
   check('QC lolos butuh semua butir', (await post(C.QC1, A, 'qc', { pass: true, checks: [true] })).status === 400);
   check('petugas QC meloloskan', (await post(C.QC1, A, 'qc', { pass: true, checks: [true, true, true, true, true] })).status === 200);
@@ -216,7 +251,7 @@ async function main() {
   r = await call(anon, 'GET', '/api/public/track/' + resi.toLowerCase());
   check('lacak dengan resi, huruf kecil diterima', r.status === 200 && r.data.status === 'antrian', r);
   check('resi acak lain 404', (await call(anon, 'GET', '/api/public/track/RS-00000-00000')).status === 404);
-  check('versi server dikirim', (await state(C.CS)).api === 4);
+  check('versi server dikirim', (await state(C.CS)).api === 5);
 
   console.log('# Kapasitas produksi');
   let cap = (await state(C.CS)).capacity;
@@ -272,7 +307,7 @@ async function main() {
   st = await state(C.FAT);
   check('FAT melihat pembayaran, tanpa stok dan pengguna', st.orders.some((x) => x.pay.length) && st.skus.length === 0 && st.users.length === 0);
   check('manager tidak bisa menjalankan produksi', (await post(C.MGR, B, 'start')).status === 403);
-  check('manager tidak bisa mencatat mutasi', (await call(C.MGR, 'POST', '/api/stock/move', { sku: 'SDP-DTF-FLM-60', type: 'Stok masuk', qty: 1 })).status === 403);
+  check('manager tidak mencatat pemakaian', (await call(C.MGR, 'POST', '/api/stock/use', { request_key: key(), lot: 'FLM001-01', produksi: 1 })).status === 403);
 
   console.log('# Hak akses dan sesi');
   check('master mencabut menu produksi operator', (await call(master, 'PUT', '/api/admin/access', { role: 'op', pages: ['cekfile', 'qc'] })).status === 200);
@@ -324,7 +359,7 @@ async function main() {
   const before = await stockOf();
   check('master menghapus order selesai', (await call(master, 'DELETE', '/api/manage/orders/' + A)).status === 200 && !(await get(A)));
   check('pemakaian bahan order terhapus dikembalikan ke stok', Math.abs((await stockOf()) - before - 10.5) < 1e-6, [before, await stockOf()]);
-  check('master mengubah stok', (await call(master, 'PUT', '/api/manage/stock/SDP-DTF-FLM-60', { stock: 42 })).status === 200 && (await stockOf()) === 42);
+  check('master menghapus roll', (await call(master, 'DELETE', '/api/manage/lots/FLM001-01')).status === 200 && (await stockOf()) === 0);
   let st2 = await state(master);
   check('master menghapus log', (await call(master, 'DELETE', '/api/manage/logs/' + st2.loss[0].logId)).status === 200);
   check('master menghapus laporan QC', (await call(master, 'DELETE', '/api/manage/qc/' + st2.qcReports[0].id)).status === 200);
@@ -336,7 +371,7 @@ async function main() {
   check('reset butuh kata konfirmasi', (await call(master, 'POST', '/api/manage/reset', { confirm: 'ya' })).status === 400);
   check('master membersihkan data simulasi', (await call(master, 'POST', '/api/manage/reset', { confirm: 'HAPUS SEMUA', customers: true })).status === 200);
   st2 = await state(master);
-  check('data kosong, akun dan harga tetap', st2.orders.length === 0 && st2.customers.length === 0 && st2.qcReports.length === 0 && st2.skus.length === 14 && st2.skus.every((s) => s.stock === 0) && st2.users.length > 5 && st2.settings.priceDtf === 23000, st2);
+  check('data kosong, akun dan harga tetap', st2.orders.length === 0 && st2.customers.length === 0 && st2.qcReports.length === 0 && st2.skus.length === 15 && st2.lots.length === 0 && st2.bins.length === 1 && st2.skus.every((s) => s.stock === 0) && st2.users.length > 5 && st2.settings.priceDtf === 23000, st2);
   r = await call(C.CS, 'POST', '/api/orders', order({ name: 'Setelah Reset', wa: '0800' }));
   check('input order setelah reset berjalan', r.status === 201, r);
   for (let i = 0; i < 5; i++) await login(client(), 'MGR', 'salah-salah-1');

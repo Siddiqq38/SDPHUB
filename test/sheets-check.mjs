@@ -13,12 +13,12 @@ import { MORNING, RETAIL, ACCESS_DEFAULT, GRANTABLE, ROLES, FILE_CHECKS, QC_CHEC
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8788';
 const sql = await (await fetch(BASE + '/__export')).text();
 const db = new PGlite({ extensions: { citext }, parsers: { 20: Number, 1700: Number } });
-for (const f of ['0001_schema.sql', '0002_seed_config.sql']) await db.exec(readFileSync(new URL('../migrations/' + f, import.meta.url), 'utf8'));
+for (const f of ['0001_schema.sql', '0002_seed_config.sql', '0003_inventory.sql']) await db.exec(readFileSync(new URL('../migrations/' + f, import.meta.url), 'utf8'));
 await db.exec(sql);
-for (const t of ['users', 'customers', 'orders', 'payments', 'skus', 'stock_ledger', 'qc_reports', 'logs', 'files', 'audit_log']) {
+for (const t of ['users', 'customers', 'orders', 'payments', 'skus', 'bins', 'lots', 'stock_ledger', 'qc_reports', 'logs', 'files', 'audit_log']) {
   const n = (await db.query(`SELECT COUNT(*) n FROM ${t}`)).rows[0].n;
   const expected = sql.split('\n').filter((l) => l.startsWith(`INSERT INTO ${t} (`)).length;
-  assert.equal(n, t === 'skus' ? 14 : expected, t);
+  assert.equal(n, t === 'skus' ? Math.max(14, expected) : expected, t);
   console.log(`  ok   ${t}: ${n} baris`);
 }
 const admin = (await db.query("SELECT * FROM users WHERE code = 'master1'")).rows[0];

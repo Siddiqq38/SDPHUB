@@ -16,7 +16,9 @@ var SCHEMA = {
   orders: 'id#,order_no,track_code,type,service,customer_id#,customer_name,wa,source,store,items,meter#,total#,file_ref,file_key,deadline,note,status,stage,priority#,issue,rework_m#,process,receiver,created_by,created_at#,approved_at#,started_at#,finished_at#,qc_by,handed_at#,request_key',
   payments: 'id#,order_id#,amount#,method,by_user,at#,request_key',
   skus: 'code,name,svc,unit,stock#,min_stock#,use_per_m#,machine',
-  stock_ledger: 'id#,sku_code,type,qty#,ref,by_user,at#',
+  stock_ledger: 'id#,sku_code,type,qty#,ref,by_user,at#,lot_code,note,request_key',
+  bins: 'code,note,created_at#',
+  lots: 'id#,lot_code,sku_code,batch,qty_initial#,qty_left#,bin,status,supplier,doc_no,received_by,received_at#,putaway_by,putaway_at#,request_key',
   qc_reports: 'id#,machine,day,answers,ng,note,action,photos,status,by_user,at#,approved_by,approved_at#,leader_note',
   logs: 'id#,order_no,type,reason,value#,counted#,by_user,at#',
   files: 'key,kind,file_name,content_type,size_bytes#,uploaded_by#,uploaded_at#,confirmed#,drive_id',
@@ -35,7 +37,7 @@ var GRANTABLE = ['dashboard', 'laporan', 'input', 'cs', 'toko', 'pelanggan', 'ce
 var ACCESS_DEFAULT = {
   manager: ['dashboard', 'laporan', 'pelanggan', 'produksi', 'bayar', 'stok', 'loss', 'layanan', 'lacak'],
   spv: ['dashboard', 'laporan', 'cs', 'cekfile', 'produksi', 'qc', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
-  cs: ['dashboard', 'input', 'cs', 'pelanggan', 'bayar', 'produksi', 'serah', 'loss', 'layanan', 'lacak'],
+  cs: ['dashboard', 'input', 'cs', 'pelanggan', 'bayar', 'produksi', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
   crm: ['pelanggan', 'layanan', 'lacak'],
   store: ['input', 'toko', 'layanan', 'lacak'],
   op: ['cekfile', 'produksi', 'qc', 'stok'],
@@ -92,7 +94,14 @@ function makeStore_() {
   var ss = book_();
   function sheet(name) {
     var sh = ss.getSheetByName(name);
-    if (!sh) throw err_(500, 'Sheet "' + name + '" belum ada. Jalankan setup().');
+    if (!sh) {
+      // Tabel yang ditambahkan versi baru dibuat sendiri, tanpa menjalankan setup() lagi.
+      if (name !== 'bins' && name !== 'lots') throw err_(500, 'Sheet "' + name + '" belum ada. Jalankan setup().');
+      sh = ss.insertSheet(name);
+      var heads = columns_(name).map(function (c) { return c.n; });
+      sh.getRange(1, 1, 1, heads.length).setNumberFormat('@').setValues([heads]).setFontWeight('bold');
+      sh.setFrozenRows(1);
+    }
     return sh;
   }
   var store = {
@@ -643,16 +652,10 @@ function orderAction_(ctx, id, action, b) {
       if (o.stage === 'dtf' && (temp < CURING.minC || temp > CURING.maxC || sec < CURING.minS || sec > CURING.maxS)) throw err_(400, 'Standar curing ' + CURING.minC + ' sampai ' + CURING.maxC + ' °C selama ' + CURING.minS + ' sampai ' + CURING.maxS + ' detik');
       process = temp + ' °C, ' + sec + ' detik';
     }
-    var meter = o.rework_m == null ? o.meter : o.rework_m;
-    var used = db.filter('skus', function (k) { return k.machine === o.stage && k.use_per_m > 0; });
-    used.forEach(function (k) {
-      var q = round2_(k.use_per_m * meter);
-      db.update('skus', k, { stock: round2_((k.stock || 0) - q) });
-      db.insert('stock_ledger', { sku_code: k.code, type: 'Pakai', qty: -q, ref: o.order_no, by_user: u.code, at: now });
-    });
+    // Pemakaian bahan dicatat per roll di menu SKU & Inventory.
     var next = o.stage === 'subp' ? 'press' : 'qc';
     db.update('orders', o, o.stage === 'subp' ? { status: 'antrian', stage: 'cal' } : { status: 'qc', process: process, finished_at: now });
-    return done({ ok: true, next: next, deducted: used.length });
+    return done({ ok: true, next: next });
   }
   if (action === 'qc') {
     need(o.status === 'qc', 'Order tidak sedang menunggu QC');
@@ -678,6 +681,125 @@ function orderAction_(ctx, id, action, b) {
   return done();
 }
 
+// ---------- Inventory per roll / kemasan (sama dengan src/routes/inventory.ts) ----------
+var RECEIVERS_ = ['gudang', 'op', 'cs', 'spv', 'manager'], STOCK_USERS_ = ['gudang', 'op', 'spv'], KEEPERS_ = ['gudang', 'spv'];
+var USAGE_ = [['produksi', 'Produksi'], ['test', 'Test print'], ['reject', 'Reject'], ['waste', 'Waste']];
+var CODE_RE = /^[A-Z0-9][A-Z0-9._-]{1,29}$/;
+function round3_(n) { return Math.round(n * 1000) / 1000; }
+function code_(b, k, label) {
+  var v = str_(b, k, 30).toUpperCase();
+  if (!CODE_RE.test(v)) throw err_(400, label + ' 2 sampai 30 huruf, angka, titik, garis, tanpa spasi');
+  return v;
+}
+function amount_(v, label) {
+  if (typeof v !== 'number' || !isFinite(v) || v < 0 || v > 1e6 || Math.abs(round3_(v) - v) > 1e-9) throw err_(400, label + ' harus angka 0 atau lebih, maksimal 3 angka desimal');
+  return v;
+}
+function recount_(db, sku) {
+  var k = db.find('skus', function (x) { return x.code === sku; });
+  if (!k) return;
+  db.update('skus', k, { stock: round3_(db.filter('lots', function (l) { return l.sku_code === sku && l.status === 'tersedia'; }).reduce(function (a, l) { return a + l.qty_left; }, 0)) });
+}
+function inventory_(ctx, action, b) {
+  var db = ctx.db, u = ctx.user, now = Date.now(), ok = { status: 200, data: { ok: true } };
+  function lotOf(code) { var l = db.find('lots', function (x) { return x.lot_code === code; }); if (!l) throw err_(404, 'Roll / lot tidak ditemukan'); return l; }
+  function entry(sku, lot, type, qty, ref, note, key) { db.insert('stock_ledger', { sku_code: sku, lot_code: lot, type: type, qty: qty, ref: ref, note: note, by_user: u.code, at: Date.now(), request_key: key || null }); }
+  if (action === 'sku') {
+    allow_(ctx, KEEPERS_, 'stok');
+    var code = code_(b, 'code', 'Kode SKU'), machine = one_(b, 'machine', ['dtf', 'subp', 'cal']), unit = one_(b, 'unit', ['meter', 'ml', 'gram', 'pcs']), min = num_(b, 'min', true), name = str_(b, 'name', 150);
+    if (db.find('skus', function (x) { return x.code === code; })) throw err_(409, 'Kode SKU sudah dipakai');
+    db.insert('skus', { code: code, name: name, svc: machine === 'dtf' ? 'dtf' : 'sub', unit: unit, stock: 0, min_stock: min, use_per_m: null, machine: machine });
+    audit_(ctx, 'sku_created', 'sku', code);
+    return { status: 201, data: { ok: true } };
+  }
+  if (action === 'bin') {
+    allow_(ctx, KEEPERS_, 'stok');
+    var bc = code_(b, 'code', 'Kode bin'), have = db.find('bins', function (x) { return x.code === bc; });
+    if (b.remove === true) {
+      if (db.find('lots', function (l) { return l.bin === bc && l.status !== 'habis'; })) throw err_(409, 'Bin masih berisi barang');
+      if (!have) throw err_(404, 'Bin tidak ditemukan');
+      db.remove('bins', function (x) { return x.code === bc; });
+    } else {
+      if (have) throw err_(409, 'Kode bin sudah ada');
+      db.insert('bins', { code: bc, note: opt_(b, 'note', 100), created_at: now });
+    }
+    audit_(ctx, b.remove === true ? 'bin_removed' : 'bin_created', 'bin', bc);
+    return { status: 201, data: { ok: true } };
+  }
+  if (action === 'gr') {
+    allow_(ctx, RECEIVERS_, 'stok');
+    var key = str_(b, 'request_key', 64), sku = str_(b, 'sku', 60), batch = code_(b, 'batch', 'Nomor batch'), rolls = num_(b, 'rolls');
+    if (rolls % 1 !== 0 || rolls > 100) throw err_(400, 'Jumlah roll / kemasan 1 sampai 100');
+    var qty = amount_(b.qty, 'Isi per roll');
+    if (!qty) throw err_(400, 'Isi per roll harus lebih dari 0');
+    var supplier = str_(b, 'supplier', 150), docNo = opt_(b, 'doc_no', 60);
+    var dup = db.filter('lots', function (l) { return l.request_key === key; });
+    if (dup.length) return { status: 201, data: { ok: true, duplicate: true, lots: dup.map(function (l) { return l.lot_code; }) } };
+    if (!db.find('skus', function (x) { return x.code === sku; })) throw err_(404, 'SKU tidak ditemukan');
+    var n = db.filter('lots', function (l) { return l.batch === batch; }).reduce(function (a, l) { return Math.max(a, Number(l.lot_code.slice(batch.length + 1)) || 0); }, 0);
+    var codes = [];
+    for (var i = 0; i < rolls; i++) {
+      var lc = batch + '-' + (++n < 10 ? '0' + n : n);
+      db.insert('lots', { lot_code: lc, sku_code: sku, batch: batch, qty_initial: qty, qty_left: qty, status: 'menunggu', supplier: supplier, doc_no: docNo, received_by: u.code, received_at: now, request_key: key });
+      entry(sku, lc, 'GR', qty, docNo || 'GR', supplier);
+      codes.push(lc);
+    }
+    audit_(ctx, 'goods_received', 'sku', sku, { batch: batch, rolls: rolls, qty: qty });
+    return { status: 201, data: { ok: true, lots: codes } };
+  }
+  if (action === 'putaway') {
+    allow_(ctx, RECEIVERS_, 'stok');
+    var pc = str_(b, 'lot', 40), bin = str_(b, 'bin', 30).toUpperCase(), lot = lotOf(pc);
+    if (lot.status === 'habis') throw err_(409, 'Roll ini sudah habis');
+    if (!db.find('bins', function (x) { return x.code === bin; })) throw err_(400, 'Bin belum terdaftar di Master Bin');
+    if (lot.bin === bin) throw err_(409, 'Roll sudah berada di bin tersebut');
+    var from = lot.bin;
+    db.update('lots', lot, { bin: bin, status: 'tersedia', putaway_by: u.code, putaway_at: now });
+    entry(lot.sku_code, pc, from ? 'Pindah bin' : 'Put away', 0, bin, from ? from + ' ke ' + bin : null);
+    recount_(db, lot.sku_code);
+    return ok;
+  }
+  if (action === 'use') {
+    allow_(ctx, STOCK_USERS_, 'stok');
+    var rk = str_(b, 'request_key', 64), uc = str_(b, 'lot', 40);
+    var parts = USAGE_.map(function (p) { return { label: p[1], qty: amount_(b[p[0]] === undefined || b[p[0]] === null ? 0 : b[p[0]], p[1]) }; }).filter(function (p) { return p.qty > 0; });
+    if (!parts.length) throw err_(400, 'Isi minimal satu jumlah pemakaian');
+    var note = opt_(b, 'note', 300);
+    if (!note && parts.some(function (p) { return p.label === 'Reject' || p.label === 'Waste'; })) throw err_(400, 'Isi keterangan untuk reject atau waste');
+    var orderNo = opt_(b, 'order_no', 40);
+    if (db.find('stock_ledger', function (l) { return l.request_key === rk; })) return { status: 201, data: { ok: true, duplicate: true } };
+    var ul = lotOf(uc);
+    if (ul.status !== 'tersedia') throw err_(409, ul.status === 'menunggu' ? 'Roll belum di-put away' : 'Roll ini sudah habis');
+    if (orderNo && !db.find('orders', function (o) { return o.order_no === orderNo; })) throw err_(400, 'Nomor order tidak ditemukan');
+    var total = round3_(parts.reduce(function (a, p) { return a + p.qty; }, 0));
+    if (total > ul.qty_left + 1e-9) throw err_(409, 'Pemakaian ' + total + ' melebihi sisa ' + ul.qty_left);
+    var left = round3_(ul.qty_left - total);
+    parts.forEach(function (p) { entry(ul.sku_code, uc, p.label, -p.qty, orderNo || 'manual', note, rk); });
+    db.update('lots', ul, { qty_left: left, status: left > 0 ? 'tersedia' : 'habis' });
+    recount_(db, ul.sku_code);
+    return { status: 201, data: { ok: true, left: left } };
+  }
+  if (action === 'empty') {
+    allow_(ctx, STOCK_USERS_, 'stok');
+    var ec = str_(b, 'lot', 40), el = lotOf(ec);
+    if (el.status !== 'tersedia') throw err_(409, 'Hanya roll yang tersedia yang dapat ditandai habis');
+    entry(el.sku_code, ec, 'Habis', -el.qty_left, 'manual', opt_(b, 'note', 300));
+    db.update('lots', el, { qty_left: 0, status: 'habis' });
+    recount_(db, el.sku_code);
+    return ok;
+  }
+  allow_(ctx, ['spv'], 'stok');
+  var ac = str_(b, 'lot', 40), actual = amount_(b.qty, 'Sisa aktual'), why = str_(b, 'note', 300), al = lotOf(ac);
+  if (al.status === 'menunggu') throw err_(409, 'Roll belum di-put away');
+  var delta = round3_(actual - al.qty_left);
+  if (!delta) throw err_(409, 'Sisa aktual sama dengan catatan');
+  entry(al.sku_code, ac, 'Opname', delta, 'opname', why);
+  db.update('lots', al, { qty_left: actual, status: actual > 0 ? 'tersedia' : 'habis' });
+  recount_(db, al.sku_code);
+  audit_(ctx, 'stock_adjusted', 'lot', ac, { delta: delta });
+  return ok;
+}
+
 // ---------- Kelola Data: khusus master (sama dengan src/routes/manage.ts). audit_log tidak pernah dihapus. ----------
 var STATUSES = ['cek', 'revisi', 'bayar', 'antrian', 'produksi', 'curing', 'qc', 'packing', 'siap', 'selesai', 'ditolak'];
 function manage_(ctx, method, path, b) {
@@ -688,8 +810,14 @@ function manage_(ctx, method, path, b) {
     var o = byId('orders', Number(m[1]), 'Order');
     if (method === 'DELETE') {
       var used = {};
-      db.filter('stock_ledger', function (l) { return l.ref === o.order_no && l.type === 'Pakai'; }).forEach(function (l) { used[l.sku_code] = (used[l.sku_code] || 0) + l.qty; });
-      Object.keys(used).forEach(function (code) { var k = db.find('skus', function (x) { return x.code === code; }); if (k) db.update('skus', k, { stock: round2_((k.stock || 0) - used[code]) }); });
+      db.filter('stock_ledger', function (l) { return l.ref === o.order_no && l.lot_code; }).forEach(function (l) { used[l.lot_code] = (used[l.lot_code] || 0) + l.qty; });
+      Object.keys(used).forEach(function (code) {
+        var lot = db.find('lots', function (x) { return x.lot_code === code; });
+        if (!lot) return;
+        var left = round3_(lot.qty_left - used[code]);
+        db.update('lots', lot, { qty_left: left, status: left > 0 ? 'tersedia' : 'habis' });
+        recount_(db, lot.sku_code);
+      });
       var oid = o.id, no = o.order_no, total = o.total;
       db.remove('stock_ledger', function (l) { return l.ref === no; });
       db.remove('payments', function (p) { return p.order_id === oid; });
@@ -745,11 +873,14 @@ function manage_(ctx, method, path, b) {
       return ok;
     }
   }
-  if (method === 'PUT' && (m = /^\/api\/manage\/stock\/([A-Za-z0-9_-]+)$/.exec(path))) {
-    var stock = num_(b, 'stock', true), sku = db.find('skus', function (x) { return x.code === m[1]; });
-    if (!sku) throw err_(404, 'SKU tidak ditemukan');
-    db.update('skus', sku, { stock: stock });
-    audit_(ctx, 'manage_stock_set', 'sku', sku.code, { stock: stock });
+  if (method === 'DELETE' && (m = /^\/api\/manage\/lots\/([A-Za-z0-9._-]+)$/.exec(path))) {
+    var code2 = m[1], lot = db.find('lots', function (x) { return x.lot_code === code2; });
+    if (!lot) throw err_(404, 'Roll tidak ditemukan');
+    var skuOf = lot.sku_code;
+    db.remove('stock_ledger', function (l) { return l.lot_code === code2; });
+    db.remove('lots', function (x) { return x.lot_code === code2; });
+    recount_(db, skuOf);
+    audit_(ctx, 'manage_lot_delete', 'lot', code2);
     return ok;
   }
   if (method === 'DELETE' && (m = /^\/api\/manage\/users\/(\d+)$/.exec(path))) {
@@ -765,7 +896,7 @@ function manage_(ctx, method, path, b) {
   if (method === 'POST' && path === '/api/manage/reset') {
     if (b.confirm !== 'HAPUS SEMUA') throw err_(400, 'Ketik HAPUS SEMUA untuk melanjutkan');
     // Berkas di Drive tidak dihapus; hanya catatannya di spreadsheet.
-    ['payments', 'logs', 'stock_ledger', 'qc_reports', 'orders', 'files'].concat(b.customers === true ? ['customers'] : []).forEach(function (t2) { db.remove(t2, function () { return true; }); });
+    ['payments', 'logs', 'stock_ledger', 'lots', 'qc_reports', 'orders', 'files'].concat(b.customers === true ? ['customers'] : []).forEach(function (t2) { db.remove(t2, function () { return true; }); });
     db.all('skus').forEach(function (k) { db.update('skus', k, { stock: 0 }); });
     audit_(ctx, 'manage_reset', 'all', null, { customers: b.customers === true });
     return ok;
@@ -779,7 +910,7 @@ function state_(ctx) {
   var pages = master ? GRANTABLE.concat(['atur', 'pengguna', 'akses', 'data', 'akun']) : pages_(db, u.role).concat(['akun']);
   function has() { return Array.prototype.slice.call(arguments).some(function (p) { return pages.indexOf(p) >= 0; }); }
   var raw = settings_(db), cal = calendar_(raw);
-  var out = { api: 4, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
+  var out = { api: 5, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
   if (ORDER_PAGES.some(function (p) { return pages.indexOf(p) >= 0; })) {
     var custCode = {};
     db.all('customers').forEach(function (c) { custCode[c.id] = c.code; });
@@ -798,8 +929,17 @@ function state_(ctx) {
     });
   }
   if (has('input', 'pelanggan', 'cs', 'cekfile')) out.customers = db.all('customers').map(function (c) { return { id: c.id, code: c.code, name: c.name, wa: c.wa, source: c.source, status: c.status }; }).sort(function (a, b) { return a.name < b.name ? -1 : 1; });
-  if (has('stok', 'dashboard')) out.skus = db.all('skus').map(function (k) { return { code: k.code, name: k.name, svc: k.svc, unit: k.unit, stock: k.stock || 0, min: k.min_stock || 0, use: k.use_per_m, machine: k.machine }; }).sort(function (a, b) { return a.code < b.code ? -1 : 1; });
-  if (has('stok')) out.ledger = db.all('stock_ledger').slice(-50).reverse().map(function (l) { return { at: l.at, code: l.sku_code, type: l.type, qty: l.qty, ref: l.ref }; });
+  var onRack = {};
+  if (has('stok', 'dashboard')) db.all('lots').forEach(function (l) { if (l.status === 'tersedia') onRack[l.sku_code] = (onRack[l.sku_code] || 0) + l.qty_left; });
+  if (has('stok', 'dashboard')) out.skus = db.all('skus').map(function (k) { return { code: k.code, name: k.name, svc: k.svc, unit: k.unit, stock: round3_(onRack[k.code] || 0), min: k.min_stock || 0, machine: k.machine }; }).sort(function (a, b) { return a.code < b.code ? -1 : 1; });
+  if (has('stok')) {
+    var lots = db.all('lots'), emptied = lots.filter(function (l) { return l.status === 'habis'; }).slice(-100);
+    out.lots = lots.filter(function (l) { return l.status !== 'habis' || emptied.indexOf(l) >= 0; }).map(function (l) {
+      return { lot: l.lot_code, sku: l.sku_code, batch: l.batch, initial: l.qty_initial, left: l.qty_left || 0, bin: l.bin, status: l.status, supplier: l.supplier, doc: l.doc_no, by: l.received_by, at: l.received_at };
+    });
+    out.bins = db.all('bins').map(function (x) { return { code: x.code, note: x.note }; }).sort(function (a, b) { return a.code < b.code ? -1 : 1; });
+    out.ledger = db.all('stock_ledger').slice(-200).reverse().map(function (l) { return { at: l.at, code: l.sku_code, lot: l.lot_code, type: l.type, qty: l.qty || 0, ref: l.ref, note: l.note, by: l.by_user }; });
+  }
   if (has('input', 'dashboard', 'produksi')) {
     var cfg = planConfig_(raw), jobs = activeJobs_(db), t = Date.now();
     out.capacity = { days: days_(jobs, t, cfg), slots: plan_(jobs, t, cfg).slots, slaDue: slaDue_(t, cfg.cal), overtime: overtimeOf_(raw).filter(function (o) { return o.day >= out.today; }) };
@@ -992,24 +1132,14 @@ function route_(req) {
     audit_(ctx, 'customers_imported', 'customer', null, { added: added });
     return { status: 201, data: { ok: true, added: added, skipped: rows.length - added } };
   }
-  if (path === '/api/stock/move' && method === 'POST') {
-    allow_(ctx, ['gudang', 'op', 'spv'], 'stok');
-    var skuCode = str_(b, 'sku', 60), kindMove = one_(b, 'type', ['Stok masuk', 'Waste', 'Cleaning', 'Koreksi kurang']), qty = num_(b, 'qty');
-    var delta = kindMove === 'Stok masuk' ? qty : -qty;
-    var k = db.find('skus', function (x) { return x.code === skuCode; });
-    if (!k) throw err_(404, 'SKU tidak ditemukan');
-    if ((k.stock || 0) + delta < 0) throw err_(409, 'Stok tidak cukup');
-    db.update('skus', k, { stock: round2_((k.stock || 0) + delta) });
-    db.insert('stock_ledger', { sku_code: skuCode, type: kindMove, qty: delta, ref: opt_(b, 'ref', 100) || 'manual', by_user: me.code, at: Date.now() });
-    return { status: 201, data: { ok: true } };
-  }
-  if (method === 'PUT' && (m = /^\/api\/stock\/sku\/([A-Za-z0-9_-]+)$/.exec(path))) {
-    allow_(ctx, ['gudang', 'spv'], 'stok');
-    var min = num_(b, 'min', true), use = b.use === null || b.use === '' ? null : num_(b, 'use', true);
+  if (method === 'POST' && (m = /^\/api\/stock\/(sku|bin|gr|putaway|use|empty|adjust)$/.exec(path))) return inventory_(ctx, m[1], b);
+  if (method === 'PUT' && (m = /^\/api\/stock\/sku\/([A-Za-z0-9._-]+)$/.exec(path))) {
+    allow_(ctx, KEEPERS_, 'stok');
+    var min = num_(b, 'min', true);
     var sku = db.find('skus', function (x) { return x.code === m[1]; });
     if (!sku) throw err_(404, 'SKU tidak ditemukan');
-    db.update('skus', sku, { min_stock: min, use_per_m: use });
-    audit_(ctx, 'sku_updated', 'sku', sku.code, { min: min, use: use });
+    db.update('skus', sku, { min_stock: min });
+    audit_(ctx, 'sku_updated', 'sku', sku.code, { min: min });
     return { status: 200, data: { ok: true } };
   }
 
@@ -1146,16 +1276,16 @@ function sqlValue_(v) { return v === null || v === undefined ? 'NULL' : typeof v
 /** SQL berisi seluruh data. Jalankan di Supabase SQL Editor SETELAH migrations 0001 dan 0002, pada database kosong. */
 function buatSqlSupabase_() {
   var db = makeStore_(), lines = ['BEGIN;'];
-  ['users', 'settings', 'role_access', 'customers', 'orders', 'payments', 'skus', 'stock_ledger', 'qc_reports', 'logs', 'files', 'audit_log'].forEach(function (name) {
+  ['users', 'settings', 'role_access', 'customers', 'orders', 'payments', 'skus', 'bins', 'lots', 'stock_ledger', 'qc_reports', 'logs', 'files', 'audit_log'].forEach(function (name) {
     var cols = columns_(name).map(function (c) { return c.n; }).filter(function (n) { return n !== 'drive_id'; });
-    var key = name === 'settings' ? 'key' : name === 'skus' ? 'code' : null; // sudah diisi migrasi 0002
+    var key = name === 'settings' ? 'key' : name === 'skus' ? 'code' : null; // settings dan skus awal sudah diisi migrasi 0002
     db.all(name).forEach(function (r) {
       var sql = 'INSERT INTO ' + name + ' (' + cols.join(', ') + ') VALUES (' + cols.map(function (c) { return sqlValue_(name === 'settings' && c === 'value' && r[c] === null ? '' : r[c]); }).join(', ') + ')';
       if (key) sql += ' ON CONFLICT (' + key + ') DO UPDATE SET ' + cols.filter(function (c) { return c !== key; }).map(function (c) { return c + ' = excluded.' + c; }).join(', ');
       lines.push(sql + ';');
     });
   });
-  ['users', 'customers', 'orders', 'payments', 'stock_ledger', 'qc_reports', 'logs', 'audit_log'].forEach(function (name) {
+  ['users', 'customers', 'orders', 'payments', 'lots', 'stock_ledger', 'qc_reports', 'logs', 'audit_log'].forEach(function (name) {
     lines.push("SELECT setval(pg_get_serial_sequence('" + name + "', 'id'), (SELECT COALESCE(MAX(id), 0) + 1 FROM " + name + '), false);');
   });
   lines.push('UPDATE bootstrap SET used_at = ' + Date.now() + ' WHERE id = 1;', 'COMMIT;');

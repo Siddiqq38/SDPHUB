@@ -12,7 +12,6 @@ export const orderRoutes = new Hono<AppEnv>();
 orderRoutes.use('*', authn);
 
 const METHODS = ['Transfer', 'QRIS', 'Tunai'] as const;
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Jalankan perubahan order dalam satu transaksi dengan baris order terkunci. */
 async function withOrder<T>(c: Ctx, id: number, fn: (db: Db, o: any) => Promise<T>): Promise<T> {
@@ -220,20 +219,14 @@ orderRoutes.post('/:id/finish', async (c) => {
       }
       process = `${temp} °C, ${sec} detik`;
     }
-    const meter = o.rework_m ?? o.meter;
-    const skus = await db.prepare('SELECT code, use_per_m FROM skus WHERE machine = ? AND use_per_m IS NOT NULL AND use_per_m > 0').bind(o.stage).all<any>();
-    for (const k of skus.results) {
-      const q = round2(k.use_per_m * meter);
-      await db.prepare('UPDATE skus SET stock = ROUND((stock - ?)::numeric, 2) WHERE code = ?').bind(q, k.code).run();
-      await db.prepare("INSERT INTO stock_ledger (sku_code, type, qty, ref, by_user, at) VALUES (?, 'Pakai', ?,?,?,?)").bind(k.code, -q, o.order_no, c.get('user').code, now()).run();
-    }
+    const meter = o.rework_m ?? o.meter; // pemakaian bahan dicatat per roll di menu SKU & Inventory
     if (o.stage === 'subp') {
       await db.prepare("UPDATE orders SET status = 'antrian', stage = 'cal' WHERE id = ?").bind(o.id).run();
     } else {
       await db.prepare("UPDATE orders SET status = 'qc', process = ?, finished_at = ? WHERE id = ?").bind(process, now(), o.id).run();
     }
     await audit(db, c.get('user').id, 'production_finish', 'order', o.id, { stage: o.stage, meter });
-    return { ok: true, next: o.stage === 'subp' ? 'press' : 'qc', deducted: skus.results.length };
+    return { ok: true, next: o.stage === 'subp' ? 'press' : 'qc' };
   }));
 });
 

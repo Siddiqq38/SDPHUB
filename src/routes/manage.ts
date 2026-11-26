@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import type { Db } from '../db.ts';
 import { allow, audit, authn, bad, conflict, forbidden, intParam, notFound, now, oneOf, optStr, readJson, reqNum, reqStr, type AppEnv } from '../core.ts';
 import { DEADLINE_RE } from '../domain.ts';
+import { recount } from './inventory.ts';
 
 const deadlineOf = (b: Record<string, unknown>) => {
   const d = optStr(b, 'deadline', 16);
@@ -20,9 +21,15 @@ manageRoutes.use('*', authn, async (c, next) => {
 const STATUSES = ['cek', 'revisi', 'bayar', 'antrian', 'produksi', 'curing', 'qc', 'packing', 'siap', 'selesai', 'ditolak'] as const;
 
 async function removeOrder(db: Db, o: any) {
-  // Pemakaian bahan order ini dikembalikan ke stok, lalu seluruh catatannya dihapus.
-  const used = await db.prepare("SELECT sku_code, SUM(qty) q FROM stock_ledger WHERE ref = ? AND type = 'Pakai' GROUP BY sku_code").bind(o.order_no).all<any>();
-  for (const k of used.results) await db.prepare('UPDATE skus SET stock = ROUND((stock - ?)::numeric, 2) WHERE code = ?').bind(k.q, k.sku_code).run();
+  // Pemakaian bahan order ini dikembalikan ke roll asalnya, lalu seluruh catatannya dihapus.
+  const used = await db.prepare('SELECT lot_code, SUM(qty) q FROM stock_ledger WHERE ref = ? AND lot_code IS NOT NULL GROUP BY lot_code').bind(o.order_no).all<any>();
+  for (const k of used.results) {
+    const lot = await db.prepare('SELECT * FROM lots WHERE lot_code = ? FOR UPDATE').bind(k.lot_code).first<any>();
+    if (!lot) continue;
+    const left = Math.round((lot.qty_left - Number(k.q)) * 1000) / 1000;
+    await db.prepare('UPDATE lots SET qty_left = ?, status = ? WHERE id = ?').bind(left, left > 0 ? 'tersedia' : 'habis', lot.id).run();
+    await recount(db, lot.sku_code);
+  }
   await db.prepare('DELETE FROM stock_ledger WHERE ref = ?').bind(o.order_no).run();
   await db.prepare('DELETE FROM payments WHERE order_id = ?').bind(o.id).run();
   await db.prepare('DELETE FROM logs WHERE order_no = ?').bind(o.order_no).run();
@@ -110,12 +117,17 @@ manageRoutes.delete('/customers/:id', async (c) => {
   return c.json({ ok: true });
 });
 
-manageRoutes.put('/stock/:code', async (c) => {
-  const b = await readJson(c);
-  const stock = reqNum(b, 'stock', 0, true);
-  const r = await c.env.DB.prepare('UPDATE skus SET stock = ? WHERE code = ?').bind(stock, c.req.param('code')).run();
-  if (!r.meta.changes) throw notFound('SKU tidak ditemukan');
-  await audit(c.env.DB, c.get('user').id, 'manage_stock_set', 'sku', c.req.param('code'), { stock });
+// Hapus satu roll beserta riwayatnya (salah input saat simulasi).
+manageRoutes.delete('/lots/:code', async (c) => {
+  const code = c.req.param('code');
+  await c.env.DB.tx(async (db) => {
+    const lot = await db.prepare('SELECT * FROM lots WHERE lot_code = ? FOR UPDATE').bind(code).first<any>();
+    if (!lot) throw notFound('Roll tidak ditemukan');
+    await db.prepare('DELETE FROM stock_ledger WHERE lot_code = ?').bind(code).run();
+    await db.prepare('DELETE FROM lots WHERE id = ?').bind(lot.id).run();
+    await recount(db, lot.sku_code);
+    await audit(db, c.get('user').id, 'manage_lot_delete', 'lot', code, lot);
+  });
   return c.json({ ok: true });
 });
 
@@ -138,7 +150,7 @@ manageRoutes.post('/reset', async (c) => {
   const b = await readJson(c);
   if (b.confirm !== 'HAPUS SEMUA') throw bad('Ketik HAPUS SEMUA untuk melanjutkan');
   await c.env.DB.tx(async (db) => {
-    for (const t of ['payments', 'logs', 'stock_ledger', 'qc_reports', 'orders', 'files']) await db.prepare(`DELETE FROM ${t}`).run();
+    for (const t of ['payments', 'logs', 'stock_ledger', 'lots', 'qc_reports', 'orders', 'files']) await db.prepare(`DELETE FROM ${t}`).run();
     if (b.customers === true) await db.prepare('DELETE FROM customers').run();
     await db.prepare('UPDATE skus SET stock = 0').run();
     await audit(db, c.get('user').id, 'manage_reset', 'all', undefined, { customers: b.customers === true });

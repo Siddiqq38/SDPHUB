@@ -17,7 +17,7 @@ stateRoutes.get('/', async (c) => {
   const has = (...p: Page[]) => p.some((x) => pages.includes(x));
   const raw = await loadSettings(db);
   const out: Record<string, unknown> = {
-    api: 4, // versi kontrak; layar memberi peringatan bila server belum diperbarui
+    api: 5, // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
     today: localDay(now(), calendarOf(raw)),
@@ -62,10 +62,16 @@ stateRoutes.get('/', async (c) => {
     out.customers = (await db.prepare('SELECT id, code, name, wa, source, status FROM customers ORDER BY name LIMIT 5000').all()).results;
   }
   if (has('stok', 'dashboard')) {
-    out.skus = (await db.prepare('SELECT code, name, svc, unit, stock, min_stock AS min, use_per_m AS use, machine FROM skus ORDER BY code').all()).results;
+    out.skus = (await db.prepare(`SELECT code, name, svc, unit, ROUND((SELECT COALESCE(SUM(l.qty_left), 0) FROM lots l WHERE l.sku_code = skus.code AND l.status = 'tersedia')::numeric, 3)::float8 AS stock, min_stock AS min, machine FROM skus ORDER BY code`).all()).results;
   }
   if (has('stok')) {
-    out.ledger = (await db.prepare('SELECT at, sku_code AS code, type, qty, ref FROM stock_ledger ORDER BY id DESC LIMIT 50').all()).results;
+    // Semua roll yang masih ada, ditambah 100 roll habis terbaru.
+    out.lots = (await db.prepare(
+      `SELECT lot_code AS lot, sku_code AS sku, batch, qty_initial AS initial, qty_left AS left, bin, status, supplier, doc_no AS doc, received_by AS by, received_at AS at
+       FROM lots WHERE status <> 'habis' OR id IN (SELECT id FROM lots WHERE status = 'habis' ORDER BY id DESC LIMIT 100) ORDER BY id`,
+    ).all()).results;
+    out.bins = (await db.prepare('SELECT code, note FROM bins ORDER BY code').all()).results;
+    out.ledger = (await db.prepare('SELECT at, sku_code AS code, lot_code AS lot, type, qty, ref, note, by_user AS by FROM stock_ledger ORDER BY id DESC LIMIT 200').all()).results;
   }
   if (has('loss', 'dashboard', 'laporan')) {
     out.loss = (await db.prepare('SELECT id AS "logId", order_no AS id, type, reason, value, counted AS count, at FROM logs ORDER BY id DESC LIMIT 300').all()).results;

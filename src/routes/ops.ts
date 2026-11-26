@@ -87,35 +87,6 @@ opsRoutes.post('/customers/import', async (c) => {
   return c.json({ ok: true, added, skipped: rows.length - added }, 201);
 });
 
-// ---- Inventory ----
-opsRoutes.post('/stock/move', async (c) => {
-  await allow(c, ['gudang', 'op', 'spv'], 'stok');
-  const b = await readJson(c);
-  const code = reqStr(b, 'sku', 60);
-  const type = oneOf(b, 'type', ['Stok masuk', 'Waste', 'Cleaning', 'Koreksi kurang'] as const);
-  const qty = reqNum(b, 'qty', 0);
-  const delta = type === 'Stok masuk' ? qty : -qty;
-  await c.env.DB.tx(async (db) => {
-    const k = await db.prepare('SELECT stock FROM skus WHERE code = ? FOR UPDATE').bind(code).first<{ stock: number }>();
-    if (!k) throw notFound('SKU tidak ditemukan');
-    if (k.stock + delta < 0) throw conflict('Stok tidak cukup');
-    await db.prepare('UPDATE skus SET stock = ROUND((stock + ?)::numeric, 2) WHERE code = ?').bind(delta, code).run();
-    await db.prepare('INSERT INTO stock_ledger (sku_code, type, qty, ref, by_user, at) VALUES (?,?,?,?,?,?)').bind(code, type, delta, optStr(b, 'ref', 100) ?? 'manual', c.get('user').code, now()).run();
-  });
-  return c.json({ ok: true }, 201);
-});
-
-opsRoutes.put('/stock/sku/:code', async (c) => {
-  await allow(c, ['gudang', 'spv'], 'stok');
-  const b = await readJson(c);
-  const min = reqNum(b, 'min', 0, true);
-  const use = b.use === null || b.use === '' ? null : reqNum(b, 'use', 0, true);
-  const r = await c.env.DB.prepare('UPDATE skus SET min_stock = ?, use_per_m = ? WHERE code = ?').bind(min, use, c.req.param('code')).run();
-  if (!r.meta.changes) throw notFound('SKU tidak ditemukan');
-  await audit(c.env.DB, c.get('user').id, 'sku_updated', 'sku', c.req.param('code'), { min, use });
-  return c.json({ ok: true });
-});
-
 // ---- Master: pengguna, hak akses, pengaturan ----
 opsRoutes.post('/admin/users', async (c) => {
   await allow(c, []);

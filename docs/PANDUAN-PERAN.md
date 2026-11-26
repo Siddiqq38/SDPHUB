@@ -29,6 +29,16 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 - SPV: tambah **Lembur** di Antrian Produksi bila kapasitas perlu ditambah.
 - Kapasitas = jam efektif (09.00-12.00, 13.00-21.30) dibagi norma waktu, dijual 90%. Finishing masih estimasi (DTF 30 menit, sublim 60 menit). Semua angka dapat diubah di Pengaturan.
 
+## Inventory per roll
+
+1. **Master SKU & Bin** (Gudang atau SPV): daftarkan bahan (mis. KIM001 Kain Milano) dan rak (mis. A1.2).
+2. **GR** (tim SDP: Operator, CS, Gudang, SPV, Manager): SKU, nomor batch, jumlah roll, isi per roll, supplier. Setiap roll mendapat ID, mis. RCVKN001-01.
+3. **Put away**: pilih bin. Stok baru dihitung tersedia setelah langkah ini.
+4. **Pemakaian** (Operator, Gudang, SPV): catat Produksi, Test print, Reject, dan Waste terpisah; sisa roll terpotong otomatis. Tinta, powder, dan kertas pelindung cukup ditandai **habis**.
+5. **Opname** per roll hanya oleh SPV, dengan alasan. Semua mutasi ada di **Kartu stok**.
+
+Rekomendasi roll otomatis menyusul pada Fase 2.
+
 ## Monitoring produksi
 
 - Buka **Antrian Produksi**: ikon printer per mesin menunjukkan order yang sedang dikerjakan. Arahkan kursor (di HP: ketuk) untuk melihat order dan customer.
