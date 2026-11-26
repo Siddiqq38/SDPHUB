@@ -29,6 +29,13 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 - SPV: tambah **Lembur** di Antrian Produksi bila kapasitas perlu ditambah.
 - Kapasitas = jam efektif (09.00-12.00, 13.00-21.30) dibagi norma waktu, dijual 90%. Finishing masih estimasi (DTF 30 menit, sublim 60 menit). Semua angka dapat diubah di Pengaturan.
 
+## Monitoring produksi
+
+- Buka **Antrian Produksi**: ikon printer per mesin menunjukkan order yang sedang dikerjakan. Arahkan kursor (di HP: ketuk) untuk melihat order dan customer.
+- Meter tercetak dan sisa waktu adalah **perkiraan** dari waktu tombol mulai ditekan dan norma waktu, bukan bacaan mesin.
+- **On track**: sesuai norma dan deadline. **Delay**: melewati perkiraan lebih dari 5 menit, atau diperkirakan baru siap setelah deadline. **Overdue**: sudah lewat deadline (atau SLA bila tanpa deadline).
+- **Jadwal antrian** menampilkan semua order antrian beserta tanggal dan jam mulai serta perkiraan selesai.
+
 ## Foto QC dari HP
 
 - Operator login di HP, buka **QC**, lalu tekan **Ambil foto** atau **Pilih dari galeri**. Foto langsung diunggah sesuai aslinya (maksimal 20 MB).

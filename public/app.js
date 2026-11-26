@@ -173,10 +173,55 @@ const lateTag=(o,end)=>o.deadline&&(end||Date.now())>dlTime(o.deadline)?h('span'
 const billText=o=>'Halo '+o.customer+', file order '+o.id+' sudah layak cetak. Total '+money(o.total)+', sisa '+money(o.total-paidOf(o))+'. Produksi dimulai setelah lunas. Cek status: '+trackLink(o);
 
 // Kalender produksi mengikuti pengaturan server (blok jam efektif, hari libur).
+const blocksOn=day=>{const c=S.calendar;return c.days?.[day]??(c.closedWeekdays.includes((day+4)%7)?[]:c.blocks);};
 function addWork(start,sec){const c=S.calendar,M=60000,D=864e5,off=c.offsetMin*M;let left=sec*1000,day=Math.floor((start+off)/D),min=((start+off)-day*D)/M;
- for(let g=0;g<400;g++,day++,min=0){for(const[a,b]of c.days?.[day]??(c.closedWeekdays.includes((day+4)%7)?[]:c.blocks)){const f=Math.max(min,a);if(f>=b)continue;const av=(b-f)*M;if(left<=av)return day*D+f*M+left-off;left-=av;}}return null;}
+ for(let g=0;g<400;g++,day++,min=0){for(const[a,b]of blocksOn(day)){const f=Math.max(min,a);if(f>=b)continue;const av=(b-f)*M;if(left<=av)return day*D+f*M+left-off;left-=av;}}return null;}
 const queueOf=m=>S.orders.filter(o=>o.stage===m&&(o.status==='antrian'||busy(o))).sort((a,b)=>busy(b)-busy(a)||(b.priority?1:0)-(a.priority?1:0)||a.approved-b.approved);
 function estimates(){const out={};for(const[m,d]of Object.entries(MACHINES)){let cur=Date.now();for(const o of queueOf(m)){const n=S.settings[d.norm];if(!n){out[o.id]=null;continue;}const end=addWork(busy(o)?o.started:cur,meterOf(o)*n);out[o.id]=end;cur=Math.max(cur,end);}}return out;}
+
+// ---------- Monitoring produksi (perkiraan dari norma waktu, bukan sensor mesin) ----------
+const DELAY_TOLERANCE=5*60000;
+/** Detik kerja efektif antara dua waktu. */
+function workSec(a,b){const M=60000,D=864e5,off=S.calendar.offsetMin*M;let t=0;for(let d=Math.floor((a+off)/D);d<=Math.floor((b+off)/D);d++)for(const[x,y]of blocksOn(d)){const s=Math.max(d*D+x*M-off,a),e=Math.min(d*D+y*M-off,b);if(e>s)t+=e-s;}return t/1000;}
+/** Batas SLA standar bila order tanpa deadline: masuk sebelum 12.00 selesai hari itu, selebihnya hari kerja berikutnya. */
+function slaOf(t){const M=60000,D=864e5,off=S.calendar.offsetMin*M;let day=Math.floor((t+off)/D);if((t+off)-day*D>=12*36e5)day++;for(let i=0;i<60;i++,day++){const b=blocksOn(day);if(b.length)return day*D+Math.max(...b.map(x=>x[1]))*M-off;}return t;}
+const dueOf=o=>o.deadline?dlTime(o.deadline):slaOf(o.approved||o.created);
+const finishSec=o=>((o.service==='dtf'?S.settings.finDtf:S.settings.finSub)||0)*60;
+/** Overdue: sudah lewat deadline. Delay: melebihi norma, atau diperkirakan baru siap setelah deadline. */
+function conditionOf(o,end){const now=Date.now(),due=dueOf(o);if(now>due)return['Overdue','bad'];const n=S.settings[MACHINES[o.stage].norm];if(!n||!end)return['Norma belum diatur',''];
+ if(busy(o)){const planned=addWork(o.started,meterOf(o)*n+(o.status==='curing'?finishSec(o):0));if(now>planned+DELAY_TOLERANCE)return['Delay','warn'];}
+ return addWork(Math.max(end,now),finishSec(o))>due?['Delay','warn']:['On track','ok'];}
+const span=ms=>{const m=Math.round(Math.abs(ms)/60000);return m<60?m+' menit':Math.floor(m/60)+' jam '+(m%60)+' menit';};
+function queueRows(svc){const est=estimates(),rows=[];for(const[m,d]of Object.entries(MACHINES)){if(svc!=='all'&&d.svc!==svc)continue;let free=Date.now();for(const o of queueOf(m)){const end=est[o.id];rows.push({o,m,end,start:busy(o)?o.started:end?addWork(free,0):null});if(end)free=Math.max(free,end);}}
+ return rows.sort((a,b)=>busy(b.o)-busy(a.o)||(a.start??Infinity)-(b.start??Infinity));}
+function printerIcon(on){const NS='http://www.w3.org/2000/svg',svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox','0 0 64 64');svg.setAttribute('aria-hidden','true');
+ const add=(tag,attrs)=>{const e=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);svg.append(e);};
+ add('rect',{class:'paper',x:19,y:5,width:26,height:17,rx:2});add('rect',{class:'box',x:7,y:20,width:50,height:25,rx:6});add('circle',{class:'lamp',cx:48,cy:28,r:3});add('rect',{class:'slot',x:15,y:35,width:34,height:4,rx:2});add('path',{class:'sheet',d:'M19 38h26v20H19zM24 44h16M24 50h11'});
+ return h('span',{class:'printer'+(on?' run':'')},svg);}
+let ticker=[];
+function monitorCard(m){const q=queueOf(m),o=q.find(busy),d=MACHINES[m],next=q.find(x=>!busy(x));
+ const tip=o?[h('b',{},'Sedang dikerjakan'),h('span',{},'Order '+o.id),h('span',{},'Customer: '+o.customer),h('span',{},num(meterOf(o))+' m · '+itemsText(o)),h('span',{},'Resi '+o.track)]
+  :[h('b',{},'Mesin idle'),h('span',{},next?'Berikutnya '+next.id+' · '+next.customer+' · '+num(meterOf(next))+' m':'Belum ada antrian')];
+ const icon_=h('div',{class:'machine-icon',tabindex:0,'aria-label':tip.map(x=>x.textContent).join('. ')},printerIcon(!!o),h('div',{class:'tip',role:'tooltip'},tip));
+ const state=h('span',{class:'tag'}),head=h('div',{class:'row'},h('h3',{},d.n),svcTag(d.svc),state);
+ if(!o){state.textContent='Siap (idle)';return h('div',{class:'monitor'},icon_,h('div',{class:'info'},head,h('div',{class:'muted'},next?'Menunggu mulai: '+next.id+' · '+next.customer:'Tidak ada order di antrian'),qcTag(m)));}
+ const n=S.settings[d.norm],fill=h('i'),meterText=h('b'),timeText=h('div',{class:'small'});
+ const planned=n?addWork(o.started,meterOf(o)*n):null;
+ const update=()=>{const now=Date.now(),total=meterOf(o),done=o.status==='curing'?total:n?Math.min(total,workSec(o.started,now)/n):null,pct=done==null?0:Math.round(done/total*100);
+  const[label,cls]=conditionOf(o,planned);state.textContent=label;state.className='tag '+cls;fill.style.width=pct+'%';icon_.parentElement?.setAttribute('data-state',cls);
+  meterText.textContent=done==null?'Norma waktu belum diatur':'±'+num(Math.floor(done*10)/10)+' m dari '+num(total)+' m ('+pct+'%)';
+  timeText.textContent=!planned?'':o.status==='curing'?'Cetak selesai, sedang powder dan curing.':now<=planned?'Sisa waktu cetak ±'+span(workSec(now,planned)*1000)+(workSec(now,now+60000)?'':' (di luar jam produksi)'):'Melewati perkiraan selesai '+span(now-planned)+'. Tekan selesai bila sudah rampung.';};
+ const card_=h('div',{class:'monitor on'},icon_,h('div',{class:'info'},head,h('div',{},h('b',{},o.id),' · '+o.customer+' · Resi '+o.track),
+  h('div',{class:'progress',role:'img','aria-label':'Progres cetak'},fill),h('div',{class:'row'},meterText,h('span',{class:'tag'},STATUS[o.status][0])),timeText,
+  h('div',{class:'small muted'},'Mulai '+dt(o.started)+' · Perkiraan selesai '+(planned?dt(planned):'belum dapat dihitung')+' · '+(o.deadline?'Deadline ':'SLA ')+dt(dueOf(o)))));
+ ticker.push(update);update();return card_;}
+function liveParts(svc){ticker=[];const rows=queueRows(svc),counts={};for(const r of rows){const k=conditionOf(r.o,r.end)[0];counts[k]=(counts[k]||0)+1;}
+ return[card(h('div',{class:'row'},h('h2',{},'Monitoring produksi'),[['On track','ok'],['Delay','warn'],['Overdue','bad']].map(([k,c])=>h('span',{class:'tag '+c},k+' '+(counts[k]||0)))),
+   h('p',{class:'small muted'},'Diperbarui otomatis. Meter tercetak adalah perkiraan dari waktu mulai dan norma waktu, bukan sensor mesin. Arahkan kursor atau ketuk ikon printer untuk rincian.'),
+   h('div',{class:'monitors'},Object.keys(MACHINES).filter(m=>svc==='all'||MACHINES[m].svc===svc).map(monitorCard))),
+  card(h('h2',{},'Jadwal antrian ('+rows.length+' order)'),table([['Urutan',r=>rows.indexOf(r)+1],['Order',r=>h('span',{},r.o.id,h('br'),h('span',{class:'small muted'},r.o.track))],['Customer',r=>r.o.customer],['Mesin',r=>MACHINES[r.m].n],['Meter',r=>num(meterOf(r.o))],['Status',r=>stTag(r.o)],
+   ['Mulai',r=>r.start?dt(r.start):'Belum dapat dihitung'],['Perkiraan selesai',r=>r.end?dt(r.end):'Norma belum diatur'],['Deadline / SLA',r=>(r.o.deadline?'':'SLA ')+dt(dueOf(r.o))],['Kondisi',r=>{const[t,c]=conditionOf(r.o,r.end);return h('span',{class:'tag '+c},t);}]],rows,'Antrian kosong. Order masuk setelah file layak dan lunas.'))];}
+function paintLive(){const box=document.getElementById('live');if(box&&!box.querySelector('.machine-icon:hover,.machine-icon:focus'))box.replaceChildren(...liveParts(prodSvc));}
 
 // ---------- Kapasitas produksi (dihitung server) ----------
 const hasCap=()=>S?.api>=3&&S.capacity;
@@ -359,7 +404,7 @@ const qcToday=m=>S.qcReports.filter(r=>r.machine===m&&r.day===S.today).pop();
 const qcTag=m=>{const[t,c]=QC_STATE[qcToday(m)?.status]||['QC pagi belum diisi','warn'];return h('span',{class:'tag '+c},t);};
 
 let prodSvc='all';
-V.produksi=()=>{const est=estimates(),run=is('op','spv'),lead=is('spv');return[h('h1',{},'Antrian produksi'),h('p',{class:'muted'},'Estimasi mengikuti jam efektif dan hari libur di server. Satu mesin satu pekerjaan. Hanya order dengan file layak dan lunas yang masuk antrian.'),svcTabs(prodSvc,k=>prodSvc=k),hasCap()?[card(h('h2',{},'Kapasitas 7 hari kerja'),capTable(prodSvc)),bookingCard(prodSvc),overtimeCard()]:null,Object.entries(MACHINES).filter(([,d])=>prodSvc==='all'||d.svc===prodSvc).map(([m,d])=>{const q=queueOf(m),n=S.settings[d.norm];
+V.produksi=()=>{const est=estimates(),run=is('op','spv'),lead=is('spv');return[h('h1',{},'Antrian produksi'),h('p',{class:'muted'},'Estimasi mengikuti jam efektif dan hari libur di server. Satu mesin satu pekerjaan. Hanya order dengan file layak dan lunas yang masuk antrian.'),svcTabs(prodSvc,k=>prodSvc=k),h('div',{id:'live'},liveParts(prodSvc)),h('h2',{class:'mt'},'Tindakan per mesin'),Object.entries(MACHINES).filter(([,d])=>prodSvc==='all'||d.svc===prodSvc).map(([m,d])=>{const q=queueOf(m),n=S.settings[d.norm];
  const post=(o,path,body,msg)=>ev=>act(ev,()=>api('POST',`/api/orders/${o.dbId}/${path}`,body?body():{}),msg);
  const action=o=>{if(o.status==='antrian')return[run?h('button',{class:'pri',onclick:post(o,'start',null,m==='cal'?'Press dimulai.':'Cetak dimulai. Pastikan setting RIP: mirror'+(m==='dtf'?' dan white underbase.':'.'))},m==='cal'?'Mulai press':'Mulai cetak'):null,lead?h('button',{onclick:post(o,'priority',()=>({on:!o.priority}),o.priority?'Prioritas dilepas.':'Order diprioritaskan.')},o.priority?'Lepas prioritas':'Prioritaskan'):null];
   if(!run)return null;
@@ -367,7 +412,7 @@ V.produksi=()=>{const est=estimates(),run=is('op','spv'),lead=is('spv');return[h
   if(m==='subp')return h('button',{class:'pri',onclick:post(o,'finish',null,'Print selesai. Order lanjut ke antrian press.')},'Selesai cetak');
   const t=h('input',{type:'number',placeholder:'Suhu °C','aria-label':'Suhu',style:'width:95px'}),s=h('input',{type:'number',placeholder:'Detik','aria-label':'Lama detik',style:'width:85px'});
   return[t,s,h('button',{class:'pri',onclick:ev=>{if(!(Number(t.value)>0&&Number(s.value)>0))return toast('Isi suhu dan lama proses.');post(o,'finish',()=>({temp:Number(t.value),seconds:Number(s.value)}),r=>r.deducted?'Selesai. Pemakaian bahan dipotong dari stok, order menunggu QC.':'Selesai. Order menunggu QC. Pemakaian per meter belum diatur, stok tidak dipotong.')(ev);}},m==='dtf'?'Selesai curing':'Selesai press')];};
- return card(h('div',{class:'row'},h('h2',{},d.n),svcTag(d.svc),qcTag(m),h('span',{class:'tag'},n?num(n/60)+' menit per meter':'Norma belum diatur')),m==='dtf'?h('p',{class:'small muted'},'Curing standar: 130 sampai 150 °C, 60 sampai 90 detik, tekstur kulit jeruk merata.'):null,table([['Order',o=>h('span',{},o.id,o.priority?h('span',{class:'tag warn'},'Prioritas'):null,h('br'),h('span',{class:'small muted'},o.customer))],['Meter',o=>num(meterOf(o))],['File',fileView],['Status',stTag],['Estimasi selesai',o=>dt(est[o.id])],['Deadline',o=>o.deadline?h('span',{},dlText(o.deadline),' ',lateTag(o,est[o.id])):'-'],['Aksi',o=>h('div',{class:'row'},action(o))]],q,'Antrian kosong'));})];};
+ return card(h('div',{class:'row'},h('h2',{},d.n),svcTag(d.svc),qcTag(m),h('span',{class:'tag'},n?num(n/60)+' menit per meter':'Norma belum diatur')),m==='dtf'?h('p',{class:'small muted'},'Curing standar: 130 sampai 150 °C, 60 sampai 90 detik, tekstur kulit jeruk merata.'):null,table([['Order',o=>h('span',{},o.id,o.priority?h('span',{class:'tag warn'},'Prioritas'):null,h('br'),h('span',{class:'small muted'},o.customer))],['Meter',o=>num(meterOf(o))],['File',fileView],['Status',stTag],['Estimasi selesai',o=>dt(est[o.id])],['Deadline',o=>o.deadline?h('span',{},dlText(o.deadline),' ',lateTag(o,est[o.id])):'-'],['Aksi',o=>h('div',{class:'row'},action(o))]],q,'Antrian kosong'));}),hasCap()?[card(h('h2',{},'Kapasitas 7 hari kerja'),capTable(prodSvc)),bookingCard(prodSvc),overtimeCard()]:null];};
 
 let qcMachine='dtf';
 // Isian QC pagi disimpan sementara per mesin dan hari, agar tidak hilang bila HP memuat ulang halaman setelah membuka kamera.
@@ -485,4 +530,7 @@ document.addEventListener('click',async e=>{const a=e.target.closest&&e.target.c
  try{const f=await api('GET',a.getAttribute('href'));const bytes=Uint8Array.from(atob(f.data),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:f.content_type}));const link=h('a',{href:url,download:f.file_name});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(x){oops(x);}});
 // Penyegaran otomatis hanya di halaman pantauan, agar isian formulir tidak hilang.
 setInterval(()=>{if(S&&!broken&&!document.hidden&&['#dashboard','#laporan','#toko'].includes(location.hash))load(true).then(render).catch(e=>netBar('Data belum diperbarui. '+e.message));},30000);
+// Antrian Produksi: hitungan berjalan tiap detik; data server diambil ulang tiap 30 detik tanpa menghapus isian formulir.
+setInterval(()=>{if(S&&!broken&&!document.hidden&&location.hash==='#produksi')ticker.forEach(f=>f());},1000);
+setInterval(()=>{if(S&&!broken&&!document.hidden&&location.hash==='#produksi')load(true).then(paintLive).catch(e=>netBar('Data belum diperbarui. '+e.message));},30000);
 connect();
