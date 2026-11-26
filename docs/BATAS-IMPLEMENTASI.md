@@ -2,6 +2,7 @@
 
 | Area | Status |
 |---|---|
+| Mode spreadsheet | Belum dicoba di akun Google sungguhan (diuji dengan tiruan layanan Google di Node). Lihat batas lain di SPREADSHEET.md. |
 | Deploy | Belum online. Belum pernah diuji terhadap Supabase dan Vercel sungguhan (uji berjalan di Postgres PGlite satu koneksi dan penyimpanan lokal). Jalur Supabase Storage dan koneksi pooler ditulis sesuai dokumentasi tetapi belum dicoba. Uji pertama di Vercel dengan data contoh. |
 | SOP Sublim | Checklist QC pagi, butir QC hasil, dan parameter press sublim masih usulan; suhu dan waktu press diisi bebas. |
 | Harga dan norma | Harga dan norma sublim kosong sampai diisi di Pengaturan; order sublim ditolak sebelum harganya diisi. Price list retail DTF ada di kode (`src/domain.ts` dan `public/app.js`), belum bisa diubah dari layar. |

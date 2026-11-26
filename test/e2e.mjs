@@ -1,6 +1,7 @@
 // Uji alur penuh ke server yang berjalan: `npm run dev` (database kosong) lalu `npm run test:e2e`.
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8787';
 const BOOT = process.env.BOOTSTRAP_TOKEN ?? 'token-uji-lokal-0123456789';
+const SHEETS = process.env.SHEETS === '1'; // backend Apps Script (lewat test/gas-harness.mjs)
 let pass = 0, fail = 0;
 const check = (label, cond, extra) => { if (cond) { pass++; console.log('  ok   ' + label); } else { fail++; console.log('  GAGAL ' + label + (extra !== undefined ? '  -> ' + JSON.stringify(extra).slice(0, 400) : '')); } };
 const client = () => ({ cookie: '', csrf: '' });
@@ -27,6 +28,7 @@ let n = 0;
 const key = () => 'req-' + Date.now() + '-' + ++n;
 async function upload(cl, kind, name = 'file.pdf') {
   const blob = new Blob(['isi uji ' + name], { type: 'application/pdf' });
+  if (SHEETS) return call(cl, 'POST', '/api/files/upload', { kind, file_name: name, content_type: blob.type, data: Buffer.from(await blob.arrayBuffer()).toString('base64') });
   const init = await call(cl, 'POST', '/api/files/init', { kind, file_name: name, content_type: blob.type, size_bytes: blob.size });
   if (init.status !== 201) return init;
   const { url, method, fields, file_field } = init.data.upload;
@@ -49,8 +51,10 @@ async function main() {
   r = await login(master, 'master1', PW2);
   check('login (kode tidak membedakan huruf besar)', r.status === 200, r);
   for (const p of ['/api/state', '/api/files/qc_photo/x']) check('tanpa login 401: ' + p, (await call(anon, 'GET', p)).status === 401);
-  r = await call({ ...master, csrf: '' }, 'PUT', '/api/admin/settings', { priceDtf: 1 });
-  check('tanpa token CSRF ditolak', r.status === 403, r);
+  if (!SHEETS) { // mode spreadsheet memakai token di body (tanpa cookie), sehingga tidak ada CSRF
+    r = await call({ ...master, csrf: '' }, 'PUT', '/api/admin/settings', { priceDtf: 1 });
+    check('tanpa token CSRF ditolak', r.status === 403, r);
+  }
 
   console.log('# Akun per peran');
   const roles = [['MGR', 'manager'], ['SPV', 'spv'], ['CS', 'cs'], ['CRM', 'crm'], ['STH', 'store'], ['STH2', 'store'], ['OPR', 'op'], ['QC1', 'qc'], ['GDG', 'gudang'], ['FAT', 'fat']];

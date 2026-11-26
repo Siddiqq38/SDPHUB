@@ -4,6 +4,14 @@ Aplikasi internal departemen SDP (DTF dan Sublim), PT Tigalapan Sukses Indonesia
 
 Platform: **GitHub + Vercel + Supabase**. Hono + TypeScript (fungsi Vercel), Postgres dan Storage Supabase, frontend HTML/JS tanpa build. Bahasa Indonesia, WITA, rupiah.
 
+## Dua pilihan backend
+| Backend | Pengaturan `public/config.js` | Panduan |
+|---|---|---|
+| Google Spreadsheet (sementara) | `sheetsUrl` diisi URL Web App | [docs/SPREADSHEET.md](docs/SPREADSHEET.md) |
+| Supabase | `sheetsUrl` kosong | [docs/DEPLOY-VERCEL.md](docs/DEPLOY-VERCEL.md) |
+
+`apps-script/Code.gs` dan `src/` memuat aturan yang sama; bila aturan diubah, ubah keduanya lalu jalankan kedua uji.
+
 ## Alur
 CS atau Store Head input order, Operator cek file (revisi lewat CS), **lunas** (dicatat CS atau Store Head), antrian, cetak (RIP mirror dan white underbase), powder dan curing 130-150 °C 60-90 detik (Sublim: print kertas lalu press), QC (reject masuk Log QC FRM-OPR-005 dan dicetak ulang), kemas dan label, siap kirim, serah terima.
 

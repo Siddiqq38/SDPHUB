@@ -26,6 +26,11 @@ const MORNING={
  cal:[step('Usulan','Persiapan press',['Mesin dan area bersih dan aman','Suhu dan kecepatan sesuai instruksi']),step('Usulan','Uji transfer',['Hasil transfer pada kain uji rata dan warna sesuai'],'Hasil press')]};
 
 let me=null,S=null,PUB=null;
+// Backend: kosong = server Vercel + Supabase; berisi URL Apps Script = Google Spreadsheet (sementara).
+const SHEETS=(window.SDP_CONFIG&&window.SDP_CONFIG.sheetsUrl)||'';
+const SHEETS_MAX=8*1024*1024;
+let token='';try{token=sessionStorage.getItem('sdp-token')||'';}catch(e){}
+const setToken=t=>{token=t;try{t?sessionStorage.setItem('sdp-token',t):sessionStorage.removeItem('sdp-token');}catch(e){}};
 const money=n=>n==null?'Belum diatur':'Rp '+Math.round(n).toLocaleString('id-ID');
 const num=n=>Number(n).toLocaleString('id-ID',{maximumFractionDigits:2});
 const dt=t=>t?new Date(t).toLocaleString('id-ID',{timeZone:'Asia/Makassar',weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' WITA':'Belum diatur';
@@ -43,17 +48,30 @@ const copy=(text,ok)=>navigator.clipboard.writeText(text).then(()=>toast(ok),()=
 const checklist=items=>{const boxes=items.map(()=>h('input',{type:'checkbox'}));return{view:items.map((t,i)=>h('label',{class:'row'},boxes[i],t)),values:()=>boxes.map(b=>b.checked),all:()=>boxes.every(b=>b.checked)};};
 
 // ---------- Komunikasi dengan server ----------
-async function api(method,path,body){
+async function send(method,path,body){
+ if(SHEETS){
+  // text/plain menghindari preflight CORS, yang tidak didukung Apps Script.
+  const res=await fetch(SHEETS,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({method,path,body,token}),redirect:'follow'});
+  let j=null;try{j=await res.json();}catch(e){}
+  if(!j)throw new Error('Apps Script tidak merespons. Periksa URL dan izin deployment.');
+  return j;
+ }
  const headers={};if(me?.csrf&&method!=='GET')headers['X-CSRF-Token']=me.csrf;
  if(body!==undefined)headers['Content-Type']='application/json';
  const res=await fetch(path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),credentials:'same-origin'});
  let data=null;try{data=await res.json();}catch(e){}
- if(res.status===401&&me){me=null;S=null;goto('masuk');throw new Error('Sesi berakhir, silakan masuk lagi.');}
- if(!res.ok)throw new Error(data?.error||'Permintaan gagal ('+res.status+')');
+ return{status:res.status,data};
+}
+async function api(method,path,body){
+ const{status,data}=await send(method,path,body);
+ if(SHEETS&&status===200&&path==='/api/auth/login')setToken(data.token);
+ if(SHEETS&&path==='/api/auth/logout')setToken('');
+ if(status===401&&me){me=null;S=null;setToken('');goto('masuk');throw new Error('Sesi berakhir, silakan masuk lagi.');}
+ if(status>=400)throw new Error(data?.error||'Permintaan gagal ('+status+')');
  return data;
 }
 async function load(){
- if(!me){try{me=await api('GET','/api/auth/me');}catch(e){me=null;}}
+ if(!me&&(!SHEETS||token)){try{me=await api('GET','/api/auth/me');}catch(e){me=null;setToken('');}}
  S=me&&!me.must_change?await api('GET','/api/state'):null;
  if(!S&&!PUB)PUB=await api('GET','/api/public/info');
 }
@@ -65,6 +83,11 @@ async function act(ev,fn,msg){
 }
 // Unggah dua langkah: izin dari server, unggah langsung ke storage, lalu konfirmasi.
 async function upload(kind,file){
+ if(SHEETS){
+  if(file.size>SHEETS_MAX)throw new Error('Maksimal 8 MB selama memakai spreadsheet. Untuk file lebih besar, isi tautan Drive.');
+  const data=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]||'');r.onerror=()=>no(new Error('File tidak dapat dibaca'));r.readAsDataURL(file);});
+  return(await api('POST','/api/files/upload',{kind,file_name:file.name,content_type:file.type||'application/octet-stream',data})).key;
+ }
  const init=await api('POST','/api/files/init',{kind,file_name:file.name,content_type:file.type||'application/octet-stream',size_bytes:file.size});
  const{url,method,fields,file_field}=init.upload,fd=new FormData();
  for(const[k,v]of Object.entries(fields))fd.set(k,v);fd.set(file_field,file,file.name);
@@ -141,7 +164,7 @@ V.input=()=>{const mine=role()==='store',requestKey=uid();
   body.file_ref=file.value.trim()||up.files[0].name;
   const r=await api('POST','/api/orders',body);location.hash=mine?'toko':'cs';return r;},r=>'Order '+r.order_no+' dikirim ke Operator untuk cek file.');
  return[h('h1',{},'Input order'),h('p',{class:'muted'},(mine?'Masukkan order customer yang datang ke toko.':'Terima file (CDR, PDF, PNG transparan), ukuran, dan qty dari chat atau customer yang datang.')+' Operator akan memeriksa file.'),
- card(h('div',{class:'f'},lab('Jenis customer',type),lab('Sumber order',src),lab('Layanan',svc),lab('Nama file / tautan Drive',file),lab('Unggah berkas (opsional, maks 50 MB)',up),lab('Deadline',dl),lab('Catatan',note))),
+ card(h('div',{class:'f'},lab('Jenis customer',type),lab('Sumber order',src),lab('Layanan',svc),lab('Nama file / tautan Drive',file),lab('Unggah berkas (opsional, maks '+(SHEETS?8:50)+' MB)',up),lab('Deadline',dl),lab('Catatan',note))),
  card(h('h2',{},'Customer'),who),
  card(h('h2',{},'Rincian'),detail,h('div',{class:'mt'},sum),h('div',{class:'row mt'},h('label',{class:'row'},paid,'Pembayaran lunas sudah diterima'),method),h('div',{class:'mt'},h('button',{class:'pri',onclick:send},'Simpan dan kirim ke Operator')))];};
 
@@ -277,6 +300,9 @@ function render(){
  catch(e){console.error(e);document.getElementById('view').replaceChildren(card(h('p',{},'Halaman gagal ditampilkan: '+e.message)));}
 }
 addEventListener('hashchange',render);
+// Mode spreadsheet: file diambil lewat API (setelah cek hak akses), lalu disimpan sebagai unduhan.
+document.addEventListener('click',async e=>{const a=e.target.closest&&e.target.closest('a[href^="/api/files/"]');if(!SHEETS||!a)return;e.preventDefault();
+ try{const f=await api('GET',a.getAttribute('href'));const bytes=Uint8Array.from(atob(f.data),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:f.content_type}));const link=h('a',{href:url,download:f.file_name});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(x){toast(x.message);}});
 // Penyegaran otomatis hanya di halaman pantauan, agar isian formulir tidak hilang.
 setInterval(()=>{if(S&&!document.hidden&&['#dashboard','#laporan','#toko'].includes(location.hash))load().then(render).catch(()=>{});},30000);
 load().then(render).catch(e=>{document.getElementById('view').replaceChildren(card(h('p',{},'Server tidak dapat dihubungi: '+e.message)));});
