@@ -6,3 +6,5 @@
 .vercel/
 *.zip
 
+dev.out.txt
+dev.err.txt

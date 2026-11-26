@@ -13,14 +13,14 @@ const DUMMY = { hash: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', salt: 'AAAA
 
 authRoutes.post('/login', async (c) => {
   const b = await readJson(c);
-  const username = reqStr(b, 'username', 64);
+  const username = reqStr(b, 'username', 32);
   const password = reqStr(b, 'password', 200);
   const key = `${username.toLowerCase()}|${clientIp(c)}`;
   const since = now() - LOGIN_WINDOW_MS;
   const fails = await c.env.DB.prepare('SELECT COUNT(*) n FROM login_attempts WHERE key = ? AND at > ?').bind(key, since).first<{ n: number }>();
   if ((fails?.n ?? 0) >= LOGIN_MAX_FAILS) throw new HttpError(429, 'Terlalu banyak percobaan login. Coba lagi beberapa menit lagi.');
 
-  const u = await c.env.DB.prepare('SELECT * FROM users WHERE username = ?').bind(username).first<any>();
+  const u = await c.env.DB.prepare('SELECT * FROM users WHERE code = ?').bind(username).first<any>();
   const ok = u
     ? await verifyPassword(password, u.pass_hash, u.pass_salt, u.pass_iter)
     : (await verifyPassword(password, DUMMY.hash, DUMMY.salt, DUMMY.iter), false);
@@ -38,7 +38,7 @@ authRoutes.post('/login', async (c) => {
   const secure = new URL(c.req.url).protocol === 'https:';
   setCookie(c, COOKIE, token, { httpOnly: true, secure, sameSite: 'Strict', path: '/', maxAge: SESSION_TTL_MS / 1000 });
   await audit(c.env.DB, u.id, 'login');
-  return c.json({ csrf, role: u.role, username: u.username, must_change_password: !!u.must_change_password });
+  return c.json({ csrf, role: u.role, code: u.code, must_change_password: !!u.must_change_password });
 });
 
 authRoutes.post('/logout', authn, async (c) => {
@@ -47,12 +47,7 @@ authRoutes.post('/logout', authn, async (c) => {
   return c.json({ ok: true });
 });
 
-authRoutes.get('/me', authn, async (c) => {
-  const u = c.get('user');
-  const emp = await c.env.DB.prepare('SELECT full_name, job_title, department FROM employees WHERE user_id = ?').bind(u.id).first();
-  const cust = u.customer_id ? await c.env.DB.prepare('SELECT code, business_name FROM customers WHERE id = ?').bind(u.customer_id).first() : null;
-  return c.json({ ...u, csrf: c.get('csrf'), employee: emp, customer: cust });
-});
+authRoutes.get('/me', authn, async (c) => c.json({ ...c.get('user'), csrf: c.get('csrf') }));
 
 authRoutes.post('/change-password', authn, async (c) => {
   const b = await readJson(c);
@@ -96,11 +91,8 @@ bootstrapRoutes.post('/', async (c) => {
   if (!claim.meta.changes) throw forbidden('Bootstrap sudah pernah dipakai');
   const h = await hashPassword(password);
   const r = await c.env.DB.prepare(
-    "INSERT INTO users (username, pass_hash, pass_salt, pass_iter, role, active, must_change_password, created_at) VALUES (?,?,?,?, 'master', 1, 0, ?)",
-  ).bind(username, h.hash, h.salt, h.iter, now()).run();
-  const id = r.meta.last_row_id as number;
-  await c.env.DB.prepare('INSERT INTO employees (user_id, reg_code, full_name, employee_no, department, job_title) VALUES (?,?,?,?,?,?)')
-    .bind(id, '0000', full_name, '-', 'SDP', 'Master').run();
-  await audit(c.env.DB, id, 'bootstrap_master');
+    "INSERT INTO users (code, name, role, active, pass_hash, pass_salt, pass_iter, must_change_password, created_at) VALUES (?,?, 'master', 1, ?,?,?, 0, ?)",
+  ).bind(username, full_name, h.hash, h.salt, h.iter, now()).run();
+  await audit(c.env.DB, r.meta.last_row_id, 'bootstrap_master');
   return c.json({ ok: true });
 });

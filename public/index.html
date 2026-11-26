@@ -1,13 +1,21 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="id">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SDP - Tigalapan Operations System</title>
+  <title>SDP Print Hub</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Inter:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
-  <div id="app"><p class="muted pad">Memuat…</p></div>
-  <script src="/app.js" defer></script>
+<body style="margin:0">
+<div class="shell">
+<aside class="side"><span class="logo"><span class="cmyk" aria-hidden="true"><i class="c1"></i><i class="c2"></i><i class="c3"></i><i class="c4"></i></span>SDP Print Hub</span>
+<div class="who" id="who"></div>
+<nav aria-label="Menu" id="menu"></nav></aside>
+<div class="body">
+<main class="in" id="view"><p class="boot">Memuat…</p></main>
+</div></div>
+<div id="toast" role="status" hidden></div>
+<script src="/app.js" defer></script>
 </body>
 </html>

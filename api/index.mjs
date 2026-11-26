@@ -186,22 +186,22 @@ function __awaiter(thisArg, _arguments, P, generator) {
   return new (P || (P = Promise))(function(resolve, reject) {
     function fulfilled(value) {
       try {
-        step(generator.next(value));
+        step2(generator.next(value));
       } catch (e) {
         reject(e);
       }
     }
     function rejected(value) {
       try {
-        step(generator["throw"](value));
+        step2(generator["throw"](value));
       } catch (e) {
         reject(e);
       }
     }
-    function step(result) {
+    function step2(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
+    step2((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 }
 function __generator(thisArg, body) {
@@ -214,10 +214,10 @@ function __generator(thisArg, body) {
   }), g;
   function verb(n) {
     return function(v) {
-      return step([n, v]);
+      return step2([n, v]);
     };
   }
-  function step(op) {
+  function step2(op) {
     if (f) throw new TypeError("Generator is already executing.");
     while (g && (g = 0, op[0] && (_ = 0)), _) try {
       if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
@@ -351,12 +351,12 @@ function __asyncGenerator(thisArg, _arguments, generator) {
   }
   function resume(n, v) {
     try {
-      step(g[n](v));
+      step2(g[n](v));
     } catch (e) {
       settle(q[0][3], e);
     }
   }
-  function step(r) {
+  function step2(r) {
     r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);
   }
   function fulfill(value) {
@@ -5027,22 +5027,22 @@ function __awaiter2(thisArg, _arguments, P, generator) {
   return new (P || (P = Promise))(function(resolve, reject) {
     function fulfilled(value) {
       try {
-        step(generator.next(value));
+        step2(generator.next(value));
       } catch (e) {
         reject(e);
       }
     }
     function rejected(value) {
       try {
-        step(generator["throw"](value));
+        step2(generator["throw"](value));
       } catch (e) {
         reject(e);
       }
     }
-    function step(result) {
+    function step2(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
+    step2((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 }
 function __generator2(thisArg, body) {
@@ -5055,10 +5055,10 @@ function __generator2(thisArg, body) {
   }), g;
   function verb(n) {
     return function(v) {
-      return step([n, v]);
+      return step2([n, v]);
     };
   }
-  function step(op) {
+  function step2(op) {
     if (f) throw new TypeError("Generator is already executing.");
     while (g && (g = 0, op[0] && (_ = 0)), _) try {
       if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
@@ -5192,12 +5192,12 @@ function __asyncGenerator2(thisArg, _arguments, generator) {
   }
   function resume(n, v) {
     try {
-      step(g[n](v));
+      step2(g[n](v));
     } catch (e) {
       settle(q[0][3], e);
     }
   }
-  function step(r) {
+  function step2(r) {
     r.value instanceof __await2 ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);
   }
   function fulfill(value) {
@@ -13467,22 +13467,22 @@ function __awaiter3(thisArg, _arguments, P, generator) {
   return new (P || (P = Promise))(function(resolve, reject) {
     function fulfilled(value) {
       try {
-        step(generator.next(value));
+        step2(generator.next(value));
       } catch (e) {
         reject(e);
       }
     }
     function rejected(value) {
       try {
-        step(generator["throw"](value));
+        step2(generator["throw"](value));
       } catch (e) {
         reject(e);
       }
     }
-    function step(result) {
+    function step2(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
+    step2((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 }
 function __generator3(thisArg, body) {
@@ -13495,10 +13495,10 @@ function __generator3(thisArg, body) {
   }), g;
   function verb(n) {
     return function(v) {
-      return step([n, v]);
+      return step2([n, v]);
     };
   }
-  function step(op) {
+  function step2(op) {
     if (f) throw new TypeError("Generator is already executing.");
     while (g && (g = 0, op[0] && (_ = 0)), _) try {
       if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
@@ -13632,12 +13632,12 @@ function __asyncGenerator3(thisArg, _arguments, generator) {
   }
   function resume(n, v) {
     try {
-      step(g[n](v));
+      step2(g[n](v));
     } catch (e) {
       settle(q[0][3], e);
     }
   }
-  function step(r) {
+  function step2(r) {
     r.value instanceof __await3 ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);
   }
   function fulfill(value) {
@@ -26934,9 +26934,9 @@ var require_helper2 = __commonJS({
         }
       };
       for (var idx = 0; idx < fieldNames.length; idx += 1) {
-        var rule = rules[idx];
+        var rule2 = rules[idx];
         var value = entry[fieldNames[idx]] || "";
-        var res = rule(value);
+        var res = rule2(value);
         if (!res) {
           return false;
         }
@@ -31941,41 +31941,103 @@ function validUsername(u) {
   return typeof u === "string" && /^[A-Za-z0-9._-]{3,32}$/.test(u);
 }
 
-// src/lib/rbac.ts
-var STAFF = ["master", "supervisor", "cs", "crm", "operator", "gudang", "qc", "fat"];
-var PERM = {
-  "config.write": ["master"],
-  "user.manage": ["master"],
-  "customer.read": ["master", "supervisor", "cs", "crm", "fat"],
-  "customer.write": ["master"],
-  "app.list": ["master", "cs", "crm"],
-  "app.cs": ["cs"],
-  "app.survey": ["crm"],
-  "app.decide": ["master"],
-  "app.workshop": ["cs"],
-  "order.create_any": ["cs"],
-  "order.read_all": ["master", "supervisor", "cs", "crm", "operator", "gudang", "qc", "fat"],
-  "order.cs_validate": ["cs"],
-  "order.release": ["master", "supervisor"],
-  "order.close": ["cs", "master", "supervisor"],
-  "artwork.review": ["cs", "master"],
-  "wo.assign": ["cs", "supervisor", "master"],
-  "wo.run": ["operator"],
-  "machine.qc": ["operator", "qc"],
-  "result.qc": ["qc"],
-  "handover.write": ["gudang", "cs", "qc"],
-  "tracking.write": ["cs", "master"],
-  "stock.write": ["gudang", "master"],
-  "stock.use": ["gudang", "operator", "master"],
-  "payment.verify": ["fat"],
-  "invoice.write": ["fat", "cs", "master"],
-  "complaint.write": ["cs", "qc", "supervisor", "master"],
-  "loss.write": ["cs", "crm", "master"],
-  "report.read": ["master", "supervisor", "cs", "fat", "qc"]
+// src/domain.ts
+var ROLES = ["master", "manager", "spv", "cs", "crm", "store", "op", "qc", "gudang", "fat"];
+var GRANTABLE = ["dashboard", "laporan", "input", "cs", "toko", "pelanggan", "cekfile", "produksi", "qc", "serah", "bayar", "stok", "loss", "layanan", "lacak"];
+var ACCESS_DEFAULT = {
+  manager: ["dashboard", "laporan", "pelanggan", "produksi", "bayar", "stok", "loss", "layanan", "lacak"],
+  spv: ["dashboard", "laporan", "cs", "cekfile", "produksi", "qc", "serah", "stok", "loss", "layanan", "lacak"],
+  cs: ["dashboard", "input", "cs", "pelanggan", "bayar", "produksi", "serah", "loss", "layanan", "lacak"],
+  crm: ["pelanggan", "layanan", "lacak"],
+  store: ["input", "toko", "layanan", "lacak"],
+  op: ["cekfile", "produksi", "qc", "stok"],
+  qc: ["qc", "produksi"],
+  gudang: ["stok", "serah"],
+  fat: ["bayar", "laporan", "layanan", "lacak"]
 };
-function can(role, perm) {
-  return PERM[perm].includes(role);
+var ORDER_PAGES = ["dashboard", "laporan", "input", "cs", "toko", "pelanggan", "cekfile", "produksi", "qc", "serah", "bayar"];
+var RETAIL = {
+  "DTF Logo": { s: "10 x 15 cm", w: 15, l: 10, p: [6e3, 5500, 4500] },
+  "DTF A": { s: "A5, 15 x 21 cm", w: 21, l: 15, p: [1e4, 9e3, 7e3] },
+  "DTF B": { s: "A4, 21 x 30 cm", w: 30, l: 21, p: [17e3, 16e3, 12e3] },
+  "DTF C": { s: "A3, 30 x 42 cm", w: 42, l: 30, p: [25e3, 23e3, 18e3] },
+  "DTF D": { s: "A2, 42 x 59 cm", w: 59, l: 42, p: [45e3, 41e3, 32e3] }
+};
+var CANVAS_CM = 58;
+var WIDTHS = [
+  ["priceSub120", "Lebar kain sampai 120 cm"],
+  ["priceSub160", "Lebar kain 121 sampai 160 cm"],
+  ["priceSub180", "Lebar kain 161 sampai 180 cm"]
+];
+var MACHINES = {
+  dtf: { name: "Printer DTF Rhinotec", svc: "dtf", norm: "normDtf" },
+  subp: { name: "Printer Sublim", svc: "sub", norm: "normSubPrint" },
+  cal: { name: "Mesin Press / Calender", svc: "sub", norm: "normPress" }
+};
+var FILE_CHECKS = ["Format CDR, PDF, atau PNG transparan", "Ukuran sesuai order", "Font sudah di-outline", "Resolusi minimal 300 DPI"];
+var QC_CHECKS = {
+  dtf: ["Warna sesuai", "Bebas garis", "Tinta tidak meleber", "Powder matang merata", "Qty sesuai"],
+  sub: ["Warna sesuai", "Bebas garis", "Tidak ghosting atau berbayang", "Hasil press merata", "Qty dan ukuran sesuai"]
+  // usulan, menunggu SOP
+};
+var CURING = { minC: 130, maxC: 150, minS: 60, maxS: 90 };
+var step = (time, title, checks, photo) => ({ time, title, checks, photo });
+var MORNING = {
+  dtf: [
+    step("08.30-08.35", "Persiapan mesin", ["Mesin dan area kerja bersih, aman, serta mesin menyala sesuai prosedur", "Tinta putih/CMYK, PET film, dan powder adhesive tersedia dan siap digunakan"]),
+    step("08.35-08.45", "Cleaning dan nozzle check", ["Cleaning sesuai kebutuhan; hasil nozzle check lengkap tanpa garis putus atau hilang"], "Nozzle check"),
+    step("08.45-08.50", "Test print dan curing", ["Test print file standar: detail, warna, dan gambar sesuai file", "Curing sesuai parameter; powder meleleh dan menempel merata"], "Test print"),
+    step("08.50-08.55", "Uji press dan daya lekat", ["Press pada kain uji sesuai parameter; hasil transfer rata dan tidak mudah terkelupas"], "Hasil press"),
+    step("08.55-08.57", "Laporan hasil", ["Hasil uji press dilaporkan kepada leader; kendala dan tindakan awal dicatat jika ada"]),
+    step("08.57-09.00", "Kesiapan produksi", ["Seluruh hasil QC sudah diperiksa, bahan cukup, serta mesin dan area aman untuk produksi"])
+  ],
+  subp: [
+    step("Usulan", "Persiapan printer sublim", ["Mesin dan area bersih dan aman", "Tinta dan kertas sublim tersedia"]),
+    step("Usulan", "Nozzle check dan test print", ["Nozzle check lengkap", "Test print sesuai file"], "Nozzle check / test print")
+  ],
+  cal: [
+    step("Usulan", "Persiapan press", ["Mesin dan area bersih dan aman", "Suhu dan kecepatan sesuai instruksi"]),
+    step("Usulan", "Uji transfer", ["Hasil transfer pada kain uji rata dan warna sesuai"], "Hasil press")
+  ]
+};
+var tier = (q) => q <= 11 ? 0 : q <= 36 ? 1 : 2;
+function filmCm(d, q) {
+  let best = Infinity;
+  for (const [a, b] of [[d.w, d.l], [d.l, d.w]]) {
+    const per = Math.floor(CANVAS_CM / a);
+    if (per > 0) best = Math.min(best, Math.ceil(q / per) * b);
+  }
+  return best;
 }
+var RuleError = class extends Error {
+};
+function buildItems(input, settings) {
+  if (input.service === "dtfr") {
+    const items = [];
+    for (const [k, d] of Object.entries(RETAIL)) {
+      const n = Number(input.qty?.[k] ?? 0);
+      if (n === 0) continue;
+      if (!Number.isInteger(n) || n < 0 || n > 1e5) throw new RuleError("Jumlah pcs harus bilangan bulat positif");
+      items.push({ name: k, qty: n, unit: "pcs", price: d.p[tier(n)], meter: filmCm(d, n) / 100 });
+    }
+    if (!items.length) throw new RuleError("Isi jumlah minimal satu ukuran");
+    return items;
+  }
+  const m = Number(input.meter);
+  if (!(m > 0) || m > 1e5 || Math.abs(Math.round(m * 100) - m * 100) > 1e-6) throw new RuleError("Panjang harus lebih dari 0 meter, maksimal 2 angka desimal");
+  if (input.service === "dtfm") {
+    const price2 = settings.priceDtf;
+    if (!price2) throw new RuleError("Harga DTF maklon belum diatur");
+    return [{ name: "DTF maklon per meter", qty: m, unit: "meter", price: price2, meter: m }];
+  }
+  const w = WIDTHS.find((x) => x[0] === input.width);
+  if (!w) throw new RuleError("Pilih lebar kain");
+  const price = settings[w[0]];
+  if (!price) throw new RuleError("Harga sublim untuk lebar ini belum diatur di Pengaturan");
+  return [{ name: "Sublim print + press, " + w[1].toLowerCase(), qty: m, unit: "meter", price, meter: m }];
+}
+var totalOf = (items) => Math.round(items.reduce((a, i) => a + i.price * i.qty, 0));
+var meterOf = (items) => Math.round(items.reduce((a, i) => a + i.meter, 0) * 100) / 100;
 
 // src/lib/calendar.ts
 var DEFAULT_CALENDAR = {
@@ -32009,9 +32071,9 @@ function localDay(ms, cfg = DEFAULT_CALENDAR) {
   const { dayIndex } = local(ms, cfg);
   return new Date(dayIndex * DAY).toISOString().slice(0, 10);
 }
-function addWorkSeconds(startMs, workSeconds2, cfg = DEFAULT_CALENDAR) {
-  if (workSeconds2 < 0) throw new Error("durasi negatif");
-  let remaining = workSeconds2 * 1e3;
+function addWorkSeconds(startMs, workSeconds, cfg = DEFAULT_CALENDAR) {
+  if (workSeconds < 0) throw new Error("durasi negatif");
+  let remaining = workSeconds * 1e3;
   let { dayIndex, minOfDay, weekday } = local(startMs, cfg);
   let cursorMs = startMs;
   let guard = 0;
@@ -32037,21 +32099,6 @@ function addWorkSeconds(startMs, workSeconds2, cfg = DEFAULT_CALENDAR) {
   void cursorMs;
   throw new Error("kalender kerja tidak menghasilkan slot");
 }
-function effectiveSeconds(startMs, endMs, cfg = DEFAULT_CALENDAR) {
-  if (endMs <= startMs) return 0;
-  let total = 0;
-  let { dayIndex, weekday } = local(startMs, cfg);
-  const last = local(endMs, cfg).dayIndex;
-  for (let d = dayIndex; d <= last; d++, weekday = (weekday + 1) % 7) {
-    if (cfg.closedWeekdays.includes(weekday)) continue;
-    for (const [a, b] of cfg.blocks) {
-      const s = Math.max(fromLocal(d, a, cfg), startMs);
-      const e = Math.min(fromLocal(d, b, cfg), endMs);
-      if (e > s) total += e - s;
-    }
-  }
-  return Math.round(total / 1e3);
-}
 
 // src/core.ts
 var COOKIE = "sdp_session";
@@ -32067,6 +32114,14 @@ var forbidden = (m = "Tidak punya hak akses") => new HttpError(403, m);
 var notFound = (m = "Data tidak ditemukan") => new HttpError(404, m);
 var conflict = (m) => new HttpError(409, m);
 var now = () => Date.now();
+function rule(fn) {
+  try {
+    return fn();
+  } catch (e) {
+    if (e instanceof RuleError) throw bad(e.message);
+    throw e;
+  }
+}
 async function readJson(c) {
   try {
     const v = await c.req.json();
@@ -32087,18 +32142,12 @@ function optStr(o, k, max = 2e3) {
   if (v === void 0 || v === null || v === "") return null;
   if (typeof v !== "string") throw bad(`Field "${k}" harus teks`);
   if (v.length > max) throw bad(`Field "${k}" terlalu panjang`);
-  return v.trim();
+  return v.trim() || null;
 }
 function reqNum(o, k, min = 0, allowEqual = false) {
   const v = o[k];
   if (typeof v !== "number" || !Number.isFinite(v)) throw bad(`Field "${k}" harus angka`);
   if (allowEqual ? v < min : v <= min) throw bad(`Field "${k}" harus lebih ${allowEqual ? "besar atau sama dengan" : "besar dari"} ${min}`);
-  return v;
-}
-function optNum(o, k) {
-  const v = o[k];
-  if (v === void 0 || v === null || v === "") return null;
-  if (typeof v !== "number" || !Number.isFinite(v) || v < 0) throw bad(`Field "${k}" harus angka tidak negatif`);
   return v;
 }
 function oneOf(o, k, allowed) {
@@ -32114,18 +32163,35 @@ function intParam(c, name) {
 async function audit(db, userId, action, entity, entityId, detail) {
   await db.prepare("INSERT INTO audit_log (at, user_id, action, entity, entity_id, detail) VALUES (?,?,?,?,?,?)").bind(now(), userId, action, entity ?? null, entityId == null ? null : String(entityId), detail === void 0 ? null : JSON.stringify(detail)).run();
 }
-async function loadCalendar(db) {
-  const rows = await db.prepare("SELECT key, value FROM settings WHERE key IN ('tz_offset_min','prod_blocks','closed_weekdays')").all();
-  const m = Object.fromEntries(rows.results.map((r) => [r.key, r.value]));
+async function loadSettings(db) {
+  const rows = await db.prepare("SELECT key, value FROM settings").all();
+  return Object.fromEntries(rows.results.map((r) => [r.key, r.value]));
+}
+function numericSettings(s) {
+  const keys = ["priceDtf", "priceSub120", "priceSub160", "priceSub180", "normDtf", "normSubPrint", "normPress"];
+  return Object.fromEntries(keys.map((k) => [k, s[k] ? Number(s[k]) : null]));
+}
+function calendarOf(s) {
   try {
     return {
-      offsetMin: m.tz_offset_min ? Number(m.tz_offset_min) : DEFAULT_CALENDAR.offsetMin,
-      blocks: m.prod_blocks ? parseBlocks(m.prod_blocks) : DEFAULT_CALENDAR.blocks,
-      closedWeekdays: m.closed_weekdays ? m.closed_weekdays.split(",").filter((x) => x !== "").map(Number) : DEFAULT_CALENDAR.closedWeekdays
+      offsetMin: s.tz_offset_min ? Number(s.tz_offset_min) : DEFAULT_CALENDAR.offsetMin,
+      blocks: s.prod_blocks ? parseBlocks(s.prod_blocks) : DEFAULT_CALENDAR.blocks,
+      closedWeekdays: s.closed_weekdays !== void 0 ? s.closed_weekdays.split(",").filter((x) => x !== "").map(Number) : DEFAULT_CALENDAR.closedWeekdays
     };
   } catch {
     return DEFAULT_CALENDAR;
   }
+}
+async function pagesOf(db, role) {
+  if (role === "master") return [];
+  const row = await db.prepare("SELECT pages FROM role_access WHERE role = ?").bind(role).first();
+  return row ? JSON.parse(row.pages) : ACCESS_DEFAULT[role];
+}
+async function allow(c, roles, page) {
+  const u = c.get("user");
+  if (u.role === "master") return;
+  if (!roles.includes(u.role)) throw forbidden();
+  if (page && !(await pagesOf(c.env.DB, u.role)).includes(page)) throw forbidden("Menu ini tidak diizinkan untuk peran Anda");
 }
 var originGuard = async (c, next) => {
   const m = c.req.method;
@@ -32148,7 +32214,7 @@ var authn = async (c, next) => {
   if (!token) throw new HttpError(401, "Belum login");
   const sid = await sha2562(token);
   const row = await c.env.DB.prepare(
-    `SELECT s.csrf, s.epoch, s.expires_at, u.id, u.username, u.role, u.active, u.customer_id, u.must_change_password, u.session_epoch
+    `SELECT s.csrf, s.epoch, s.expires_at, u.id, u.code, u.name, u.role, u.store, u.active, u.must_change_password, u.session_epoch
      FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?`
   ).bind(sid).first();
   if (!row || row.expires_at < now() || !row.active || row.epoch !== row.session_epoch) {
@@ -32159,7 +32225,7 @@ var authn = async (c, next) => {
     const sent = c.req.header("X-CSRF-Token");
     if (!sent || sent !== row.csrf) throw forbidden("Token CSRF tidak valid");
   }
-  const user = { id: row.id, username: row.username, role: row.role, customer_id: row.customer_id, must_change: !!row.must_change_password };
+  const user = { id: row.id, code: row.code, name: row.name, role: row.role, store: row.store, must_change: !!row.must_change_password };
   c.set("user", user);
   c.set("sid", sid);
   c.set("csrf", row.csrf);
@@ -32169,24 +32235,8 @@ var authn = async (c, next) => {
   }
   await next();
 };
-function need(perm) {
-  return async (c, next) => {
-    if (!can(c.get("user").role, perm)) throw forbidden();
-    await next();
-  };
-}
-function isStaff(u) {
-  return u.role !== "customer";
-}
-function assertCustomerScope(u, customerId) {
-  if (u.role === "customer" && u.customer_id !== customerId) throw notFound();
-}
 function clientIp(c) {
   return c.req.header("x-vercel-forwarded-for")?.split(",")[0].trim() || c.req.header("x-real-ip") || "local";
-}
-function optTime(o, k) {
-  const v = optNum(o, k);
-  return v === null ? null : Math.round(v);
 }
 
 // src/routes/auth.ts
@@ -32195,13 +32245,13 @@ var bootstrapRoutes = new Hono3();
 var DUMMY = { hash: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", salt: "AAAAAAAAAAAAAAAAAAAAAA", iter: 1e5 };
 authRoutes.post("/login", async (c) => {
   const b = await readJson(c);
-  const username = reqStr(b, "username", 64);
+  const username = reqStr(b, "username", 32);
   const password = reqStr(b, "password", 200);
   const key = `${username.toLowerCase()}|${clientIp(c)}`;
   const since = now() - LOGIN_WINDOW_MS;
   const fails = await c.env.DB.prepare("SELECT COUNT(*) n FROM login_attempts WHERE key = ? AND at > ?").bind(key, since).first();
   if ((fails?.n ?? 0) >= LOGIN_MAX_FAILS) throw new HttpError(429, "Terlalu banyak percobaan login. Coba lagi beberapa menit lagi.");
-  const u = await c.env.DB.prepare("SELECT * FROM users WHERE username = ?").bind(username).first();
+  const u = await c.env.DB.prepare("SELECT * FROM users WHERE code = ?").bind(username).first();
   const ok = u ? await verifyPassword(password, u.pass_hash, u.pass_salt, u.pass_iter) : (await verifyPassword(password, DUMMY.hash, DUMMY.salt, DUMMY.iter), false);
   if (!u || !ok || !u.active) {
     await c.env.DB.prepare("INSERT INTO login_attempts (key, at) VALUES (?,?)").bind(key, now()).run();
@@ -32214,19 +32264,14 @@ authRoutes.post("/login", async (c) => {
   const secure = new URL(c.req.url).protocol === "https:";
   setCookie(c, COOKIE, token, { httpOnly: true, secure, sameSite: "Strict", path: "/", maxAge: SESSION_TTL_MS / 1e3 });
   await audit(c.env.DB, u.id, "login");
-  return c.json({ csrf, role: u.role, username: u.username, must_change_password: !!u.must_change_password });
+  return c.json({ csrf, role: u.role, code: u.code, must_change_password: !!u.must_change_password });
 });
 authRoutes.post("/logout", authn, async (c) => {
   await c.env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(c.get("sid")).run();
   deleteCookie(c, COOKIE, { path: "/" });
   return c.json({ ok: true });
 });
-authRoutes.get("/me", authn, async (c) => {
-  const u = c.get("user");
-  const emp = await c.env.DB.prepare("SELECT full_name, job_title, department FROM employees WHERE user_id = ?").bind(u.id).first();
-  const cust = u.customer_id ? await c.env.DB.prepare("SELECT code, business_name FROM customers WHERE id = ?").bind(u.customer_id).first() : null;
-  return c.json({ ...u, csrf: c.get("csrf"), employee: emp, customer: cust });
-});
+authRoutes.get("/me", authn, async (c) => c.json({ ...c.get("user"), csrf: c.get("csrf") }));
 authRoutes.post("/change-password", authn, async (c) => {
   const b = await readJson(c);
   const cur = reqStr(b, "current_password", 200);
@@ -32267,186 +32312,429 @@ bootstrapRoutes.post("/", async (c) => {
   if (!claim.meta.changes) throw forbidden("Bootstrap sudah pernah dipakai");
   const h = await hashPassword(password);
   const r = await c.env.DB.prepare(
-    "INSERT INTO users (username, pass_hash, pass_salt, pass_iter, role, active, must_change_password, created_at) VALUES (?,?,?,?, 'master', 1, 0, ?)"
-  ).bind(username, h.hash, h.salt, h.iter, now()).run();
-  const id = r.meta.last_row_id;
-  await c.env.DB.prepare("INSERT INTO employees (user_id, reg_code, full_name, employee_no, department, job_title) VALUES (?,?,?,?,?,?)").bind(id, "0000", full_name, "-", "SDP", "Master").run();
-  await audit(c.env.DB, id, "bootstrap_master");
+    "INSERT INTO users (code, name, role, active, pass_hash, pass_salt, pass_iter, must_change_password, created_at) VALUES (?,?, 'master', 1, ?,?,?, 0, ?)"
+  ).bind(username, full_name, h.hash, h.salt, h.iter, now()).run();
+  await audit(c.env.DB, r.meta.last_row_id, "bootstrap_master");
   return c.json({ ok: true });
 });
 
-// src/routes/members.ts
-var publicMemberRoutes = new Hono3();
-var memberRoutes = new Hono3();
-async function createApplication(c, b, source) {
-  const username = reqStr(b, "username", 32);
-  if (!validUsername(username)) throw bad("Username 3-32 karakter: huruf, angka, titik, garis");
-  const password = reqStr(b, "password", 200);
-  const problem = passwordProblem(password);
-  if (problem) throw bad(problem);
-  if (b.consent_contact !== true) throw bad("Persetujuan dihubungi untuk verifikasi wajib dicentang");
-  const dupU = await c.env.DB.prepare("SELECT 1 FROM users WHERE username = ? UNION SELECT 1 FROM member_applications WHERE username = ? AND status != ?").bind(username, username, "ditolak").first();
-  if (dupU) throw conflict("Username sudah dipakai");
-  const h = await hashPassword(password);
-  const r = await c.env.DB.prepare(
-    `INSERT INTO member_applications (business_name, pic_name, contact, email, address, business_type, city_scope, username,
-       pass_hash, pass_salt, pass_iter, consent_contact, source, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?)`
-  ).bind(
-    reqStr(b, "business_name", 150),
-    reqStr(b, "pic_name", 120),
-    reqStr(b, "contact", 40),
-    optStr(b, "email", 150),
-    reqStr(b, "address", 400),
-    reqStr(b, "business_type", 100),
-    oneOf(b, "city_scope", ["in_city", "out_city"]),
-    username,
-    h.hash,
-    h.salt,
-    h.iter,
-    source,
-    now()
-  ).run();
-  return r.meta.last_row_id;
+// src/routes/orders.ts
+var orderRoutes = new Hono3();
+orderRoutes.use("*", authn);
+var METHODS2 = ["Transfer", "QRIS", "Tunai"];
+var round2 = (n) => Math.round(n * 100) / 100;
+async function withOrder(c, id, fn) {
+  return c.env.DB.tx(async (db) => {
+    const o = await db.prepare("SELECT * FROM orders WHERE id = ? FOR UPDATE").bind(id).first();
+    if (!o) throw notFound("Order tidak ditemukan");
+    const u = c.get("user");
+    if (u.role === "store" && o.created_by !== u.code) throw notFound("Order tidak ditemukan");
+    return fn(db, o);
+  });
 }
-publicMemberRoutes.post("/register", async (c) => {
-  const ip = clientIp(c);
-  const key = `reg|${ip}`;
-  const n = await c.env.DB.prepare("SELECT COUNT(*) n FROM login_attempts WHERE key = ? AND at > ?").bind(key, now() - 36e5).first();
-  if ((n?.n ?? 0) >= 10) throw new HttpError(429, "Terlalu banyak pendaftaran dari alamat ini");
-  await c.env.DB.prepare("INSERT INTO login_attempts (key, at) VALUES (?,?)").bind(key, now()).run();
+var paidOf = async (db, orderId) => (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE order_id = ?").bind(orderId).first()).s;
+async function customerActive(db, o) {
+  if (!o.customer_id) return true;
+  const c = await db.prepare("SELECT status FROM customers WHERE id = ?").bind(o.customer_id).first();
+  return c?.status === "aktif";
+}
+async function release(db, orderId) {
+  const o = await db.prepare("SELECT status, total FROM orders WHERE id = ?").bind(orderId).first();
+  if (o.status !== "bayar" || await paidOf(db, orderId) < o.total) return false;
+  await db.prepare("UPDATE orders SET status = 'antrian', approved_at = ? WHERE id = ?").bind(now(), orderId).run();
+  return true;
+}
+async function checkArtwork(db, key, userId) {
+  if (!key) return;
+  const f = await db.prepare("SELECT 1 FROM files WHERE key = ? AND kind = 'artwork' AND confirmed = 1 AND uploaded_by = ?").bind(key, userId).first();
+  if (!f) throw bad("Berkas unggahan tidak ditemukan");
+}
+orderRoutes.post("/", async (c) => {
+  await allow(c, ["cs", "store"], "input");
+  const u = c.get("user");
   const b = await readJson(c);
-  const id = await createApplication(c, b, "online");
-  return c.json({ ok: true, id, status: "menunggu_cs", message: "Pendaftaran diterima. CS akan menghubungi untuk verifikasi." }, 201);
+  const requestKey = reqStr(b, "request_key", 64);
+  const type = oneOf(b, "type", ["retail", "maklon"]);
+  const service = oneOf(b, "service", ["dtfr", "dtfm", "sub"]);
+  const source = u.role === "store" ? "Toko" : oneOf(b, "source", ["WhatsApp", "Datang langsung", "Toko"]);
+  const fileRef = reqStr(b, "file_ref", 300);
+  const fileKey = optStr(b, "file_key", 200);
+  const deadline = optStr(b, "deadline", 10);
+  if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) throw bad("Format deadline tidak valid");
+  const method = b.paid_method == null ? null : oneOf(b, "paid_method", METHODS2);
+  const result = await c.env.DB.tx(async (db) => {
+    const dup = await db.prepare("SELECT id, order_no, track_code FROM orders WHERE request_key = ?").bind(requestKey).first();
+    if (dup) return { ...dup, duplicate: true };
+    await checkArtwork(db, fileKey, u.id);
+    const settings = numericSettings(await loadSettings(db));
+    const items = rule(() => buildItems({ service, qty: b.qty, meter: b.meter, width: b.width }, settings));
+    const total = totalOf(items);
+    let customerId = null;
+    let name;
+    let wa;
+    if (type === "maklon") {
+      if (b.customer_code) {
+        const cu = await db.prepare("SELECT * FROM customers WHERE code = ?").bind(reqStr(b, "customer_code", 40)).first();
+        if (!cu || cu.status === "ditolak") throw bad("Pelanggan tidak ditemukan atau ditolak CRM");
+        customerId = cu.id;
+        name = cu.name;
+        wa = cu.wa;
+      } else {
+        name = reqStr(b, "name", 150);
+        wa = reqStr(b, "wa", 40);
+        const n = await db.prepare("SELECT COUNT(*) n FROM customers WHERE code LIKE 'BR-%'").first();
+        const code = `BR-${String(n.n + 1).padStart(4, "0")}`;
+        const r2 = await db.prepare("INSERT INTO customers (code, name, wa, source, status, created_at) VALUES (?,?,?, 'Customer baru', 'menunggu', ?)").bind(code, name, wa, now()).run();
+        customerId = r2.meta.last_row_id;
+      }
+    } else {
+      name = reqStr(b, "name", 150);
+      wa = reqStr(b, "wa", 40);
+    }
+    const t = now();
+    const svc = service === "sub" ? "sub" : "dtf";
+    const track = randomToken(16);
+    const r = await db.prepare(
+      `INSERT INTO orders (order_no, track_code, type, service, customer_id, customer_name, wa, source, store, items, meter, total, file_ref, file_key,
+         deadline, note, status, stage, created_by, created_at, request_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'cek', ?,?,?,?)`
+    ).bind(
+      "TMP-" + track,
+      track,
+      type,
+      svc,
+      customerId,
+      name,
+      wa,
+      source,
+      source === "Toko" ? u.store || optStr(b, "store", 100) || "Toko" : null,
+      JSON.stringify(items),
+      meterOf(items),
+      total,
+      fileRef,
+      fileKey,
+      deadline,
+      optStr(b, "note", 500),
+      svc === "dtf" ? "dtf" : "subp",
+      u.code,
+      t,
+      requestKey
+    ).run();
+    const id = r.meta.last_row_id;
+    const ymd = localDay(t).slice(2).replace(/-/g, "");
+    const orderNo = `SDP-${ymd}-${String(id).padStart(3, "0")}`;
+    await db.prepare("UPDATE orders SET order_no = ? WHERE id = ?").bind(orderNo, id).run();
+    if (method) await db.prepare("INSERT INTO payments (order_id, amount, method, by_user, at) VALUES (?,?,?,?,?)").bind(id, total, method, u.code, t).run();
+    await audit(db, u.id, "order_created", "order", id);
+    return { id, order_no: orderNo, track_code: track, total };
+  });
+  return c.json(result, 201);
 });
-memberRoutes.use("*", authn);
-memberRoutes.post("/workshop", need("app.workshop"), async (c) => {
+orderRoutes.post("/:id/file-check", async (c) => {
+  await allow(c, ["op", "spv"], "cekfile");
   const b = await readJson(c);
-  const id = await createApplication(c, b, "workshop");
-  await audit(c.env.DB, c.get("user").id, "application_workshop", "application", id);
-  return c.json({ ok: true, id }, 201);
+  const ok = b.ok === true;
+  if (ok && !(Array.isArray(b.checks) && b.checks.length === FILE_CHECKS.length && b.checks.every((x) => x === true))) throw bad("Centang semua butir, atau tandai tidak layak");
+  const issue = ok ? null : reqStr(b, "issue", 500);
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    if (o.status !== "cek") throw conflict("Order tidak sedang menunggu cek file");
+    if (!await customerActive(db, o)) throw conflict("Customer belum diverifikasi CRM");
+    await db.prepare("UPDATE orders SET status = ?, issue = ? WHERE id = ?").bind(ok ? "bayar" : "revisi", issue, o.id).run();
+    const released = ok ? await release(db, o.id) : false;
+    await audit(db, c.get("user").id, ok ? "file_ok" : "file_rejected", "order", o.id);
+    return { ok: true, released };
+  }));
 });
-memberRoutes.get("/", need("app.list"), async (c) => {
-  const rows = await c.env.DB.prepare(
-    `SELECT id, business_name, pic_name, contact, email, address, business_type, city_scope, username, status, source,
-            cs_note, cs_at, crm_note, crm_feasible, crm_at, master_note, master_at, link_customer_id, created_at
-     FROM member_applications ORDER BY id DESC LIMIT 300`
-  ).all();
-  return c.json(rows.results);
-});
-memberRoutes.post("/:id/cs", need("app.cs"), async (c) => {
-  const id = intParam(c, "id");
+orderRoutes.post("/:id/revise", async (c) => {
+  await allow(c, ["cs", "spv"], "cs");
   const b = await readJson(c);
-  const note = reqStr(b, "note", 1e3);
-  const r = await c.env.DB.prepare(
-    "UPDATE member_applications SET cs_note=?, cs_by=?, cs_at=?, status='menunggu_survei' WHERE id=? AND status IN ('menunggu_cs','menunggu_survei')"
-  ).bind(note, c.get("user").id, now(), id).run();
-  if (!r.meta.changes) throw conflict("Pendaftaran tidak berada pada tahap verifikasi CS");
-  await audit(c.env.DB, c.get("user").id, "application_cs_verified", "application", id);
-  return c.json({ ok: true });
+  const ref = reqStr(b, "file_ref", 300);
+  const key = optStr(b, "file_key", 200);
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    if (o.status !== "revisi") throw conflict("Order tidak sedang menunggu revisi");
+    await checkArtwork(db, key, c.get("user").id);
+    await db.prepare("UPDATE orders SET status = 'cek', file_ref = ?, file_key = ?, issue = NULL WHERE id = ?").bind(ref, key, o.id).run();
+    await audit(db, c.get("user").id, "file_revised", "order", o.id);
+    return { ok: true };
+  }));
 });
-memberRoutes.post("/:id/survey", need("app.survey"), async (c) => {
-  const id = intParam(c, "id");
+orderRoutes.post("/:id/reject", async (c) => {
+  await allow(c, ["cs", "spv"], "cs");
   const b = await readJson(c);
-  const note = reqStr(b, "note", 1e3);
-  if (typeof b.feasible !== "boolean") throw bad('Field "feasible" wajib true/false');
-  const r = await c.env.DB.prepare(
-    "UPDATE member_applications SET crm_note=?, crm_feasible=?, crm_by=?, crm_at=?, status='menunggu_acc' WHERE id=? AND cs_at IS NOT NULL AND status IN ('menunggu_survei','menunggu_acc')"
-  ).bind(note, b.feasible ? 1 : 0, c.get("user").id, now(), id).run();
-  if (!r.meta.changes) throw conflict("Verifikasi CS belum dicatat");
-  await audit(c.env.DB, c.get("user").id, "application_survey", "application", id, { feasible: b.feasible });
-  return c.json({ ok: true });
+  const reason = oneOf(b, "reason", ["Harga tidak cocok", "Customer batal", "Deadline tidak terkejar", "Bahan habis", "Double input"]);
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    if (!["cek", "revisi", "bayar"].includes(o.status)) throw conflict("Order sudah masuk produksi dan tidak dapat ditolak");
+    await db.prepare("UPDATE orders SET status = 'ditolak' WHERE id = ?").bind(o.id).run();
+    await db.prepare("INSERT INTO logs (order_no, type, reason, value, counted, by_user, at) VALUES (?, 'Loss Sales', ?,?,?,?,?)").bind(o.order_no, reason, o.total, reason === "Double input" ? 0 : 1, c.get("user").code, now()).run();
+    await audit(db, c.get("user").id, "order_rejected", "order", o.id, { reason });
+    return { ok: true, paid: await paidOf(db, o.id) };
+  }));
 });
-memberRoutes.post("/:id/decide", need("app.decide"), async (c) => {
-  const id = intParam(c, "id");
+orderRoutes.post("/:id/payments", async (c) => {
+  await allow(c, ["cs", "store"]);
   const b = await readJson(c);
-  const note = optStr(b, "note", 1e3);
-  const app2 = await c.env.DB.prepare("SELECT * FROM member_applications WHERE id = ?").bind(id).first();
-  if (!app2) throw notFound();
-  if (app2.status === "aktif" || app2.status === "ditolak") throw conflict("Pendaftaran sudah diputuskan");
-  const me = c.get("user").id;
-  if (b.approve !== true) {
-    await c.env.DB.prepare("UPDATE member_applications SET status='ditolak', master_note=?, master_by=?, master_at=? WHERE id=?").bind(note, me, now(), id).run();
-    await audit(c.env.DB, me, "application_rejected", "application", id);
-    return c.json({ ok: true, status: "ditolak" });
-  }
-  if (!app2.cs_at) throw conflict("Belum ada verifikasi CS");
-  if (!app2.crm_at || app2.crm_feasible !== 1) throw conflict("Survei CRM belum ada atau menyatakan tidak layak");
-  let customerId;
-  if (b.link_customer_id != null) {
-    customerId = Number(b.link_customer_id);
-    const ex = await c.env.DB.prepare("SELECT id FROM customers WHERE id = ?").bind(customerId).first();
-    if (!ex) throw notFound("Customer yang dihubungkan tidak ada");
-    const taken = await c.env.DB.prepare("SELECT 1 FROM users WHERE customer_id = ?").bind(customerId).first();
-    if (taken) throw conflict("Customer tersebut sudah punya akun member");
-  } else {
-    const code = reqStr(b, "customer_code", 40);
-    const dup = await c.env.DB.prepare("SELECT 1 FROM customers WHERE code = ?").bind(code).first();
-    if (dup) throw conflict("Kode customer sudah ada");
-    const r = await c.env.DB.prepare(
-      `INSERT INTO customers (code, business_name, pic_name, contact, email, address, business_type, city_scope, created_at) VALUES (?,?,?,?,?,?,?,?,?)`
-    ).bind(code, app2.business_name, app2.pic_name, app2.contact, app2.email, app2.address, app2.business_type, app2.city_scope, now()).run();
-    customerId = r.meta.last_row_id;
-  }
-  const u = await c.env.DB.prepare(
-    `INSERT INTO users (username, pass_hash, pass_salt, pass_iter, role, active, must_change_password, customer_id, created_at)
-     VALUES (?,?,?,?, 'customer', 1, 0, ?, ?)`
-  ).bind(app2.username, app2.pass_hash, app2.pass_salt, app2.pass_iter, customerId, now()).run();
-  await c.env.DB.prepare("UPDATE member_applications SET status='aktif', master_note=?, master_by=?, master_at=?, link_customer_id=?, user_id=? WHERE id=?").bind(note, me, now(), customerId, u.meta.last_row_id, id).run();
-  await audit(c.env.DB, me, "application_approved", "application", id, { customerId });
-  return c.json({ ok: true, status: "aktif", customer_id: customerId });
+  const amount = reqNum(b, "amount", 0);
+  if (!Number.isInteger(amount)) throw bad("Nominal rupiah harus bilangan bulat");
+  const method = oneOf(b, "method", METHODS2);
+  const requestKey = reqStr(b, "request_key", 64);
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    if (await db.prepare("SELECT 1 FROM payments WHERE request_key = ?").bind(requestKey).first()) return { ok: true, duplicate: true, released: false };
+    if (o.status === "ditolak") throw conflict("Order sudah ditolak");
+    const left = o.total - await paidOf(db, o.id);
+    if (amount > left) throw conflict(`Nominal melebihi sisa tagihan (${left})`);
+    await db.prepare("INSERT INTO payments (order_id, amount, method, by_user, at, request_key) VALUES (?,?,?,?,?,?)").bind(o.id, amount, method, c.get("user").code, now(), requestKey).run();
+    const released = await release(db, o.id);
+    await audit(db, c.get("user").id, "payment_recorded", "order", o.id, { amount });
+    return { ok: true, released };
+  }), 201);
+});
+orderRoutes.post("/:id/priority", async (c) => {
+  await allow(c, ["spv"], "produksi");
+  const b = await readJson(c);
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    if (o.status !== "antrian") throw conflict("Hanya order di antrian yang dapat diprioritaskan");
+    await db.prepare("UPDATE orders SET priority = ? WHERE id = ?").bind(b.on ? 1 : 0, o.id).run();
+    return { ok: true };
+  }));
+});
+orderRoutes.post("/:id/start", async (c) => {
+  await allow(c, ["op", "spv"], "produksi");
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    if (o.status !== "antrian") throw conflict("Order tidak berada di antrian");
+    if (await paidOf(db, o.id) < o.total) throw conflict("Order belum lunas");
+    const day = localDay(now(), calendarOf(await loadSettings(db)));
+    const qc = await db.prepare("SELECT status FROM qc_reports WHERE machine = ? AND day = ? ORDER BY id DESC LIMIT 1").bind(o.stage, day).first();
+    if (qc?.status !== "siap") throw conflict("QC pagi mesin ini belum disetujui leader");
+    if (await db.prepare("SELECT 1 FROM orders WHERE stage = ? AND status IN ('produksi','curing')").bind(o.stage).first()) throw conflict("Mesin masih mengerjakan order lain");
+    await db.prepare("UPDATE orders SET status = 'produksi', started_at = ? WHERE id = ?").bind(now(), o.id).run();
+    await audit(db, c.get("user").id, "production_start", "order", o.id, { stage: o.stage });
+    return { ok: true, stage: o.stage };
+  }));
+});
+orderRoutes.post("/:id/curing", async (c) => {
+  await allow(c, ["op", "spv"], "produksi");
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    if (o.stage !== "dtf" || o.status !== "produksi") throw conflict("Order tidak sedang dicetak di mesin DTF");
+    await db.prepare("UPDATE orders SET status = 'curing' WHERE id = ?").bind(o.id).run();
+    return { ok: true };
+  }));
+});
+orderRoutes.post("/:id/finish", async (c) => {
+  await allow(c, ["op", "spv"], "produksi");
+  const b = await readJson(c);
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    let process2 = null;
+    if (o.stage === "subp") {
+      if (o.status !== "produksi") throw conflict("Order tidak sedang dicetak");
+    } else {
+      const expected = o.stage === "dtf" ? "curing" : "produksi";
+      if (o.status !== expected) throw conflict(o.stage === "dtf" ? "Order belum masuk tahap curing" : "Order tidak sedang dipress");
+      const temp = reqNum(b, "temp", 0);
+      const sec = reqNum(b, "seconds", 0);
+      if (o.stage === "dtf" && (temp < CURING.minC || temp > CURING.maxC || sec < CURING.minS || sec > CURING.maxS)) {
+        throw bad(`Standar curing ${CURING.minC} sampai ${CURING.maxC} \xB0C selama ${CURING.minS} sampai ${CURING.maxS} detik`);
+      }
+      process2 = `${temp} \xB0C, ${sec} detik`;
+    }
+    const meter = o.rework_m ?? o.meter;
+    const skus = await db.prepare("SELECT code, use_per_m FROM skus WHERE machine = ? AND use_per_m IS NOT NULL AND use_per_m > 0").bind(o.stage).all();
+    for (const k of skus.results) {
+      const q = round2(k.use_per_m * meter);
+      await db.prepare("UPDATE skus SET stock = ROUND((stock - ?)::numeric, 2) WHERE code = ?").bind(q, k.code).run();
+      await db.prepare("INSERT INTO stock_ledger (sku_code, type, qty, ref, by_user, at) VALUES (?, 'Pakai', ?,?,?,?)").bind(k.code, -q, o.order_no, c.get("user").code, now()).run();
+    }
+    if (o.stage === "subp") {
+      await db.prepare("UPDATE orders SET status = 'antrian', stage = 'cal' WHERE id = ?").bind(o.id).run();
+    } else {
+      await db.prepare("UPDATE orders SET status = 'qc', process = ?, finished_at = ? WHERE id = ?").bind(process2, now(), o.id).run();
+    }
+    await audit(db, c.get("user").id, "production_finish", "order", o.id, { stage: o.stage, meter });
+    return { ok: true, next: o.stage === "subp" ? "press" : "qc", deducted: skus.results.length };
+  }));
+});
+orderRoutes.post("/:id/qc", async (c) => {
+  await allow(c, ["op", "qc", "spv"], "qc");
+  const b = await readJson(c);
+  const pass = b.pass === true;
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    if (o.status !== "qc") throw conflict("Order tidak sedang menunggu QC");
+    const u = c.get("user");
+    if (pass) {
+      const need = QC_CHECKS[o.service].length;
+      if (!(Array.isArray(b.checks) && b.checks.length === need && b.checks.every((x) => x === true))) throw bad("Centang semua butir, atau catat reject");
+      await db.prepare("UPDATE orders SET status = 'packing', rework_m = NULL, qc_by = ? WHERE id = ?").bind(u.code, o.id).run();
+    } else {
+      const reject = reqNum(b, "reject_m", 0);
+      const max = o.rework_m ?? o.meter;
+      if (reject > max) throw bad(`Meter reject tidak boleh melebihi ${max}`);
+      await db.prepare("INSERT INTO logs (order_no, type, reason, value, counted, by_user, at) VALUES (?, 'Reject', ?, NULL, 0, ?, ?)").bind(o.order_no, `Tidak lolos QC, ${reject} m dicetak ulang`, u.code, now()).run();
+      await db.prepare("UPDATE orders SET status = 'antrian', approved_at = ?, stage = ?, rework_m = ?, qc_by = ? WHERE id = ?").bind(now(), o.service === "dtf" ? "dtf" : "subp", reject, u.code, o.id).run();
+    }
+    await audit(db, u.id, pass ? "qc_pass" : "qc_reject", "order", o.id);
+    return { ok: true };
+  }));
+});
+orderRoutes.post("/:id/pack", async (c) => {
+  await allow(c, ["op", "qc", "spv"], "qc");
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    if (o.status !== "packing") throw conflict("Order belum lolos QC");
+    await db.prepare("UPDATE orders SET status = 'siap' WHERE id = ?").bind(o.id).run();
+    await audit(db, c.get("user").id, "packed", "order", o.id);
+    return { ok: true };
+  }));
+});
+orderRoutes.post("/:id/handover", async (c) => {
+  await allow(c, ["cs", "spv", "gudang"], "serah");
+  const b = await readJson(c);
+  const receiver = reqStr(b, "receiver", 120);
+  return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
+    if (o.status !== "siap") throw conflict("Order belum siap kirim");
+    await db.prepare("UPDATE orders SET status = 'selesai', receiver = ?, handed_at = ? WHERE id = ?").bind(receiver, now(), o.id).run();
+    await audit(db, c.get("user").id, "handover", "order", o.id);
+    return { ok: true };
+  }));
 });
 
-// src/routes/master.ts
-var masterRoutes = new Hono3();
-masterRoutes.use("*", authn);
-masterRoutes.get("/users", need("user.manage"), async (c) => {
-  const rows = await c.env.DB.prepare(
-    `SELECT u.id, u.username, u.role, u.active, u.must_change_password, u.customer_id, e.reg_code, e.full_name, e.employee_no, e.department, e.job_title
-     FROM users u LEFT JOIN employees e ON e.user_id = u.id ORDER BY u.id`
-  ).all();
-  return c.json(rows.results);
-});
-masterRoutes.post("/users", need("user.manage"), async (c) => {
+// src/routes/ops.ts
+var opsRoutes = new Hono3();
+opsRoutes.use("*", authn);
+opsRoutes.post("/qc/morning", async (c) => {
+  await allow(c, ["op", "qc", "spv"], "qc");
+  const u = c.get("user");
   const b = await readJson(c);
-  const username = reqStr(b, "username", 32);
-  if (!validUsername(username)) throw bad("Username 3-32 karakter: huruf, angka, titik, garis");
-  const role = oneOf(b, "role", STAFF);
+  const machine = oneOf(b, "machine", ["dtf", "subp", "cal"]);
+  const steps = MORNING[machine];
+  const items = steps.flatMap((s) => s.checks);
+  if (!(Array.isArray(b.answers) && b.answers.length === items.length && b.answers.every((x) => x === "OK" || x === "NG"))) {
+    throw bad("Setiap butir wajib dipilih OK atau Tidak sesuai");
+  }
+  const ng = items.filter((_, i) => b.answers[i] === "NG");
+  const photos = [];
+  for (const s of steps) {
+    if (!s.photo) continue;
+    const p = Array.isArray(b.photos) ? b.photos.find((x) => x?.label === s.photo) : null;
+    if (!p || typeof p.key !== "string") throw bad(`Lampirkan foto ${s.photo}`);
+    const f = await c.env.DB.prepare("SELECT 1 FROM files WHERE key = ? AND kind = 'qc_photo' AND confirmed = 1 AND uploaded_by = ?").bind(p.key, u.id).first();
+    if (!f) throw bad(`Foto ${s.photo} tidak ditemukan`);
+    photos.push({ label: s.photo, key: p.key });
+  }
+  const note = optStr(b, "note", 1500);
+  const action = optStr(b, "action", 1500);
+  if (ng.length && (!note || !action)) throw bad("Temuan dan tindakan awal wajib diisi");
+  await c.env.DB.tx(async (db) => {
+    const day = localDay(now(), calendarOf(await loadSettings(db)));
+    const cur = await db.prepare("SELECT status FROM qc_reports WHERE machine = ? AND day = ? ORDER BY id DESC LIMIT 1").bind(machine, day).first();
+    if (cur && cur.status !== "tahan") throw conflict("Laporan hari ini sudah dikirim");
+    const r = await db.prepare("INSERT INTO qc_reports (machine, day, answers, ng, note, action, photos, status, by_user, at) VALUES (?,?,?,?,?,?,?, 'menunggu', ?, ?)").bind(machine, day, JSON.stringify(b.answers), JSON.stringify(ng), note, action, JSON.stringify(photos), u.code, now()).run();
+    await audit(db, u.id, "qc_morning", "qc", r.meta.last_row_id);
+  });
+  return c.json({ ok: true }, 201);
+});
+opsRoutes.post("/qc/morning/:id/decide", async (c) => {
+  await allow(c, ["spv"], "qc");
+  const b = await readJson(c);
+  const decision = oneOf(b, "decision", ["siap", "tahan"]);
+  const note = optStr(b, "note", 1500);
+  if (decision === "tahan" && !note) throw bad("Alasan tahan produksi wajib diisi");
+  const id = intParam(c, "id");
+  await c.env.DB.tx(async (db) => {
+    const r = await db.prepare("SELECT * FROM qc_reports WHERE id = ? FOR UPDATE").bind(id).first();
+    if (!r) throw notFound("Laporan QC tidak ditemukan");
+    if (r.status !== "menunggu") throw conflict("Laporan ini sudah diputuskan");
+    if (decision === "siap" && JSON.parse(r.ng).length) throw conflict("Ada butir tidak sesuai. Operator perbaiki lalu kirim QC baru");
+    await db.prepare("UPDATE qc_reports SET status = ?, approved_by = ?, approved_at = ?, leader_note = ? WHERE id = ?").bind(decision, c.get("user").code, now(), note, id).run();
+    await audit(db, c.get("user").id, "qc_morning_" + decision, "qc", id);
+  });
+  return c.json({ ok: true });
+});
+opsRoutes.post("/customers/import", async (c) => {
+  await allow(c, ["crm"], "pelanggan");
+  const b = await readJson(c);
+  if (!Array.isArray(b.rows) || !b.rows.length || b.rows.length > 2e3) throw bad("Isi 1 sampai 2000 baris");
+  const rows = b.rows.map((r, i) => {
+    try {
+      return { code: reqStr(r, "code", 40).toUpperCase(), name: reqStr(r, "name", 150), wa: reqStr(r, "wa", 40) };
+    } catch {
+      throw bad(`Baris ${i + 1}: kode, nama, dan WhatsApp wajib diisi`);
+    }
+  });
+  let added = 0;
+  await c.env.DB.tx(async (db) => {
+    for (const r of rows) {
+      const res = await db.prepare(
+        "INSERT INTO customers (code, name, wa, source, status, verified_by, verified_at, created_at) VALUES (?,?,?, 'Tigalapan Kaos', 'aktif', ?,?,?) ON CONFLICT (code) DO NOTHING"
+      ).bind(r.code, r.name, r.wa, c.get("user").code, now(), now()).run();
+      added += res.meta.changes;
+    }
+    await audit(db, c.get("user").id, "customers_imported", "customer", void 0, { added });
+  });
+  return c.json({ ok: true, added, skipped: rows.length - added }, 201);
+});
+opsRoutes.post("/customers/:id/decide", async (c) => {
+  await allow(c, ["crm"], "pelanggan");
+  const b = await readJson(c);
+  const status = oneOf(b, "status", ["aktif", "ditolak"]);
+  const r = await c.env.DB.prepare("UPDATE customers SET status = ?, verified_by = ?, verified_at = ? WHERE id = ? AND status = 'menunggu'").bind(status, c.get("user").code, now(), intParam(c, "id")).run();
+  if (!r.meta.changes) throw conflict("Customer tidak sedang menunggu verifikasi");
+  await audit(c.env.DB, c.get("user").id, "customer_" + status, "customer", c.req.param("id"));
+  return c.json({ ok: true });
+});
+opsRoutes.post("/stock/move", async (c) => {
+  await allow(c, ["gudang", "op", "spv"], "stok");
+  const b = await readJson(c);
+  const code = reqStr(b, "sku", 60);
+  const type = oneOf(b, "type", ["Stok masuk", "Waste", "Cleaning", "Koreksi kurang"]);
+  const qty = reqNum(b, "qty", 0);
+  const delta = type === "Stok masuk" ? qty : -qty;
+  await c.env.DB.tx(async (db) => {
+    const k = await db.prepare("SELECT stock FROM skus WHERE code = ? FOR UPDATE").bind(code).first();
+    if (!k) throw notFound("SKU tidak ditemukan");
+    if (k.stock + delta < 0) throw conflict("Stok tidak cukup");
+    await db.prepare("UPDATE skus SET stock = ROUND((stock + ?)::numeric, 2) WHERE code = ?").bind(delta, code).run();
+    await db.prepare("INSERT INTO stock_ledger (sku_code, type, qty, ref, by_user, at) VALUES (?,?,?,?,?,?)").bind(code, type, delta, optStr(b, "ref", 100) ?? "manual", c.get("user").code, now()).run();
+  });
+  return c.json({ ok: true }, 201);
+});
+opsRoutes.put("/stock/sku/:code", async (c) => {
+  await allow(c, ["gudang", "spv"], "stok");
+  const b = await readJson(c);
+  const min = reqNum(b, "min", 0, true);
+  const use = b.use === null || b.use === "" ? null : reqNum(b, "use", 0, true);
+  const r = await c.env.DB.prepare("UPDATE skus SET min_stock = ?, use_per_m = ? WHERE code = ?").bind(min, use, c.req.param("code")).run();
+  if (!r.meta.changes) throw notFound("SKU tidak ditemukan");
+  await audit(c.env.DB, c.get("user").id, "sku_updated", "sku", c.req.param("code"), { min, use });
+  return c.json({ ok: true });
+});
+opsRoutes.post("/admin/users", async (c) => {
+  await allow(c, []);
+  const b = await readJson(c);
+  const code = reqStr(b, "code", 32).toUpperCase();
+  if (!validUsername(code)) throw bad("Kode 3 sampai 32 huruf, angka, titik, atau garis");
+  const role = oneOf(b, "role", ROLES);
   const password = reqStr(b, "password", 200);
   const problem = passwordProblem(password);
   if (problem) throw bad(problem);
-  const reg = reqStr(b, "reg_code", 20);
-  if (await c.env.DB.prepare("SELECT 1 FROM users WHERE username = ?").bind(username).first()) throw conflict("Username sudah dipakai");
-  if (await c.env.DB.prepare("SELECT 1 FROM employees WHERE reg_code = ?").bind(reg).first()) throw conflict("Kode pendaftaran sudah ada");
+  if (await c.env.DB.prepare("SELECT 1 FROM users WHERE code = ?").bind(code).first()) throw conflict("Kode sudah dipakai");
   const h = await hashPassword(password);
-  const active = b.active === false ? 0 : 1;
-  const r = await c.env.DB.prepare(
-    "INSERT INTO users (username, pass_hash, pass_salt, pass_iter, role, active, must_change_password, created_at) VALUES (?,?,?,?,?,?,1,?)"
-  ).bind(username, h.hash, h.salt, h.iter, role, active, now()).run();
-  const id = r.meta.last_row_id;
-  await c.env.DB.prepare("INSERT INTO employees (user_id, reg_code, full_name, employee_no, department, job_title) VALUES (?,?,?,?,?,?)").bind(id, reg, reqStr(b, "full_name", 120), reqStr(b, "employee_no", 40), reqStr(b, "department", 60), reqStr(b, "job_title", 80)).run();
-  await audit(c.env.DB, c.get("user").id, "user_created", "user", id, { role });
-  return c.json({ ok: true, id }, 201);
+  const r = await c.env.DB.prepare("INSERT INTO users (code, name, role, store, active, pass_hash, pass_salt, pass_iter, must_change_password, created_at) VALUES (?,?,?,?,1,?,?,?,1,?)").bind(code, reqStr(b, "name", 120), role, optStr(b, "store", 100), h.hash, h.salt, h.iter, now()).run();
+  await audit(c.env.DB, c.get("user").id, "user_created", "user", r.meta.last_row_id, { role });
+  return c.json({ ok: true }, 201);
 });
-masterRoutes.patch("/users/:id", need("user.manage"), async (c) => {
+opsRoutes.patch("/admin/users/:id", async (c) => {
+  await allow(c, []);
   const id = intParam(c, "id");
   const b = await readJson(c);
-  const row = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(id).first();
-  if (!row) throw notFound();
   const me = c.get("user");
-  if (id === me.id && (b.active === false || b.role && b.role !== "master")) throw forbidden("Tidak boleh menonaktifkan atau menurunkan akun sendiri");
+  if (!await c.env.DB.prepare("SELECT 1 FROM users WHERE id = ?").bind(id).first()) throw notFound();
+  if (id === me.id) throw forbidden("Gunakan menu Akun Saya untuk akun sendiri");
   const sets = [];
   const vals = [];
-  let revoke = false;
   if (b.active !== void 0) {
     sets.push("active = ?");
     vals.push(b.active ? 1 : 0);
-    revoke = true;
   }
   if (b.role !== void 0) {
-    if (row.role === "customer") throw bad("Role customer tidak dapat diubah");
     sets.push("role = ?");
-    vals.push(oneOf(b, "role", STAFF));
-    revoke = true;
+    vals.push(oneOf(b, "role", ROLES));
   }
   if (b.new_password !== void 0) {
     const p = reqStr(b, "new_password", 200);
@@ -32455,832 +32743,153 @@ masterRoutes.patch("/users/:id", need("user.manage"), async (c) => {
     const h = await hashPassword(p);
     sets.push("pass_hash = ?", "pass_salt = ?", "pass_iter = ?", "must_change_password = 1");
     vals.push(h.hash, h.salt, h.iter);
-    revoke = true;
-  }
-  if (revoke) {
-    sets.push("session_epoch = session_epoch + 1");
   }
   if (!sets.length) throw bad("Tidak ada perubahan");
-  const stmts = [c.env.DB.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`).bind(...vals, id)];
-  if (revoke) stmts.push(c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(id));
-  await c.env.DB.batch(stmts);
-  await audit(c.env.DB, me.id, "user_updated", "user", id, { revoke });
-  return c.json({ ok: true, sessions_revoked: revoke });
-});
-masterRoutes.get("/customers", need("customer.read"), async (c) => {
-  const rows = await c.env.DB.prepare("SELECT * FROM customers ORDER BY business_name").all();
-  return c.json(rows.results);
-});
-masterRoutes.post("/customers", need("customer.write"), async (c) => {
-  const b = await readJson(c);
-  const code = reqStr(b, "code", 40);
-  if (await c.env.DB.prepare("SELECT 1 FROM customers WHERE code = ?").bind(code).first()) throw conflict("Kode customer sudah ada");
-  const r = await c.env.DB.prepare(
-    `INSERT INTO customers (code, business_name, pic_name, contact, email, address, business_type, city_scope, payment_policy, notes, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
-  ).bind(
-    code,
-    reqStr(b, "business_name", 150),
-    reqStr(b, "pic_name", 120),
-    reqStr(b, "contact", 40),
-    optStr(b, "email", 150),
-    reqStr(b, "address", 400),
-    optStr(b, "business_type", 100),
-    oneOf(b, "city_scope", ["in_city", "out_city"]),
-    optStr(b, "payment_policy", 100) ?? "belum_diatur",
-    optStr(b, "notes"),
-    now()
-  ).run();
-  await audit(c.env.DB, c.get("user").id, "customer_created", "customer", r.meta.last_row_id);
-  return c.json({ ok: true, id: r.meta.last_row_id }, 201);
-});
-masterRoutes.patch("/customers/:id", need("customer.write"), async (c) => {
-  const id = intParam(c, "id");
-  const b = await readJson(c);
-  const cur = await c.env.DB.prepare("SELECT * FROM customers WHERE id = ?").bind(id).first();
-  if (!cur) throw notFound();
-  const pick = (k, max) => b[k] === void 0 ? cur[k] : reqStr(b, k, max);
-  await c.env.DB.prepare(
-    `UPDATE customers SET business_name=?, pic_name=?, contact=?, email=?, address=?, business_type=?, city_scope=?, payment_policy=?, notes=? WHERE id=?`
-  ).bind(
-    pick("business_name", 150),
-    pick("pic_name", 120),
-    pick("contact", 40),
-    b.email === void 0 ? cur.email : optStr(b, "email", 150),
-    pick("address", 400),
-    b.business_type === void 0 ? cur.business_type : optStr(b, "business_type", 100),
-    b.city_scope === void 0 ? cur.city_scope : oneOf(b, "city_scope", ["in_city", "out_city"]),
-    pick("payment_policy", 100),
-    b.notes === void 0 ? cur.notes : optStr(b, "notes"),
-    id
-  ).run();
-  await audit(c.env.DB, c.get("user").id, "customer_updated", "customer", id);
-  return c.json({ ok: true });
-});
-masterRoutes.get("/config", async (c) => {
-  if (!isStaff(c.get("user"))) throw forbidden();
-  const [services, machines, norms, settings] = await Promise.all([
-    c.env.DB.prepare("SELECT * FROM services").all(),
-    c.env.DB.prepare("SELECT * FROM machines ORDER BY code").all(),
-    c.env.DB.prepare("SELECT * FROM norms").all(),
-    c.env.DB.prepare("SELECT * FROM settings").all()
+  sets.push("session_epoch = session_epoch + 1");
+  await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`).bind(...vals, id),
+    c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(id)
   ]);
-  return c.json({ services: services.results, machines: machines.results, norms: norms.results, settings: settings.results });
-});
-masterRoutes.put("/config/services/:code", need("config.write"), async (c) => {
-  const b = await readJson(c);
-  const r = await c.env.DB.prepare("UPDATE services SET active = ? WHERE code = ?").bind(b.active ? 1 : 0, c.req.param("code")).run();
-  if (!r.meta.changes) throw notFound();
-  await audit(c.env.DB, c.get("user").id, "service_toggled", "service", c.req.param("code"), { active: !!b.active });
+  await audit(c.env.DB, me.id, "user_updated", "user", id);
   return c.json({ ok: true });
 });
-masterRoutes.post("/config/machines", need("config.write"), async (c) => {
+opsRoutes.put("/admin/access", async (c) => {
+  await allow(c, []);
   const b = await readJson(c);
-  const code = reqStr(b, "code", 30);
-  if (await c.env.DB.prepare("SELECT 1 FROM machines WHERE code = ?").bind(code).first()) throw conflict("Kode mesin sudah ada");
-  const r = await c.env.DB.prepare("INSERT INTO machines (code, name, kind) VALUES (?,?,?)").bind(code, reqStr(b, "name", 100), oneOf(b, "kind", ["dtf_printer", "sublim_printer", "calender"])).run();
-  await audit(c.env.DB, c.get("user").id, "machine_created", "machine", r.meta.last_row_id);
-  return c.json({ ok: true, id: r.meta.last_row_id }, 201);
-});
-masterRoutes.put("/config/machines/:id", need("config.write"), async (c) => {
-  const id = intParam(c, "id");
-  const b = await readJson(c);
-  const r = await c.env.DB.prepare("UPDATE machines SET active = ? WHERE id = ?").bind(b.active ? 1 : 0, id).run();
-  if (!r.meta.changes) throw notFound();
+  const role = oneOf(b, "role", ROLES.filter((r) => r !== "master"));
+  if (!Array.isArray(b.pages) || !b.pages.length || !b.pages.every((p) => GRANTABLE.includes(p))) throw bad("Daftar menu tidak valid (minimal satu)");
+  await c.env.DB.prepare("INSERT INTO role_access (role, pages) VALUES (?,?) ON CONFLICT (role) DO UPDATE SET pages = excluded.pages").bind(role, JSON.stringify([...new Set(b.pages)])).run();
+  await audit(c.env.DB, c.get("user").id, "access_updated", "role", role, b.pages);
   return c.json({ ok: true });
 });
-masterRoutes.put("/config/norms/:kind", need("config.write"), async (c) => {
-  const b = await readJson(c);
-  const kind = oneOf({ k: c.req.param("kind") }, "k", ["dtf_printer", "sublim_printer", "calender"]);
-  const spu = b.seconds_per_unit === null ? null : reqNum(b, "seconds_per_unit", 0);
-  await c.env.DB.prepare("UPDATE norms SET seconds_per_unit = ?, source_note = ? WHERE machine_kind = ?").bind(spu, optStr(b, "source_note", 300), kind).run();
-  await audit(c.env.DB, c.get("user").id, "norm_updated", "norm", kind, { spu });
+opsRoutes.delete("/admin/access", async (c) => {
+  await allow(c, []);
+  await c.env.DB.prepare("DELETE FROM role_access").run();
   return c.json({ ok: true });
 });
-var SETTING_KEYS = ["work_open", "work_close", "prep_start", "prod_blocks", "closed_weekdays", "brand_name", "company_name", "contact_info", "workshop_info", "tz_offset_min"];
-masterRoutes.put("/config/settings", need("config.write"), async (c) => {
+var SETTING_KEYS = ["priceDtf", "priceSub120", "priceSub160", "priceSub180", "normDtf", "normSubPrint", "normPress"];
+opsRoutes.put("/admin/settings", async (c) => {
+  await allow(c, []);
   const b = await readJson(c);
   const stmts = [];
   for (const [k, v] of Object.entries(b)) {
-    if (!SETTING_KEYS.includes(k)) throw bad(`Setting "${k}" tidak dikenal`);
-    if (typeof v !== "string" || v.length > 1e3) throw bad(`Setting "${k}" harus teks`);
-    stmts.push(c.env.DB.prepare("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(k, v));
+    if (!SETTING_KEYS.includes(k)) throw bad(`Pengaturan "${k}" tidak dikenal`);
+    if (v !== null && !(typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1e9)) throw bad(`Nilai "${k}" harus angka lebih dari 0, atau kosong`);
+    if (k === "priceDtf" && v === null) throw bad("Harga DTF tidak boleh kosong");
+    if (k.startsWith("price") && v !== null && !Number.isInteger(v)) throw bad("Harga rupiah harus bilangan bulat");
+    stmts.push(c.env.DB.prepare("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").bind(k, v === null ? "" : String(v)));
   }
   if (!stmts.length) throw bad("Tidak ada perubahan");
   await c.env.DB.batch(stmts);
-  await audit(c.env.DB, c.get("user").id, "settings_updated", "settings", void 0, Object.keys(b));
-  return c.json({ ok: true });
-});
-masterRoutes.post("/attendance/checkin", need("wo.run"), async (c) => {
-  const day = new Date(now() + 480 * 6e4).toISOString().slice(0, 10);
-  const u = c.get("user");
-  const ex = await c.env.DB.prepare("SELECT * FROM attendance WHERE user_id = ? AND day = ?").bind(u.id, day).first();
-  if (ex) {
-    await c.env.DB.prepare("UPDATE attendance SET check_out_at = NULL WHERE id = ?").bind(ex.id).run();
-    return c.json({ ok: true, day, already: true });
-  }
-  await c.env.DB.prepare("INSERT INTO attendance (user_id, day, check_in_at, standby) VALUES (?,?,?,0)").bind(u.id, day, now()).run();
-  return c.json({ ok: true, day }, 201);
-});
-masterRoutes.post("/attendance/standby", need("wo.run"), async (c) => {
-  const b = await readJson(c);
-  const day = new Date(now() + 480 * 6e4).toISOString().slice(0, 10);
-  const r = await c.env.DB.prepare("UPDATE attendance SET standby = ? WHERE user_id = ? AND day = ? AND check_out_at IS NULL").bind(b.standby ? 1 : 0, c.get("user").id, day).run();
-  if (!r.meta.changes) throw conflict("Belum check-in hari ini");
-  return c.json({ ok: true });
-});
-masterRoutes.post("/attendance/checkout", need("wo.run"), async (c) => {
-  const day = new Date(now() + 480 * 6e4).toISOString().slice(0, 10);
-  const r = await c.env.DB.prepare("UPDATE attendance SET check_out_at = ?, standby = 0 WHERE user_id = ? AND day = ? AND check_out_at IS NULL").bind(now(), c.get("user").id, day).run();
-  if (!r.meta.changes) throw conflict("Belum check-in hari ini");
-  return c.json({ ok: true });
-});
-masterRoutes.get("/attendance/today", async (c) => {
-  if (!isStaff(c.get("user"))) throw forbidden();
-  const day = new Date(now() + 480 * 6e4).toISOString().slice(0, 10);
-  const rows = await c.env.DB.prepare(
-    `SELECT a.user_id, e.full_name, a.check_in_at, a.check_out_at, a.standby,
-       (SELECT COUNT(*) FROM work_orders w WHERE w.assigned_to = a.user_id AND w.status = 'berjalan') AS active_wo
-     FROM attendance a JOIN employees e ON e.user_id = a.user_id WHERE a.day = ?`
-  ).bind(day).all();
-  return c.json(rows.results);
-});
-
-// src/lib/sql.ts
-var FINAL_STAGE = `(w.stage = 'transfer_calender' OR (SELECT service_code FROM order_items WHERE id = w.item_id) <> 'SUBLIM_KAIN')`;
-
-// src/lib/units.ts
-function convert(from, toUnit, factor) {
-  if (from.unit === toUnit) return { qty: from.qty, unit: toUnit };
-  if (factor == null || !(factor > 0)) {
-    throw new Error(`Konversi ${from.unit} ke ${toUnit} belum diatur`);
-  }
-  return { qty: from.qty * factor, unit: toUnit };
-}
-function workSeconds(qty, secondsPerUnit) {
-  if (secondsPerUnit == null || !(secondsPerUnit > 0)) return null;
-  return qty * secondsPerUnit;
-}
-
-// src/routes/orders.ts
-var orderRoutes = new Hono3();
-orderRoutes.use("*", authn);
-var PRIORITIES = ["rendah", "normal", "tinggi", "urgent"];
-async function orderOr404(c, id) {
-  const o = await c.env.DB.prepare("SELECT * FROM orders WHERE id = ?").bind(id).first();
-  if (!o) throw notFound();
-  assertCustomerScope(c.get("user"), o.customer_id);
-  return o;
-}
-orderRoutes.post("/", async (c) => {
-  const u = c.get("user");
-  const b = await readJson(c);
-  let customerId;
-  if (u.role === "customer") {
-    if (!u.customer_id) throw forbidden();
-    customerId = u.customer_id;
-  } else if (u.role === "cs") {
-    customerId = reqNum(b, "customer_id", 0);
-  } else throw forbidden();
-  const cust = await c.env.DB.prepare("SELECT id FROM customers WHERE id = ?").bind(customerId).first();
-  if (!cust) throw notFound("Customer tidak ditemukan");
-  if (!Array.isArray(b.items) || b.items.length === 0 || b.items.length > 50) throw bad("Pesanan harus berisi 1-50 item layanan");
-  const services = await c.env.DB.prepare("SELECT code, active FROM services").all();
-  const active = new Set(services.results.filter((s) => s.active).map((s) => s.code));
-  const items = b.items.map((it) => {
-    if (!it || typeof it !== "object") throw bad("Item tidak valid");
-    const service = oneOf(it, "service_code", ["DTF", "SUBLIM_KERTAS", "SUBLIM_KAIN"]);
-    if (!active.has(service)) throw bad(`Layanan ${service} sedang tidak aktif`);
-    const order_qty = reqNum(it, "order_qty", 0);
-    const order_unit = reqStr(it, "order_unit", 20);
-    const prod_unit = reqStr(it, "prod_unit", 20);
-    const bill_unit = reqStr(it, "bill_unit", 20);
-    const prod_per_order = optNum(it, "prod_per_order");
-    const bill_per_order = optNum(it, "bill_per_order");
-    convert({ qty: order_qty, unit: order_unit }, prod_unit, prod_per_order);
-    convert({ qty: order_qty, unit: order_unit }, bill_unit, bill_per_order);
-    return {
-      service,
-      order_qty,
-      order_unit,
-      prod_unit,
-      bill_unit,
-      prod_per_order,
-      bill_per_order,
-      description: optStr(it, "description"),
-      media_width_mm: optNum(it, "media_width_mm"),
-      print_width_mm: optNum(it, "print_width_mm"),
-      design_size: optStr(it, "design_size", 100),
-      material_type: optStr(it, "material_type", 100),
-      material_owner: it.material_owner === "customer" ? "customer" : "sdp",
-      output_form: optStr(it, "output_form", 100)
-    };
-  });
-  const t = now();
-  const ins = await c.env.DB.prepare(
-    `INSERT INTO orders (order_no, customer_id, po_ref, end_customer_ref, received_at, customer_deadline, priority, description,
-       packing_note, handover_method, qc_requirements, notes, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).bind(
-    "TMP-" + randomToken(6),
-    customerId,
-    optStr(b, "po_ref", 100),
-    optStr(b, "end_customer_ref", 150),
-    t,
-    optTime(b, "customer_deadline"),
-    b.priority ? oneOf(b, "priority", PRIORITIES) : "normal",
-    optStr(b, "description"),
-    optStr(b, "packing_note"),
-    optStr(b, "handover_method", 100),
-    optStr(b, "qc_requirements"),
-    optStr(b, "notes"),
-    u.id,
-    t
-  ).run();
-  const id = ins.meta.last_row_id;
-  const yymm = new Date(t + 480 * 6e4).toISOString().slice(2, 7).replace("-", "");
-  const orderNo = `SDP-${yymm}-${String(id).padStart(4, "0")}`;
-  const track = randomToken(16);
-  const stmts = [
-    c.env.DB.prepare("UPDATE orders SET order_no = ? WHERE id = ?").bind(orderNo, id),
-    c.env.DB.prepare("INSERT INTO tracking (code, order_id, created_at) VALUES (?,?,?)").bind(track, id, t),
-    ...items.map(
-      (i) => c.env.DB.prepare(
-        `INSERT INTO order_items (order_id, service_code, description, order_qty, order_unit, prod_unit, bill_unit, prod_per_order, bill_per_order,
-           media_width_mm, print_width_mm, design_size, material_type, material_owner, output_form) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-      ).bind(
-        id,
-        i.service,
-        i.description,
-        i.order_qty,
-        i.order_unit,
-        i.prod_unit,
-        i.bill_unit,
-        i.prod_per_order,
-        i.bill_per_order,
-        i.media_width_mm,
-        i.print_width_mm,
-        i.design_size,
-        i.material_type,
-        i.material_owner,
-        i.output_form
-      )
-    )
-  ];
-  await c.env.DB.batch(stmts);
-  await audit(c.env.DB, u.id, "order_created", "order", id);
-  return c.json({ ok: true, id, order_no: orderNo, tracking_code: track }, 201);
-});
-orderRoutes.get("/", async (c) => {
-  const u = c.get("user");
-  const where = u.role === "customer" ? "WHERE o.customer_id = ?" : "";
-  const stmt = c.env.DB.prepare(
-    `SELECT o.id, o.order_no, o.status, o.priority, o.received_at, o.customer_deadline, o.sdp_promise_at, c.business_name,
-       (SELECT string_agg(DISTINCT service_code, ',') FROM order_items WHERE order_id = o.id) AS services
-     FROM orders o JOIN customers c ON c.id = o.customer_id ${where} ORDER BY o.id DESC LIMIT 300`
-  );
-  const rows = await (u.role === "customer" ? stmt.bind(u.customer_id) : stmt).all();
-  return c.json(rows.results);
-});
-orderRoutes.get("/:id", async (c) => {
-  const id = intParam(c, "id");
-  const o = await orderOr404(c, id);
-  const u = c.get("user");
-  const [items, wos, tracking, cust] = await Promise.all([
-    c.env.DB.prepare("SELECT * FROM order_items WHERE order_id = ?").bind(id).all(),
-    c.env.DB.prepare("SELECT w.*, m.code AS machine_code FROM work_orders w JOIN machines m ON m.id = w.machine_id WHERE w.order_id = ? ORDER BY w.id").bind(id).all(),
-    c.env.DB.prepare("SELECT code FROM tracking WHERE order_id = ?").bind(id).first(),
-    c.env.DB.prepare("SELECT code, business_name, pic_name, contact, payment_policy FROM customers WHERE id = ?").bind(o.customer_id).first()
-  ]);
-  const arts = await c.env.DB.prepare(
-    "SELECT a.* FROM artworks a JOIN order_items i ON i.id = a.item_id WHERE i.order_id = ? ORDER BY a.item_id, a.version"
-  ).bind(id).all();
-  const out = { ...o, items: items.results, work_orders: wos.results, artworks: arts.results, tracking_code: tracking?.code, customer: cust };
-  if (u.role === "customer") {
-    for (const k of ["cs_validation_note", "cs_confirm_ref", "notes"]) delete out[k];
-    out.work_orders = [];
-  }
-  const latest = Math.max(0, ...wos.results.map((w) => w.est_end_at ?? 0));
-  out.needs_reconfirm = !!(o.customer_deadline && latest > o.customer_deadline);
-  return c.json(out);
-});
-orderRoutes.post("/:id/cs-validate", need("order.cs_validate"), async (c) => {
-  const id = intParam(c, "id");
-  const o = await orderOr404(c, id);
-  if (!["menunggu_cs", "menunggu_rilis"].includes(o.status)) throw conflict("Order sudah melewati tahap CS");
-  const b = await readJson(c);
-  if (b.detail_confirmed !== true) throw bad("Detail wajib dikonfirmasi ke PIC");
-  const ref = reqStr(b, "confirm_ref", 300);
-  if (b.payment_policy_checked !== true) throw bad("Kebijakan pembayaran wajib diperiksa");
-  if (b.deadline_feasible !== true) throw bad("Kelayakan deadline wajib dinyatakan layak, atau konfirmasi ulang ke customer");
-  const note = reqStr(b, "validation_note", 1e3);
-  const promise = optTime(b, "sdp_promise_at");
-  const prev = o.sdp_promise_at && promise && promise !== o.sdp_promise_at ? [...JSON.parse(o.sdp_promise_prev_json), o.sdp_promise_at] : JSON.parse(o.sdp_promise_prev_json);
-  await c.env.DB.prepare(
-    `UPDATE orders SET cs_confirmed_detail=1, cs_confirm_ref=?, cs_payment_checked=1, cs_deadline_feasible=1, cs_validation_note=?,
-       cs_by=?, cs_at=?, status='menunggu_rilis', sdp_promise_at=COALESCE(?, sdp_promise_at), sdp_promise_prev_json=? WHERE id=?`
-  ).bind(ref, note, c.get("user").id, now(), promise, JSON.stringify(prev), id).run();
-  await audit(c.env.DB, c.get("user").id, "order_cs_validated", "order", id);
-  return c.json({ ok: true });
-});
-orderRoutes.post("/:id/release", need("order.release"), async (c) => {
-  const id = intParam(c, "id");
-  const o = await orderOr404(c, id);
-  if (o.status !== "menunggu_rilis" || !o.cs_confirmed_detail) throw conflict("Order belum divalidasi CS");
-  const items = await c.env.DB.prepare("SELECT id, approved_artwork_id FROM order_items WHERE order_id = ?").bind(id).all();
-  for (const it of items.results) {
-    if (!it.approved_artwork_id) throw conflict(`Item #${it.id} belum punya versi artwork yang disetujui`);
-  }
-  await c.env.DB.prepare("UPDATE orders SET status='dirilis', release_by=?, release_at=? WHERE id=?").bind(c.get("user").id, now(), id).run();
-  await audit(c.env.DB, c.get("user").id, "order_released", "order", id);
-  return c.json({ ok: true });
-});
-orderRoutes.post("/:id/cancel", async (c) => {
-  const id = intParam(c, "id");
-  const o = await orderOr404(c, id);
-  const u = c.get("user");
-  if (!(u.role === "customer" || ["cs", "master", "supervisor"].includes(u.role))) throw forbidden();
-  if (["selesai", "dibatalkan", "serah_terima_sebagian"].includes(o.status)) throw conflict("Order tidak dapat dibatalkan pada status ini");
-  const running = await c.env.DB.prepare("SELECT 1 FROM work_orders WHERE order_id = ? AND status IN ('berjalan','selesai')").bind(id).first();
-  if (running) throw conflict("Produksi sudah dimulai; gunakan alur komplain/rework, bukan pembatalan");
-  await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE work_orders SET status='dibatalkan' WHERE order_id = ? AND status='menunggu'").bind(id),
-    c.env.DB.prepare("UPDATE orders SET status='dibatalkan' WHERE id = ?").bind(id)
-  ]);
-  await audit(c.env.DB, u.id, "order_cancelled", "order", id);
-  return c.json({ ok: true });
-});
-orderRoutes.post("/:id/close", need("order.close"), async (c) => {
-  const id = intParam(c, "id");
-  const o = await orderOr404(c, id);
-  if (!["serah_terima_sebagian", "selesai_produksi"].includes(o.status)) throw conflict("Order belum siap ditutup");
-  const open = await c.env.DB.prepare("SELECT COUNT(*) n FROM work_orders WHERE order_id = ? AND status IN ('menunggu','berjalan')").bind(id).first();
-  if (open.n) throw conflict("Masih ada WO yang belum selesai");
-  const left = await c.env.DB.prepare(
-    `SELECT i.id,
-       COALESCE((SELECT SUM(q.qty_good_final) FROM qc_results q JOIN work_orders w ON w.id = q.wo_id WHERE w.item_id = i.id AND ${FINAL_STAGE}), 0) AS good,
-       COALESCE((SELECT SUM(h.qty_this) FROM handovers h WHERE h.item_id = i.id), 0) AS handed
-     FROM order_items i WHERE i.order_id = ?`
-  ).bind(id).all();
-  for (const r of left.results) if (r.good - r.handed > 1e-9) throw conflict(`Item #${r.id} masih punya hasil baik yang belum diserahkan`);
-  if (left.results.every((r) => r.handed === 0)) throw conflict("Belum ada serah terima");
-  await c.env.DB.prepare("UPDATE orders SET status='selesai', closed_at=? WHERE id=?").bind(now(), id).run();
-  await audit(c.env.DB, c.get("user").id, "order_closed", "order", id);
+  await audit(c.env.DB, c.get("user").id, "settings_updated", "settings", void 0, b);
   return c.json({ ok: true });
 });
 
-// src/routes/production.ts
-var prodRoutes = new Hono3();
-prodRoutes.use("*", authn);
-var PRODUCIBLE = ["dirilis", "berjalan", "serah_terima_sebagian"];
-var STAGE_MACHINE = {
-  DTF: { print_film: "dtf_printer" },
-  SUBLIM_KERTAS: { print_kertas: "sublim_printer" },
-  SUBLIM_KAIN: { print_kertas: "sublim_printer", transfer_calender: "calender" }
-};
-var DEFAULT_CHECKLISTS = {
-  dtf_printer: [
-    { key: "area", label: "Persiapan area" },
-    { key: "machine", label: "Persiapan mesin" },
-    { key: "material", label: "Persiapan bahan" },
-    { key: "nozzle_check", label: "Nozzle check", photo: true },
-    { key: "test_print", label: "Test print", photo: true },
-    { key: "curing", label: "Curing" },
-    { key: "press_test", label: "Uji press / daya lekat pada kain uji", photo: true }
-  ],
-  sublim_printer: [
-    { key: "area", label: "Area" },
-    { key: "material", label: "Bahan" },
-    { key: "nozzle_check", label: "Nozzle" },
-    { key: "test_print", label: "Test print" }
-  ],
-  calender: [
-    { key: "area", label: "Area" },
-    { key: "material", label: "Bahan" },
-    { key: "parameter", label: "Parameter sesuai instruksi" },
-    { key: "transfer_test", label: "Uji transfer" }
-  ]
-};
-async function checklistFor(db, kind) {
-  const row = await db.prepare("SELECT value FROM settings WHERE key = ?").bind(`qc_checklist_${kind}`).first();
-  if (row) {
-    try {
-      const v = JSON.parse(row.value);
-      if (Array.isArray(v) && v.every((i) => i && typeof i.key === "string" && typeof i.label === "string")) return v;
-    } catch {
-    }
-  }
-  const d = DEFAULT_CHECKLISTS[kind];
-  if (!d) throw bad("Jenis mesin tidak dikenal");
-  return d;
-}
-async function recomputeQueue(db, machineId, reason, userId, cfg) {
-  const m = await db.prepare("SELECT kind FROM machines WHERE id = ?").bind(machineId).first();
-  if (!m) return;
-  const norm2 = await db.prepare("SELECT seconds_per_unit, unit FROM norms WHERE machine_kind = ?").bind(m.kind).first();
-  const wos = await db.prepare(
-    `SELECT * FROM work_orders WHERE machine_id = ? AND status IN ('berjalan','menunggu') ORDER BY (status = 'berjalan') DESC, queue_pos, id`
-  ).bind(machineId).all();
-  let cursor = now();
-  for (const w of wos.results) {
-    const secs = norm2 && norm2.unit === w.planned_unit ? workSeconds(w.planned_qty, norm2.seconds_per_unit) : null;
-    let start;
-    let end;
-    if (w.est_manual && w.est_end_at) {
-      start = w.est_start_at;
-      end = w.est_end_at;
-    } else if (w.status === "berjalan") {
-      start = w.started_at;
-      end = secs == null ? null : addWorkSeconds(w.started_at, secs, cfg);
-    } else {
-      start = cursor;
-      end = secs == null ? null : addWorkSeconds(cursor, secs, cfg);
-    }
-    if (end != null) cursor = Math.max(cursor, end);
-    if (end !== w.est_end_at || start !== w.est_start_at) {
-      const initial = w.est_initial_end_at ?? end;
-      await db.batch([
-        db.prepare("UPDATE work_orders SET est_start_at=?, est_end_at=?, est_initial_end_at=? WHERE id=?").bind(start, end, initial, w.id),
-        db.prepare("INSERT INTO estimate_history (wo_id, est_end_at, reason, at, by_user) VALUES (?,?,?,?,?)").bind(w.id, end, reason, now(), userId)
-      ]);
-    }
-  }
-}
-prodRoutes.post("/items/:id/artworks", async (c) => {
-  const u = c.get("user");
-  const itemId = intParam(c, "id");
-  const item = await c.env.DB.prepare("SELECT i.*, o.customer_id, o.status AS order_status FROM order_items i JOIN orders o ON o.id = i.order_id WHERE i.id = ?").bind(itemId).first();
-  if (!item) throw notFound();
-  assertCustomerScope(u, item.customer_id);
-  if (!(u.role === "customer" || u.role === "cs" || u.role === "master")) throw forbidden();
-  if (["selesai", "dibatalkan"].includes(item.order_status)) throw conflict("Order sudah ditutup");
-  const b = await readJson(c);
-  const fileKey = reqStr(b, "file_key", 200);
-  const f = await c.env.DB.prepare("SELECT * FROM files WHERE key = ? AND confirmed = 1 AND kind = 'artwork'").bind(fileKey).first();
-  if (!f || f.customer_id !== item.customer_id) throw bad("File artwork tidak ditemukan untuk customer ini");
-  const taken = await c.env.DB.prepare("SELECT 1 FROM artworks WHERE file_key = ?").bind(fileKey).first();
-  if (taken) throw conflict("File ini sudah dipakai sebagai versi artwork");
-  const last = await c.env.DB.prepare("SELECT MAX(version) v FROM artworks WHERE item_id = ?").bind(itemId).first();
-  const version3 = (last?.v ?? 0) + 1;
-  let impact = null;
-  if (item.approved_artwork_id) impact = reqStr(b, "revision_impact_note", 1e3);
-  const r = await c.env.DB.prepare(
-    `INSERT INTO artworks (item_id, version, file_key, file_name, size_bytes, size_note, preflight_status, uploaded_by, uploaded_at, revision_impact_note)
-     VALUES (?,?,?,?,?,?, 'diperiksa', ?,?,?)`
-  ).bind(itemId, version3, fileKey, f.file_name, f.size_bytes, optStr(b, "size_note", 200), u.id, now(), impact).run();
-  await audit(c.env.DB, u.id, "artwork_uploaded", "artwork", r.meta.last_row_id, { version: version3 });
-  return c.json({ ok: true, id: r.meta.last_row_id, version: version3 }, 201);
-});
-prodRoutes.post("/artworks/:id/review", need("artwork.review"), async (c) => {
-  const id = intParam(c, "id");
-  const b = await readJson(c);
-  const status = oneOf(b, "status", ["perlu_revisi", "menunggu_persetujuan"]);
-  const note = reqStr(b, "preflight_note", 1e3);
-  const r = await c.env.DB.prepare("UPDATE artworks SET preflight_status=?, preflight_note=?, preview_ref=? WHERE id=? AND preflight_status IN ('diperiksa','menunggu_persetujuan','perlu_revisi')").bind(status, note, optStr(b, "preview_ref", 300), id).run();
-  if (!r.meta.changes) throw conflict("Artwork tidak dalam tahap pemeriksaan");
-  await audit(c.env.DB, c.get("user").id, "artwork_reviewed", "artwork", id, { status });
-  return c.json({ ok: true });
-});
-prodRoutes.post("/artworks/:id/approve", need("artwork.review"), async (c) => {
-  const id = intParam(c, "id");
-  const b = await readJson(c);
-  const pic = reqStr(b, "approved_by_pic", 120);
-  reqStr(b, "approval_ref", 300);
-  const art = await c.env.DB.prepare("SELECT * FROM artworks WHERE id = ?").bind(id).first();
-  if (!art) throw notFound();
-  if (art.preflight_status !== "menunggu_persetujuan") throw conflict("Artwork belum lolos pemeriksaan");
-  await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE artworks SET preflight_status='disetujui', approved_by_pic=?, approved_at=?, preview_ref=COALESCE(?, preview_ref) WHERE id=?").bind(pic, now(), optStr(b, "approval_ref", 300), id),
-    c.env.DB.prepare("UPDATE order_items SET approved_artwork_id = ? WHERE id = ?").bind(id, art.item_id)
-  ]);
-  await audit(c.env.DB, c.get("user").id, "artwork_approved", "artwork", id);
-  return c.json({ ok: true });
-});
-prodRoutes.get("/artworks/:id/file", async (c) => {
-  const u = c.get("user");
-  const id = intParam(c, "id");
-  const a = await c.env.DB.prepare("SELECT a.file_key, a.file_name, o.customer_id FROM artworks a JOIN order_items i ON i.id = a.item_id JOIN orders o ON o.id = i.order_id WHERE a.id = ?").bind(id).first();
-  if (!a) throw notFound();
-  assertCustomerScope(u, a.customer_id);
-  if (!["customer", "master", "supervisor", "cs", "crm", "operator", "qc"].includes(u.role)) throw notFound();
-  c.header("Cache-Control", "private, no-store");
-  return c.redirect(await c.env.FILES.downloadUrl(a.file_key, a.file_name), 302);
-});
-prodRoutes.get("/machines/:id/checklist", async (c) => {
-  if (!isStaff(c.get("user"))) throw forbidden();
-  const m = await c.env.DB.prepare("SELECT kind FROM machines WHERE id = ?").bind(intParam(c, "id")).first();
-  if (!m) throw notFound();
-  return c.json(await checklistFor(c.env.DB, m.kind));
-});
-prodRoutes.get("/machines/status", async (c) => {
-  if (!isStaff(c.get("user"))) throw forbidden();
-  const cfg = await loadCalendar(c.env.DB);
-  const day = localDay(now(), cfg);
-  const rows = await c.env.DB.prepare(
-    `SELECT m.id, m.code, m.name, m.kind, m.active,
-       (SELECT conclusion FROM machine_qc_reports r WHERE r.machine_id = m.id AND r.day = ? ORDER BY r.at DESC, r.id DESC LIMIT 1) AS qc_today,
-       (SELECT wo_no FROM work_orders w WHERE w.machine_id = m.id AND w.status = 'berjalan') AS running_wo
-     FROM machines m ORDER BY m.code`
-  ).bind(day).all();
-  return c.json(rows.results);
-});
-prodRoutes.post("/machines/:id/qc", need("machine.qc"), async (c) => {
-  const u = c.get("user");
-  const id = intParam(c, "id");
-  const m = await c.env.DB.prepare("SELECT * FROM machines WHERE id = ? AND active = 1").bind(id).first();
-  if (!m) throw notFound("Mesin tidak ditemukan atau nonaktif");
-  const b = await readJson(c);
-  const def = await checklistFor(c.env.DB, m.kind);
-  if (!Array.isArray(b.checklist)) throw bad("Checklist wajib diisi");
-  const byKey = new Map(b.checklist.map((x) => [x?.key, x]));
-  const out = [];
-  let hasNg = false;
-  for (const d of def) {
-    const x = byKey.get(d.key);
-    if (!x || typeof x.ok !== "boolean") throw bad(`Butir "${d.label}" wajib diisi OK atau NG`);
-    if (!x.ok) hasNg = true;
-    if (x.ok && d.photo) {
-      if (typeof x.photo_key !== "string") throw bad(`Foto wajib untuk "${d.label}"`);
-      const ph = await c.env.DB.prepare("SELECT 1 FROM files WHERE key = ? AND confirmed = 1 AND kind = 'qc_photo'").bind(x.photo_key).first();
-      if (!ph) throw bad(`Foto untuk "${d.label}" tidak ditemukan`);
-    }
-    out.push({ key: d.key, label: d.label, ok: x.ok, photo_key: x.photo_key ?? null });
-  }
-  let finding = null;
-  let action = null;
-  if (hasNg) {
-    finding = reqStr(b, "finding", 1e3);
-    action = reqStr(b, "action_note", 1e3);
-  } else {
-    finding = optStr(b, "finding", 1e3);
-    action = optStr(b, "action_note", 1e3);
-  }
-  const cfg = await loadCalendar(c.env.DB);
-  const day = localDay(now(), cfg);
-  const prev = await c.env.DB.prepare("SELECT conclusion FROM machine_qc_reports WHERE machine_id = ? AND day = ? ORDER BY at DESC, id DESC LIMIT 1").bind(id, day).first();
-  if (!hasNg && prev?.conclusion === "tahan_produksi" && u.role !== "qc") throw forbidden("Setelah temuan NG, verifikasi ulang kesiapan dilakukan petugas QC");
-  const conclusion = hasNg ? "tahan_produksi" : "siap";
-  const r = await c.env.DB.prepare(
-    "INSERT INTO machine_qc_reports (machine_id, day, checklist_json, has_ng, finding, action_note, conclusion, reported_by, at) VALUES (?,?,?,?,?,?,?,?,?)"
-  ).bind(id, day, JSON.stringify(out), hasNg ? 1 : 0, finding, action, conclusion, u.id, now()).run();
-  await audit(c.env.DB, u.id, "machine_qc", "machine", id, { conclusion });
-  return c.json({ ok: true, id: r.meta.last_row_id, conclusion }, 201);
-});
-async function checkAssignable(c, userId, excludeWo) {
-  const cfg = await loadCalendar(c.env.DB);
-  const day = localDay(now(), cfg);
-  const op = await c.env.DB.prepare("SELECT id FROM users WHERE id = ? AND role = 'operator' AND active = 1").bind(userId).first();
-  if (!op) throw bad("Operator tidak ditemukan atau nonaktif");
-  const att = await c.env.DB.prepare("SELECT * FROM attendance WHERE user_id = ? AND day = ?").bind(userId, day).first();
-  if (!att || att.check_out_at) throw conflict("Operator belum check-in hari ini");
-  if (!att.standby) throw conflict("Operator tidak dalam status Standby");
-  const busy = await c.env.DB.prepare("SELECT wo_no FROM work_orders WHERE assigned_to = ? AND status = 'berjalan' AND id != ?").bind(userId, excludeWo ?? 0).first();
-  if (busy) throw conflict(`Operator masih menjalankan ${busy.wo_no}`);
-}
-prodRoutes.post("/orders/:id/work-orders", need("wo.assign"), async (c) => {
-  const u = c.get("user");
-  const orderId = intParam(c, "id");
-  const o = await c.env.DB.prepare("SELECT * FROM orders WHERE id = ?").bind(orderId).first();
-  if (!o) throw notFound();
-  if (!PRODUCIBLE.includes(o.status)) throw conflict("Order belum dirilis produksi");
-  const b = await readJson(c);
-  const item = await c.env.DB.prepare("SELECT * FROM order_items WHERE id = ? AND order_id = ?").bind(reqNum(b, "item_id", 0), orderId).first();
-  if (!item) throw notFound("Item tidak ditemukan pada order ini");
-  if (!item.approved_artwork_id) throw conflict("Item belum punya artwork yang disetujui");
-  const stage = reqStr(b, "stage", 40);
-  const kind = STAGE_MACHINE[item.service_code]?.[stage];
-  if (!kind) throw bad(`Tahap "${stage}" bukan WO mesin untuk layanan ${item.service_code}`);
-  const machine = await c.env.DB.prepare("SELECT * FROM machines WHERE id = ? AND active = 1").bind(reqNum(b, "machine_id", 0)).first();
-  if (!machine || machine.kind !== kind) throw bad(`Tahap ini membutuhkan mesin jenis ${kind}`);
-  const qty = reqNum(b, "planned_qty", 0);
-  if (stage === "transfer_calender") {
-    const ok = await c.env.DB.prepare(
-      `SELECT 1 FROM work_orders w JOIN qc_results q ON q.wo_id = w.id
-       WHERE w.item_id = ? AND w.stage = 'print_kertas' AND w.status = 'selesai' AND q.verdict = 'pass' LIMIT 1`
-    ).bind(item.id).first();
-    if (!ok) throw conflict("Transfer calender menunggu hasil print kertas yang lolos pemeriksaan");
-  }
-  let assignedTo = null;
-  if (b.assigned_to != null) {
-    assignedTo = reqNum(b, "assigned_to", 0);
-    await checkAssignable(c, assignedTo);
-  }
-  const cnt = await c.env.DB.prepare("SELECT COUNT(*) n FROM work_orders WHERE order_id = ?").bind(orderId).first();
-  const woNo = `WO-${o.order_no.replace("SDP-", "")}-${cnt.n + 1}`;
-  const pos = await c.env.DB.prepare("SELECT COALESCE(MAX(queue_pos),0)+1 p FROM work_orders WHERE machine_id = ? AND status IN ('menunggu','berjalan')").bind(machine.id).first();
-  const manual = b.est_manual_end != null ? Math.round(reqNum(b, "est_manual_end", 0)) : null;
-  const r = await c.env.DB.prepare(
-    `INSERT INTO work_orders (wo_no, item_id, order_id, stage, machine_id, artwork_id, planned_qty, planned_unit, assigned_to, assigned_by, queue_pos, est_end_at, est_initial_end_at, est_manual, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).bind(woNo, item.id, orderId, stage, machine.id, item.approved_artwork_id, qty, item.prod_unit, assignedTo, assignedTo ? u.id : null, pos.p, manual, manual, manual ? 1 : 0, now()).run();
-  await recomputeQueue(c.env.DB, machine.id, "WO dibuat", u.id, await loadCalendar(c.env.DB));
-  await audit(c.env.DB, u.id, "wo_created", "wo", r.meta.last_row_id);
-  return c.json({ ok: true, id: r.meta.last_row_id, wo_no: woNo }, 201);
-});
-prodRoutes.post("/wo/:id/assign", need("wo.assign"), async (c) => {
-  const id = intParam(c, "id");
-  const b = await readJson(c);
-  const w = await c.env.DB.prepare("SELECT * FROM work_orders WHERE id = ? AND status = 'menunggu'").bind(id).first();
-  if (!w) throw conflict("WO tidak ada atau sudah berjalan");
-  const op = reqNum(b, "assigned_to", 0);
-  await checkAssignable(c, op, id);
-  await c.env.DB.prepare("UPDATE work_orders SET assigned_to = ?, assigned_by = ? WHERE id = ?").bind(op, c.get("user").id, id).run();
-  await audit(c.env.DB, c.get("user").id, "wo_assigned", "wo", id, { op });
-  return c.json({ ok: true });
-});
-prodRoutes.get("/wo", async (c) => {
-  const u = c.get("user");
-  if (!isStaff(u)) throw forbidden();
-  const own = u.role === "operator";
-  const rows = await c.env.DB.prepare(
-    `SELECT w.*, m.code AS machine_code, o.order_no, i.service_code, e.full_name AS operator_name, (SELECT COUNT(*) FROM qc_results q WHERE q.wo_id = w.id) AS qc_count
-     FROM work_orders w JOIN machines m ON m.id = w.machine_id JOIN orders o ON o.id = w.order_id JOIN order_items i ON i.id = w.item_id
-     LEFT JOIN employees e ON e.user_id = w.assigned_to
-     ${own ? "WHERE w.assigned_to = ?" : ""} ORDER BY w.id DESC LIMIT 300`
-  ).bind(...own ? [u.id] : []).all();
-  return c.json(rows.results);
-});
-prodRoutes.post("/wo/:id/start", need("wo.run"), async (c) => {
-  const u = c.get("user");
-  const id = intParam(c, "id");
-  const w = await c.env.DB.prepare("SELECT w.*, o.status AS order_status FROM work_orders w JOIN orders o ON o.id = w.order_id WHERE w.id = ?").bind(id).first();
-  if (!w) throw notFound();
-  if (w.assigned_to !== u.id) throw forbidden("WO ini bukan tugas Anda");
-  if (w.status !== "menunggu") throw conflict("WO tidak dalam status menunggu");
-  if (!PRODUCIBLE.includes(w.order_status)) throw conflict("Order belum dirilis produksi");
-  const cfg = await loadCalendar(c.env.DB);
-  const day = localDay(now(), cfg);
-  const att = await c.env.DB.prepare("SELECT * FROM attendance WHERE user_id = ? AND day = ?").bind(u.id, day).first();
-  if (!att || att.check_out_at) throw conflict("Belum check-in hari ini");
-  const qc = await c.env.DB.prepare("SELECT conclusion FROM machine_qc_reports WHERE machine_id = ? AND day = ? ORDER BY at DESC, id DESC LIMIT 1").bind(w.machine_id, day).first();
-  if (!qc) throw conflict("QC kesiapan mesin hari ini belum dibuat");
-  if (qc.conclusion !== "siap") throw conflict("Mesin ditahan produksi (QC kesiapan NG). Perbaiki dan verifikasi ulang.");
-  const mine = await c.env.DB.prepare("SELECT wo_no FROM work_orders WHERE assigned_to = ? AND status = 'berjalan'").bind(u.id).first();
-  if (mine) throw conflict(`Anda masih menjalankan ${mine.wo_no}`);
-  if (w.stage === "transfer_calender") {
-    const ok = await c.env.DB.prepare(
-      "SELECT 1 FROM work_orders x JOIN qc_results q ON q.wo_id = x.id WHERE x.item_id = ? AND x.stage = 'print_kertas' AND x.status = 'selesai' AND q.verdict = 'pass' LIMIT 1"
-    ).bind(w.item_id).first();
-    if (!ok) throw conflict("Hasil print kertas belum lolos pemeriksaan");
-  }
-  try {
-    const r = await c.env.DB.prepare("UPDATE work_orders SET status='berjalan', started_at=?, started_by=?, started_session=? WHERE id=? AND status='menunggu'").bind(now(), u.id, c.get("sid").slice(0, 12), id).run();
-    if (!r.meta.changes) throw conflict("WO sudah dimulai");
-  } catch (e) {
-    if (e instanceof HttpError) throw e;
-    if (e?.code === "23505" || String(e?.message ?? e).toUpperCase().includes("UNIQUE")) throw conflict("Mesin sedang menjalankan WO lain");
-    throw e;
-  }
-  await c.env.DB.prepare("UPDATE orders SET status='berjalan' WHERE id = ? AND status='dirilis'").bind(w.order_id).run();
-  await recomputeQueue(c.env.DB, w.machine_id, "WO dimulai", u.id, cfg);
-  await audit(c.env.DB, u.id, "wo_started", "wo", id);
-  return c.json({ ok: true });
-});
-prodRoutes.post("/wo/:id/finish", need("wo.run"), async (c) => {
-  const u = c.get("user");
-  const id = intParam(c, "id");
-  const b = await readJson(c);
-  const out = reqNum(b, "qty_out", 0);
-  const w = await c.env.DB.prepare("SELECT * FROM work_orders WHERE id = ?").bind(id).first();
-  if (!w) throw notFound();
-  if (w.assigned_to !== u.id) throw forbidden("WO ini bukan tugas Anda");
-  if (w.status !== "berjalan") throw conflict("WO tidak sedang berjalan");
-  const cfg = await loadCalendar(c.env.DB);
-  const t = now();
-  const raw2 = Math.round((t - w.started_at) / 1e3);
-  const eff = effectiveSeconds(w.started_at, t, cfg);
-  await c.env.DB.prepare("UPDATE work_orders SET status='selesai', finished_at=?, raw_duration_s=?, effective_s=?, out_total=? WHERE id=?").bind(t, raw2, eff, out, id).run();
-  await recomputeQueue(c.env.DB, w.machine_id, "WO selesai", u.id, cfg);
-  await audit(c.env.DB, u.id, "wo_finished", "wo", id, { raw: raw2, eff });
-  return c.json({ ok: true, raw_duration_s: raw2, effective_s: eff });
-});
-prodRoutes.post("/wo/:id/qc", need("result.qc"), async (c) => {
-  const id = intParam(c, "id");
-  const w = await c.env.DB.prepare("SELECT * FROM work_orders WHERE id = ?").bind(id).first();
-  if (!w) throw notFound();
-  if (w.status !== "selesai") throw conflict("WO belum selesai");
-  const b = await readJson(c);
-  const verdict = oneOf(b, "verdict", ["pass", "hold", "rework", "reject"]);
-  const initial = reqNum(b, "qty_initial", 0);
-  const reject = reqNum(b, "qty_reject", 0, true);
-  const rework = reqNum(b, "qty_rework", 0, true);
-  const good = reqNum(b, "qty_good_final", 0, true);
-  if (Math.abs(good + reject + rework - initial) > 1e-9) throw bad("Output baik + reject + rework harus sama dengan output awal (tidak boleh dihitung ganda)");
-  if (verdict === "pass" && rework !== 0) throw bad("Verdict pass tidak boleh memiliki qty rework");
-  if (verdict === "rework" && rework <= 0) throw bad("Verdict rework membutuhkan qty rework");
-  if (verdict === "reject" && (good !== 0 || rework !== 0)) throw bad("Verdict reject: seluruh output reject");
-  if (verdict === "hold" && (good !== 0 || reject !== 0 || rework !== 0)) throw bad("Verdict hold: belum ada keputusan baik/reject/rework");
-  const recheck = b.recheck_of != null ? reqNum(b, "recheck_of", 0) : null;
-  if (recheck == null) {
-    const dup = await c.env.DB.prepare("SELECT 1 FROM qc_results WHERE wo_id = ? AND recheck_of IS NULL").bind(id).first();
-    if (dup) throw conflict("QC awal WO ini sudah ada; gunakan recheck_of untuk hasil hold/rework");
-    if (Math.abs(initial - w.out_total) > 1e-9) throw bad(`Output awal harus sama dengan output WO (${w.out_total})`);
-  } else {
-    const prev = await c.env.DB.prepare("SELECT * FROM qc_results WHERE id = ? AND wo_id = ?").bind(recheck, id).first();
-    if (!prev || !["hold", "rework"].includes(prev.verdict)) throw bad("recheck_of harus mengacu ke QC hold/rework pada WO yang sama");
-    const outstanding = prev.verdict === "hold" ? prev.qty_initial : prev.qty_rework;
-    const used = await c.env.DB.prepare("SELECT COALESCE(SUM(qty_initial),0) s FROM qc_results WHERE recheck_of = ?").bind(recheck).first();
-    if (initial > outstanding - used.s + 1e-9) throw bad("Qty pemeriksaan ulang melebihi sisa hold/rework");
-  }
-  const r = await c.env.DB.prepare(
-    "INSERT INTO qc_results (wo_id, verdict, qty_initial, qty_reject, qty_rework, qty_good_final, note, by_user, at, recheck_of) VALUES (?,?,?,?,?,?,?,?,?,?)"
-  ).bind(id, verdict, initial, reject, rework, good, optStr(b, "note", 1e3), c.get("user").id, now(), recheck).run();
-  await audit(c.env.DB, c.get("user").id, "qc_result", "wo", id, { verdict });
-  return c.json({ ok: true, id: r.meta.last_row_id }, 201);
-});
-prodRoutes.post("/orders/:id/finish-production", async (c) => {
-  const u = c.get("user");
-  if (!["cs", "supervisor", "master"].includes(u.role)) throw forbidden();
-  const id = intParam(c, "id");
-  const o = await c.env.DB.prepare("SELECT status FROM orders WHERE id = ?").bind(id).first();
-  if (!o) throw notFound();
-  if (!PRODUCIBLE.includes(o.status)) throw conflict("Order tidak sedang berproduksi");
-  const open = await c.env.DB.prepare("SELECT COUNT(*) n FROM work_orders WHERE order_id = ? AND status IN ('menunggu','berjalan')").bind(id).first();
-  if (open.n) throw conflict("Masih ada WO yang belum selesai");
-  const pend = await c.env.DB.prepare(
-    `SELECT COUNT(*) n FROM qc_results q JOIN work_orders w ON w.id = q.wo_id
-     WHERE w.order_id = ? AND q.verdict IN ('hold','rework')
-       AND (CASE q.verdict WHEN 'hold' THEN q.qty_initial ELSE q.qty_rework END) - COALESCE((SELECT SUM(r.qty_initial) FROM qc_results r WHERE r.recheck_of = q.id),0) > 1e-9`
-  ).bind(id).first();
-  if (pend.n) throw conflict("Masih ada hasil hold/rework yang belum diperiksa ulang");
-  const noQc = await c.env.DB.prepare("SELECT COUNT(*) n FROM work_orders w WHERE w.order_id = ? AND w.status='selesai' AND NOT EXISTS (SELECT 1 FROM qc_results q WHERE q.wo_id = w.id)").bind(id).first();
-  if (noQc.n) throw conflict("Ada WO selesai yang belum melalui QC hasil");
-  await c.env.DB.prepare("UPDATE orders SET status='selesai_produksi' WHERE id = ?").bind(id).run();
-  await audit(c.env.DB, u.id, "production_finished", "order", id);
-  return c.json({ ok: true });
-});
-prodRoutes.post("/orders/:id/handover", need("handover.write"), async (c) => {
-  const u = c.get("user");
-  const orderId = intParam(c, "id");
-  const o = await c.env.DB.prepare("SELECT * FROM orders WHERE id = ?").bind(orderId).first();
-  if (!o) throw notFound();
-  if (!["berjalan", "selesai_produksi", "serah_terima_sebagian"].includes(o.status)) throw conflict("Order belum punya hasil untuk diserahkan");
-  const b = await readJson(c);
-  const item = await c.env.DB.prepare("SELECT * FROM order_items WHERE id = ? AND order_id = ?").bind(reqNum(b, "item_id", 0), orderId).first();
-  if (!item) throw notFound("Item tidak ditemukan");
-  const qty = reqNum(b, "qty_this", 0);
-  const agg = await c.env.DB.prepare(
-    `SELECT COALESCE((SELECT SUM(q.qty_good_final) FROM qc_results q JOIN work_orders w ON w.id = q.wo_id WHERE w.item_id = ? AND ${FINAL_STAGE}),0) AS good,
-            COALESCE((SELECT SUM(qty_this) FROM handovers WHERE item_id = ?),0) AS handed,
-            (SELECT MAX(q.id) FROM qc_results q JOIN work_orders w ON w.id = q.wo_id WHERE w.item_id = ? AND ${FINAL_STAGE}) AS last_qc`
-  ).bind(item.id, item.id, item.id).first();
-  const available = agg.good - agg.handed;
-  if (qty > available + 1e-9) throw conflict(`Hasil baik yang tersedia untuk diserahkan hanya ${available} ${item.prod_unit}`);
-  const cumulative = agg.handed + qty;
-  const target = convert({ qty: item.order_qty, unit: item.order_unit }, item.prod_unit, item.prod_per_order).qty;
-  const r = await c.env.DB.prepare(
-    `INSERT INTO handovers (order_id, item_id, package_label, wo_id, qc_result_id, qty_good, qty_this, qty_cumulative, remaining_result, remaining_work,
-       material_returned, handed_by, received_by_name, evidence_ref, courier_receipt, at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).bind(
-    orderId,
-    item.id,
-    reqStr(b, "package_label", 100),
-    optNum(b, "wo_id"),
-    agg.last_qc,
-    agg.good,
-    qty,
-    cumulative,
-    available - qty,
-    Math.max(target - cumulative, 0),
-    optStr(b, "material_returned", 300),
-    u.id,
-    reqStr(b, "received_by_name", 120),
-    optStr(b, "evidence_ref", 300),
-    optStr(b, "courier_receipt", 100),
-    now()
-  ).run();
-  const stmts = [c.env.DB.prepare("UPDATE orders SET status='serah_terima_sebagian' WHERE id = ? AND status IN ('berjalan','serah_terima_sebagian')").bind(orderId)];
-  if (b.courier_receipt) stmts.push(c.env.DB.prepare("UPDATE tracking SET courier_receipt = ? WHERE order_id = ?").bind(String(b.courier_receipt).slice(0, 100), orderId));
-  await c.env.DB.batch(stmts);
-  await audit(c.env.DB, u.id, "handover", "order", orderId, { qty });
-  return c.json({ ok: true, id: r.meta.last_row_id, qty_cumulative: cumulative, remaining_result: available - qty, remaining_work: Math.max(target - cumulative, 0) }, 201);
-});
-prodRoutes.get("/dashboard", async (c) => {
-  if (!isStaff(c.get("user"))) throw forbidden();
+// src/routes/state.ts
+var stateRoutes = new Hono3();
+stateRoutes.use("*", authn);
+stateRoutes.get("/", async (c) => {
   const db = c.env.DB;
-  const one = async (sql) => (await db.prepare(sql).first())?.n ?? 0;
-  const [menungguCs, menungguRilis, siapJadwal, woBerjalan, woMenunggu, hasilSiap, belumArtwork, lewatDeadline] = await Promise.all([
-    one("SELECT COUNT(*) n FROM orders WHERE status='menunggu_cs'"),
-    one("SELECT COUNT(*) n FROM orders WHERE status='menunggu_rilis'"),
-    one("SELECT COUNT(*) n FROM orders o WHERE o.status IN ('dirilis','berjalan') AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id=o.id AND i.approved_artwork_id IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM work_orders w WHERE w.order_id=o.id)"),
-    one("SELECT COUNT(*) n FROM work_orders WHERE status='berjalan'"),
-    one("SELECT COUNT(*) n FROM work_orders WHERE status='menunggu'"),
-    one("SELECT COUNT(*) n FROM orders WHERE status IN ('selesai_produksi','serah_terima_sebagian')"),
-    one("SELECT COUNT(*) n FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.approved_artwork_id IS NULL AND o.status NOT IN ('selesai','dibatalkan')"),
-    one("SELECT COUNT(*) n FROM orders WHERE status NOT IN ('selesai','dibatalkan') AND customer_deadline IS NOT NULL AND customer_deadline < (EXTRACT(EPOCH FROM now()) * 1000)")
-  ]);
-  const output = await db.prepare(
-    `SELECT i.service_code, i.prod_unit, SUM(q.qty_good_final) good, SUM(q.qty_reject) reject, SUM(q.qty_rework) rework
-     FROM qc_results q JOIN work_orders w ON w.id=q.wo_id JOIN order_items i ON i.id=w.item_id WHERE (w.stage = 'transfer_calender' OR i.service_code <> 'SUBLIM_KAIN') GROUP BY i.service_code, i.prod_unit`
-  ).all();
-  return c.json({
-    hambatan: { menunggu_cs: menungguCs, menunggu_rilis: menungguRilis, item_belum_artwork_disetujui: belumArtwork },
-    siap_dijadwalkan: siapJadwal,
-    wo_berjalan: woBerjalan,
-    wo_menunggu: woMenunggu,
-    hasil_siap_atau_sebagian_diserahkan: hasilSiap,
-    lewat_deadline: lewatDeadline,
-    output_per_layanan_dan_satuan: output.results
-  });
+  const u = c.get("user");
+  const master = u.role === "master";
+  const pages = master ? [...GRANTABLE, "atur", "pengguna", "akses", "akun"] : [...await pagesOf(db, u.role), "akun"];
+  const has = (...p) => p.some((x) => pages.includes(x));
+  const raw2 = await loadSettings(db);
+  const out = {
+    me: { code: u.code, name: u.name, role: u.role, store: u.store },
+    pages,
+    today: localDay(now(), calendarOf(raw2)),
+    calendar: calendarOf(raw2),
+    settings: numericSettings(raw2),
+    orders: [],
+    customers: [],
+    skus: [],
+    ledger: [],
+    loss: [],
+    qcReports: [],
+    users: [],
+    access: {}
+  };
+  if (has(...ORDER_PAGES)) {
+    const mine = u.role === "store";
+    const rows = await db.prepare(
+      `SELECT o.*, cu.code AS cust_code FROM orders o LEFT JOIN customers cu ON cu.id = o.customer_id
+       WHERE (o.status NOT IN ('selesai','ditolak') OR o.id IN (SELECT id FROM orders WHERE status IN ('selesai','ditolak') ORDER BY id DESC LIMIT 300))
+       ${mine ? "AND o.created_by = ?" : ""} ORDER BY o.id`
+    ).bind(...mine ? [u.code] : []).all();
+    const ids = new Set(rows.results.map((r) => r.id));
+    const pays = ids.size ? (await db.prepare("SELECT p.* FROM payments p WHERE p.order_id >= ? ORDER BY p.id").bind(Math.min(...ids)).all()).results.filter((p) => ids.has(p.order_id)) : [];
+    const byOrder = /* @__PURE__ */ new Map();
+    for (const p of pays) (byOrder.get(p.order_id) ?? byOrder.set(p.order_id, []).get(p.order_id)).push({ amount: p.amount, method: p.method, by: p.by_user, at: p.at });
+    const seeContact = master || ["cs", "crm", "store", "spv", "manager", "fat"].includes(u.role);
+    out.orders = rows.results.map((o) => ({
+      dbId: o.id,
+      id: o.order_no,
+      track: o.track_code,
+      type: o.type,
+      service: o.service,
+      custCode: o.cust_code,
+      customer: o.customer_name,
+      wa: seeContact ? o.wa : "",
+      source: o.source,
+      store: o.store ?? "-",
+      items: JSON.parse(o.items),
+      total: o.total,
+      meter: o.meter,
+      file: o.file_ref,
+      fileKey: o.file_key,
+      deadline: o.deadline,
+      note: o.note,
+      status: o.status,
+      stage: o.stage,
+      priority: !!o.priority,
+      issue: o.issue,
+      reworkM: o.rework_m,
+      process: o.process,
+      receiver: o.receiver,
+      createdBy: o.created_by,
+      created: o.created_at,
+      approved: o.approved_at,
+      started: o.started_at,
+      pay: byOrder.get(o.id) ?? []
+    }));
+  }
+  if (has("input", "pelanggan", "cs", "cekfile")) {
+    out.customers = (await db.prepare("SELECT id, code, name, wa, source, status FROM customers ORDER BY name LIMIT 5000").all()).results;
+  }
+  if (has("stok", "dashboard")) {
+    out.skus = (await db.prepare("SELECT code, name, svc, unit, stock, min_stock AS min, use_per_m AS use, machine FROM skus ORDER BY code").all()).results;
+  }
+  if (has("stok")) {
+    out.ledger = (await db.prepare("SELECT at, sku_code AS code, type, qty, ref FROM stock_ledger ORDER BY id DESC LIMIT 50").all()).results;
+  }
+  if (has("loss", "dashboard", "laporan")) {
+    out.loss = (await db.prepare("SELECT order_no AS id, type, reason, value, counted AS count, at FROM logs ORDER BY id DESC LIMIT 300").all()).results;
+  }
+  if (has("qc", "produksi")) {
+    const rows = await db.prepare("SELECT * FROM qc_reports ORDER BY id DESC LIMIT 60").all();
+    out.qcReports = rows.results.reverse().map((r) => ({
+      id: r.id,
+      machine: r.machine,
+      day: r.day,
+      ng: JSON.parse(r.ng),
+      note: r.note ?? "",
+      action: r.action ?? "",
+      photos: JSON.parse(r.photos),
+      status: r.status,
+      by: r.by_user,
+      at: r.at,
+      approvedBy: r.approved_by,
+      leaderNote: r.leader_note ?? ""
+    }));
+  }
+  if (master) {
+    out.users = (await db.prepare("SELECT id, code, name, role, store, active, must_change_password FROM users ORDER BY id").all()).results;
+    const rows = await db.prepare("SELECT role, pages FROM role_access").all();
+    out.access = { ...ACCESS_DEFAULT, ...Object.fromEntries(rows.results.map((r) => [r.role, JSON.parse(r.pages)])) };
+  }
+  c.header("Cache-Control", "private, no-store");
+  return c.json(out);
 });
 
 // src/storage.ts
@@ -33314,23 +32923,9 @@ async function supabaseStorage(url, serviceKey, bucket) {
 // src/routes/files.ts
 var fileRoutes = new Hono3();
 fileRoutes.use("*", authn);
-var KINDS = ["artwork", "payment_proof", "qc_photo", "receiving_photo", "complaint", "handover"];
-var UPLOAD = {
-  artwork: ["customer", "cs", "master"],
-  payment_proof: ["customer", "cs", "fat", "master"],
-  qc_photo: ["operator", "qc"],
-  receiving_photo: ["gudang", "master"],
-  complaint: ["customer", "cs", "qc", "supervisor", "master"],
-  handover: ["gudang", "cs", "qc"]
-};
-var READ = {
-  artwork: ["customer", "master", "supervisor", "cs", "crm", "operator", "qc"],
-  payment_proof: ["customer", "master", "cs", "fat"],
-  qc_photo: ["master", "supervisor", "operator", "qc", "cs"],
-  receiving_photo: ["master", "supervisor", "gudang", "qc"],
-  complaint: ["customer", "master", "supervisor", "cs", "qc"],
-  handover: ["customer", "master", "supervisor", "cs", "gudang", "qc"]
-};
+var KINDS = ["artwork", "qc_photo"];
+var UPLOAD = { artwork: ["master", "cs", "store"], qc_photo: ["master", "op", "qc", "spv"] };
+var READ = { artwork: ["master", "manager", "spv", "cs", "store", "op"], qc_photo: ["master", "manager", "spv", "op", "qc"] };
 fileRoutes.post("/init", async (c) => {
   const u = c.get("user");
   const b = await readJson(c);
@@ -33339,18 +32934,11 @@ fileRoutes.post("/init", async (c) => {
   if (!UPLOAD[kind].includes(u.role)) throw forbidden();
   const size = reqNum(b, "size_bytes", 0);
   if (!Number.isInteger(size) || size > MAX_FILE_BYTES) throw bad(`Ukuran file maksimal ${MAX_FILE_BYTES / 1024 / 1024} MB`);
-  let customerId = null;
-  if (u.role === "customer") customerId = u.customer_id;
-  else if (b.customer_id != null) {
-    customerId = Number(b.customer_id);
-    if (!Number.isInteger(customerId)) throw bad("customer_id tidak valid");
-    if (!await c.env.DB.prepare("SELECT 1 FROM customers WHERE id = ?").bind(customerId).first()) throw notFound("Customer tidak ditemukan");
-  }
   const name = reqStr(b, "file_name", 200).replace(/[^\w.\- ]/g, "_").slice(0, 120) || "file";
   const contentType2 = typeof b.content_type === "string" && b.content_type.length < 100 ? b.content_type : "application/octet-stream";
   const key = `${kind}/${randomToken(16)}`;
   const upload = await c.env.FILES.createUpload(key, contentType2);
-  await c.env.DB.prepare("INSERT INTO files (key, kind, customer_id, file_name, content_type, size_bytes, uploaded_by, uploaded_at, confirmed) VALUES (?,?,?,?,?,?,?,?,0)").bind(key, kind, customerId, name, contentType2, size, u.id, now()).run();
+  await c.env.DB.prepare("INSERT INTO files (key, kind, file_name, content_type, size_bytes, uploaded_by, uploaded_at, confirmed) VALUES (?,?,?,?,?,?,?,0)").bind(key, kind, name, contentType2, size, u.id, now()).run();
   return c.json({ key, file_name: name, upload }, 201);
 });
 fileRoutes.post("/confirm", async (c) => {
@@ -33371,230 +32959,50 @@ fileRoutes.get("/:kind/:id", async (c) => {
   const u = c.get("user");
   const key = `${c.req.param("kind")}/${c.req.param("id")}`;
   const meta = await c.env.DB.prepare("SELECT * FROM files WHERE key = ? AND confirmed = 1").bind(key).first();
-  if (!meta) throw notFound();
-  if (!READ[meta.kind].includes(u.role)) throw notFound();
-  if (u.role === "customer" && meta.customer_id !== u.customer_id) throw notFound();
+  if (!meta || !READ[meta.kind].includes(u.role)) throw notFound();
+  if (u.role === "store" && meta.uploaded_by !== u.id) throw notFound();
   c.header("Cache-Control", "private, no-store");
   return c.redirect(await c.env.FILES.downloadUrl(key, meta.file_name), 302);
-});
-
-// src/routes/stock.ts
-var stockRoutes = new Hono3();
-stockRoutes.use("*", authn);
-stockRoutes.post("/lots", need("stock.write"), async (c) => {
-  const u = c.get("user");
-  const b = await readJson(c);
-  const owner = oneOf(b, "owner", ["sdp", "customer"]);
-  let customerId = null;
-  if (owner === "customer") {
-    customerId = reqNum(b, "customer_id", 0);
-    if (!await c.env.DB.prepare("SELECT 1 FROM customers WHERE id = ?").bind(customerId).first()) throw notFound("Customer tidak ditemukan");
-  }
-  const declared = reqNum(b, "declared_qty", 0, true);
-  const measured = reqNum(b, "measured_qty", 0, true);
-  const diff = Math.abs(declared - measured) > 1e-9;
-  if (diff && b.diff_confirmed !== true) throw conflict("Ada selisih jumlah dinyatakan vs hasil ukur; konfirmasi selisih wajib");
-  const roll = reqStr(b, "roll_id", 60);
-  if (await c.env.DB.prepare("SELECT 1 FROM material_lots WHERE roll_id = ?").bind(roll).first()) throw conflict("Roll ID sudah ada");
-  if (b.photo_key != null && !await c.env.DB.prepare("SELECT 1 FROM files WHERE key = ? AND confirmed = 1 AND kind = 'receiving_photo'").bind(String(b.photo_key)).first()) throw bad("Foto receiving tidak ditemukan");
-  const r = await c.env.DB.prepare(
-    `INSERT INTO material_lots (roll_id, sku, owner, customer_id, unit, declared_qty, measured_qty, diff_confirmed, condition, location, received_by, received_at, photo_key)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).bind(roll, reqStr(b, "sku", 60), owner, customerId, reqStr(b, "unit", 20), declared, measured, diff ? 1 : 0, optStr(b, "condition", 300), optStr(b, "location", 60), u.id, now(), b.photo_key ?? null).run();
-  const lotId = r.meta.last_row_id;
-  await c.env.DB.prepare("INSERT INTO stock_ledger (lot_id, kind, qty, source_type, source_id, at, by_user) VALUES (?,'receive',?,'receiving',?,?,?)").bind(lotId, measured, String(lotId), now(), u.id).run();
-  await audit(c.env.DB, u.id, "lot_received", "lot", lotId);
-  return c.json({ ok: true, id: lotId }, 201);
-});
-stockRoutes.put("/lots/:id/location", need("stock.write"), async (c) => {
-  const b = await readJson(c);
-  const r = await c.env.DB.prepare("UPDATE material_lots SET location = ? WHERE id = ?").bind(reqStr(b, "location", 60), intParam(c, "id")).run();
-  if (!r.meta.changes) throw notFound();
-  return c.json({ ok: true });
-});
-var LEDGER_KINDS = ["reserve", "release_reserve", "use", "waste", "return_stock", "return_owner", "sample", "cleaning", "maintenance"];
-stockRoutes.post("/lots/:id/ledger", need("stock.use"), async (c) => {
-  const u = c.get("user");
-  const lotId = intParam(c, "id");
-  const b = await readJson(c);
-  const kind = oneOf(b, "kind", LEDGER_KINDS);
-  const qty = reqNum(b, "qty", 0);
-  const sourceType = reqStr(b, "source_type", 30);
-  const sourceId = reqStr(b, "source_id", 60);
-  const lot = await c.env.DB.prepare("SELECT * FROM material_lots WHERE id = ?").bind(lotId).first();
-  if (!lot) throw notFound();
-  if (["reserve", "use"].includes(kind) && sourceType === "wo") {
-    const wo = await c.env.DB.prepare("SELECT w.status, o.customer_id FROM work_orders w JOIN orders o ON o.id = w.order_id WHERE w.id = ?").bind(Number(sourceId)).first();
-    if (!wo) throw notFound("WO sumber tidak ditemukan");
-    if (lot.owner === "customer" && lot.customer_id !== wo.customer_id) throw forbidden("Bahan titipan milik customer lain");
-  } else if (lot.owner === "customer" && ["reserve", "use"].includes(kind)) {
-    throw forbidden("Bahan titipan customer hanya dapat dipakai lewat WO milik customer tersebut");
-  }
-  const dup = await c.env.DB.prepare("SELECT id FROM stock_ledger WHERE source_type = ? AND source_id = ? AND kind = ?").bind(sourceType, sourceId, kind).first();
-  if (dup) return c.json({ ok: true, idempotent: true, id: dup.id });
-  const bal = await balance(c.env.DB, lotId);
-  if (kind === "reserve" && qty > bal.available + 1e-9) throw conflict(`Stok tersedia hanya ${bal.available}`);
-  if (["use", "waste", "sample", "cleaning", "maintenance", "return_owner"].includes(kind) && qty > bal.on_hand + 1e-9) throw conflict(`Stok fisik hanya ${bal.on_hand}`);
-  const stmts = [
-    c.env.DB.prepare("INSERT INTO stock_ledger (lot_id, kind, qty, source_type, source_id, note, at, by_user) VALUES (?,?,?,?,?,?,?,?)").bind(lotId, kind, qty, sourceType, sourceId, optStr(b, "note", 300), now(), u.id)
-  ];
-  if (kind === "use") {
-    const res = await c.env.DB.prepare("SELECT qty FROM stock_ledger WHERE lot_id = ? AND source_type = ? AND source_id = ? AND kind = 'reserve'").bind(lotId, sourceType, sourceId).first();
-    const rel = await c.env.DB.prepare("SELECT 1 FROM stock_ledger WHERE source_type = ? AND source_id = ? AND kind = 'release_reserve' AND lot_id = ?").bind(sourceType, sourceId, lotId).first();
-    if (res && !rel) {
-      stmts.push(c.env.DB.prepare("INSERT INTO stock_ledger (lot_id, kind, qty, source_type, source_id, note, at, by_user) VALUES (?,'release_reserve',?,?,?,'otomatis saat dipakai',?,?)").bind(lotId, res.qty, sourceType, sourceId, now(), u.id));
-    }
-  }
-  await c.env.DB.batch(stmts);
-  await audit(c.env.DB, u.id, "ledger", "lot", lotId, { kind, qty });
-  return c.json({ ok: true, balance: await balance(c.env.DB, lotId) }, 201);
-});
-async function balance(db, lotId) {
-  const rows = await db.prepare("SELECT kind, SUM(qty) q FROM stock_ledger WHERE lot_id = ? GROUP BY kind").bind(lotId).all();
-  const q = Object.fromEntries(rows.results.map((r) => [r.kind, r.q]));
-  const g = (k) => q[k] ?? 0;
-  const on_hand = g("receive") + g("return_stock") - g("use") - g("waste") - g("sample") - g("cleaning") - g("maintenance") - g("return_owner");
-  const reserved = g("reserve") - g("release_reserve");
-  return { on_hand, reserved, available: on_hand - reserved };
-}
-stockRoutes.get("/lots", async (c) => {
-  const u = c.get("user");
-  if (!isStaff(u)) throw forbidden();
-  const owner = c.req.query("owner");
-  const rows = await c.env.DB.prepare(`SELECT l.*, cu.business_name AS customer_name FROM material_lots l LEFT JOIN customers cu ON cu.id = l.customer_id ${owner === "sdp" || owner === "customer" ? "WHERE l.owner = ?" : ""} ORDER BY l.id DESC LIMIT 300`).bind(...owner === "sdp" || owner === "customer" ? [owner] : []).all();
-  const out = [];
-  for (const l of rows.results) out.push({ ...l, ...await balance(c.env.DB, l.id) });
-  return c.json(out);
-});
-
-// src/routes/finance.ts
-var financeRoutes = new Hono3();
-financeRoutes.use("*", authn);
-financeRoutes.post("/orders/:id/invoices", need("invoice.write"), async (c) => {
-  const id = intParam(c, "id");
-  if (!await c.env.DB.prepare("SELECT 1 FROM orders WHERE id = ?").bind(id).first()) throw notFound();
-  const b = await readJson(c);
-  const amount = reqNum(b, "amount", 0);
-  if (!Number.isInteger(amount)) throw bad("Nominal rupiah harus bilangan bulat");
-  const r = await c.env.DB.prepare("INSERT INTO invoices (order_id, kind, amount, due_at, note, created_by, created_at) VALUES (?,?,?,?,?,?,?)").bind(id, oneOf(b, "kind", ["penawaran", "dp", "invoice"]), amount, optTime(b, "due_at"), optStr(b, "note", 500), c.get("user").id, now()).run();
-  await audit(c.env.DB, c.get("user").id, "invoice_created", "order", id);
-  return c.json({ ok: true, id: r.meta.last_row_id }, 201);
-});
-financeRoutes.post("/orders/:id/payments", async (c) => {
-  const u = c.get("user");
-  const id = intParam(c, "id");
-  const o = await c.env.DB.prepare("SELECT customer_id FROM orders WHERE id = ?").bind(id).first();
-  if (!o) throw notFound();
-  assertCustomerScope(u, o.customer_id);
-  if (!["customer", "cs", "fat"].includes(u.role)) throw forbidden();
-  const b = await readJson(c);
-  const amount = reqNum(b, "amount", 0);
-  let proof = null;
-  if (b.proof_key != null) {
-    const f = await c.env.DB.prepare("SELECT customer_id FROM files WHERE key = ? AND confirmed = 1 AND kind = 'payment_proof'").bind(String(b.proof_key)).first();
-    if (!f || f.customer_id !== o.customer_id) throw bad("File bukti tidak ditemukan");
-    proof = String(b.proof_key);
-  }
-  const r = await c.env.DB.prepare("INSERT INTO payments (order_id, invoice_id, amount, proof_key, proof_uploaded_by, proof_uploaded_at, note) VALUES (?,?,?,?,?,?,?)").bind(id, optNum(b, "invoice_id"), amount, proof, proof ? u.id : null, proof ? now() : null, optStr(b, "note", 300)).run();
-  await audit(c.env.DB, u.id, "payment_recorded", "order", id);
-  return c.json({ ok: true, id: r.meta.last_row_id, verified: false }, 201);
-});
-financeRoutes.post("/payments/:id/verify", need("payment.verify"), async (c) => {
-  const id = intParam(c, "id");
-  const b = await readJson(c);
-  const p = await c.env.DB.prepare("SELECT * FROM payments WHERE id = ?").bind(id).first();
-  if (!p) throw notFound();
-  if (p.verified) throw conflict("Pembayaran sudah diverifikasi");
-  await c.env.DB.prepare("UPDATE payments SET verified=1, verified_by=?, verified_at=?, note=COALESCE(?, note) WHERE id=?").bind(c.get("user").id, now(), optStr(b, "note", 300), id).run();
-  await audit(c.env.DB, c.get("user").id, "payment_verified", "payment", id);
-  return c.json({ ok: true });
-});
-financeRoutes.get("/orders/:id/summary", async (c) => {
-  const u = c.get("user");
-  const id = intParam(c, "id");
-  const o = await c.env.DB.prepare("SELECT customer_id FROM orders WHERE id = ?").bind(id).first();
-  if (!o) throw notFound();
-  assertCustomerScope(u, o.customer_id);
-  const sum = async (sql) => (await c.env.DB.prepare(sql).bind(id).first())?.s ?? 0;
-  return c.json({
-    penawaran: await sum("SELECT COALESCE(SUM(amount),0) s FROM invoices WHERE order_id=? AND kind='penawaran'"),
-    invoice: await sum("SELECT COALESCE(SUM(amount),0) s FROM invoices WHERE order_id=? AND kind='invoice'"),
-    dp: await sum("SELECT COALESCE(SUM(amount),0) s FROM invoices WHERE order_id=? AND kind='dp'"),
-    pembayaran_terverifikasi: await sum("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE order_id=? AND verified=1"),
-    pembayaran_belum_diverifikasi: await sum("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE order_id=? AND verified=0")
-  });
-});
-financeRoutes.post("/loss-sales", need("loss.write"), async (c) => {
-  const b = await readJson(c);
-  const r = await c.env.DB.prepare("INSERT INTO loss_sales (customer_id, reason, potential_amount, is_duplicate, by_user, at) VALUES (?,?,?,?,?,?)").bind(optNum(b, "customer_id"), reqStr(b, "reason", 500), optTime(b, "potential_amount"), b.is_duplicate ? 1 : 0, c.get("user").id, now()).run();
-  return c.json({ ok: true, id: r.meta.last_row_id }, 201);
-});
-financeRoutes.get("/loss-sales/total", need("report.read"), async (c) => {
-  const r = await c.env.DB.prepare("SELECT COALESCE(SUM(potential_amount),0) s, COUNT(*) n FROM loss_sales WHERE is_duplicate = 0").first();
-  return c.json(r);
-});
-financeRoutes.post("/complaints", need("complaint.write"), async (c) => {
-  const b = await readJson(c);
-  const orderId = reqNum(b, "order_id", 0);
-  if (!await c.env.DB.prepare("SELECT 1 FROM orders WHERE id = ?").bind(orderId).first()) throw notFound("Order tidak ditemukan");
-  const r = await c.env.DB.prepare("INSERT INTO complaints (order_id, wo_id, description, evidence_key, opened_by, opened_at) VALUES (?,?,?,?,?,?)").bind(orderId, optNum(b, "wo_id"), reqStr(b, "description", 2e3), optStr(b, "evidence_key", 200), c.get("user").id, now()).run();
-  return c.json({ ok: true, id: r.meta.last_row_id }, 201);
-});
-financeRoutes.patch("/complaints/:id", need("complaint.write"), async (c) => {
-  const id = intParam(c, "id");
-  const b = await readJson(c);
-  const status = oneOf(b, "status", ["investigasi", "solusi", "selesai"]);
-  if (status === "selesai" && !optStr(b, "solution")) throw bad("Solusi wajib diisi sebelum komplain diselesaikan");
-  await c.env.DB.prepare("UPDATE complaints SET status=?, investigation=COALESCE(?, investigation), solution=COALESCE(?, solution), approved_by=CASE WHEN ?='selesai' THEN ? ELSE approved_by END WHERE id=?").bind(status, optStr(b, "investigation"), optStr(b, "solution"), status, c.get("user").id, id).run();
-  return c.json({ ok: true });
-});
-financeRoutes.get("/complaints", async (c) => {
-  if (!isStaff(c.get("user"))) throw forbidden();
-  return c.json((await c.env.DB.prepare("SELECT * FROM complaints ORDER BY id DESC LIMIT 200").all()).results);
 });
 
 // src/routes/public.ts
 var publicRoutes = new Hono3();
 publicRoutes.get("/info", async (c) => {
-  const settings = await c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('brand_name','company_name','contact_info','workshop_info')").all();
-  const services = await c.env.DB.prepare("SELECT code, name, output_label FROM services WHERE active = 1").all();
-  return c.json({ settings: Object.fromEntries(settings.results.map((s) => [s.key, s.value])), services: services.results });
+  const s = numericSettings(await loadSettings(c.env.DB));
+  return c.json({ settings: { priceDtf: s.priceDtf, priceSub120: s.priceSub120, priceSub160: s.priceSub160, priceSub180: s.priceSub180 } });
 });
-var STAGE_LABEL = {
-  menunggu_cs: "Pesanan diterima, sedang diperiksa",
-  menunggu_rilis: "Menunggu persetujuan produksi",
-  dirilis: "Menunggu antrean produksi",
-  berjalan: "Dalam proses produksi",
-  selesai_produksi: "Produksi selesai, menyiapkan serah terima",
-  serah_terima_sebagian: "Sebagian hasil sudah diserahkan",
-  selesai: "Selesai",
-  dibatalkan: "Dibatalkan"
-};
 publicRoutes.get("/track/:code", async (c) => {
   const code = c.req.param("code");
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(code)) throw notFound("Resi tidak ditemukan");
-  const t = await c.env.DB.prepare(
-    "SELECT o.id, o.status, o.sdp_promise_at, o.customer_deadline FROM tracking t JOIN orders o ON o.id = t.order_id WHERE t.code = ?"
-  ).bind(code).first();
-  if (!t) throw notFound("Resi tidak ditemukan");
-  const items = await c.env.DB.prepare(
-    `SELECT s.output_label, i.prod_unit AS unit,
-       COALESCE((SELECT SUM(q.qty_good_final) FROM qc_results q JOIN work_orders w ON w.id = q.wo_id WHERE w.item_id = i.id AND ${FINAL_STAGE}),0) AS good,
-       COALESCE((SELECT SUM(h.qty_this) FROM handovers h WHERE h.item_id = i.id),0) AS handed
-     FROM order_items i JOIN services s ON s.code = i.service_code WHERE i.order_id = ?`
-  ).bind(t.id).all();
-  const est = await c.env.DB.prepare("SELECT MAX(est_end_at) e FROM work_orders WHERE order_id = ? AND status != 'dibatalkan'").bind(t.id).first();
+  const o = await c.env.DB.prepare("SELECT id, service, items, status, stage, started_at, rework_m, meter FROM orders WHERE track_code = ?").bind(code).first();
+  if (!o) throw notFound("Resi tidak ditemukan");
+  let estimate = null;
+  if (["antrian", "produksi", "curing"].includes(o.status)) {
+    const settings = await loadSettings(c.env.DB);
+    const norm2 = numericSettings(settings)[MACHINES[o.stage].norm];
+    if (norm2) {
+      const cfg = calendarOf(settings);
+      const queue = await c.env.DB.prepare(
+        `SELECT id, status, started_at, COALESCE(rework_m, meter) AS m FROM orders WHERE stage = ? AND status IN ('antrian','produksi','curing')
+         ORDER BY (status <> 'antrian') DESC, priority DESC, approved_at, id`
+      ).bind(o.stage).all();
+      let cursor = now();
+      for (const q of queue.results) {
+        const end = addWorkSeconds(q.status === "antrian" ? cursor : q.started_at, q.m * norm2, cfg);
+        cursor = Math.max(cursor, end);
+        if (q.id === o.id) {
+          estimate = end;
+          break;
+        }
+      }
+    }
+  }
   c.header("Cache-Control", "no-store");
   return c.json({
-    status: STAGE_LABEL[t.status] ?? "Dalam proses",
-    items: items.results.map((i) => ({
-      output: i.good > 0 && ["selesai_produksi", "serah_terima_sebagian", "selesai"].includes(t.status) ? `${i.output_label} siap` : i.output_label,
-      unit: i.unit,
-      qty_baik: i.good,
-      qty_diserahkan: i.handed
-    })),
-    janji_selesai: t.sdp_promise_at ?? null,
-    estimasi_selesai: est?.e ?? null
+    service: o.service,
+    items: JSON.parse(o.items).map((i) => ({ name: i.name, qty: i.qty, unit: i.unit })),
+    status: o.status,
+    estimate
   });
 });
 
@@ -33610,23 +33018,18 @@ function createApp(getEnv) {
     c.header("X-Content-Type-Options", "nosniff");
     c.header("X-Frame-Options", "DENY");
     c.header("Referrer-Policy", "same-origin");
-    c.header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co; frame-ancestors 'none'");
+    c.header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co; frame-ancestors 'none'");
   });
   app2.use("/api/*", originGuard);
   app2.route("/api/public", publicRoutes);
-  app2.route("/api/public", publicMemberRoutes);
   app2.route("/api/auth", authRoutes);
   app2.route("/api/bootstrap", bootstrapRoutes);
-  app2.route("/api/applications", memberRoutes);
-  app2.route("/api/master", masterRoutes);
+  app2.route("/api/state", stateRoutes);
   app2.route("/api/orders", orderRoutes);
-  app2.route("/api/prod", prodRoutes);
   app2.route("/api/files", fileRoutes);
-  app2.route("/api/stock", stockRoutes);
-  app2.route("/api/finance", financeRoutes);
+  app2.route("/api", opsRoutes);
   app2.onError((err, c) => {
     if (err instanceof HttpError) return c.json({ error: err.message }, err.status);
-    if (err instanceof Error && /^Konversi |^Tidak boleh menjumlahkan/.test(err.message)) return c.json({ error: err.message }, 400);
     if (err?.code === "23505") return c.json({ error: "Data sudah ada atau bentrok dengan data lain" }, 409);
     console.error("Kesalahan tak terduga:", err);
     return c.json({ error: "Terjadi kesalahan pada server" }, 500);
@@ -33639,28 +33042,7 @@ function createApp(getEnv) {
 }
 
 // src/db.ts
-var IDENT = /* @__PURE__ */ new Set([
-  "users",
-  "customers",
-  "member_applications",
-  "machines",
-  "attendance",
-  "orders",
-  "order_items",
-  "artworks",
-  "work_orders",
-  "estimate_history",
-  "machine_qc_reports",
-  "qc_results",
-  "material_lots",
-  "stock_ledger",
-  "handovers",
-  "invoices",
-  "payments",
-  "complaints",
-  "loss_sales",
-  "audit_log"
-]);
+var IDENT = /* @__PURE__ */ new Set(["users", "customers", "orders", "payments", "stock_ledger", "qc_reports", "logs", "audit_log"]);
 function toPg(sql) {
   let out = "";
   let n = 0;
@@ -33720,6 +33102,10 @@ var PgStmt = class _PgStmt {
 };
 function makeDb(driver) {
   return {
+    tx: (fn) => driver.transaction(async (q) => {
+      const inner = { query: q, transaction: (g) => g(q) };
+      return fn(makeDb(inner));
+    }),
     prepare: (sql) => new PgStmt(driver, sql),
     batch: (stmts) => driver.transaction(async (q) => {
       const out = [];

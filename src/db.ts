@@ -17,13 +17,12 @@ export interface Stmt {
 export interface Db {
   prepare(sql: string): Stmt;
   batch(stmts: Stmt[]): Promise<RunMeta[]>;
+  /** Transaksi: semua pembacaan dan penulisan di dalam fn memakai satu koneksi; gagal berarti dibatalkan. */
+  tx<T>(fn: (db: Db) => Promise<T>): Promise<T>;
 }
 
 // Tabel yang punya kolom identitas `id`; INSERT ke tabel ini mengembalikan id sebagai last_row_id.
-const IDENT = new Set([
-  'users', 'customers', 'member_applications', 'machines', 'attendance', 'orders', 'order_items', 'artworks', 'work_orders', 'estimate_history',
-  'machine_qc_reports', 'qc_results', 'material_lots', 'stock_ledger', 'handovers', 'invoices', 'payments', 'complaints', 'loss_sales', 'audit_log',
-]);
+const IDENT = new Set(['users', 'customers', 'orders', 'payments', 'stock_ledger', 'qc_reports', 'logs', 'audit_log']);
 
 /** Ubah placeholder `?` menjadi `$1..$n`, mengabaikan tanda tanya di dalam string literal. */
 export function toPg(sql: string): string {
@@ -83,6 +82,12 @@ class PgStmt implements Stmt {
 
 export function makeDb(driver: Driver): Db {
   return {
+    tx: (fn) =>
+      driver.transaction(async (q) => {
+        // Di dalam transaksi, transaksi bersarang memakai koneksi yang sama.
+        const inner: Driver = { query: q, transaction: (g) => g(q) };
+        return fn(makeDb(inner));
+      }),
     prepare: (sql) => new PgStmt(driver, sql),
     batch: (stmts) =>
       driver.transaction(async (q) => {

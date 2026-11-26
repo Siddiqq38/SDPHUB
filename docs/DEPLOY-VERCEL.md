@@ -17,8 +17,8 @@ DATABASE_URL="<nilai di atas>" npm run db:migrate
 ```
 
    Di Windows PowerShell: `$env:DATABASE_URL="<nilai>"; npm run db:migrate`.
-   Alternatif: tempel isi `migrations/0001` sampai `0005` berurutan di Supabase > SQL Editor.
-   Migrasi terakhir (`0005_rls.sql`) mengaktifkan RLS tanpa policy, sehingga tabel tidak bisa dibaca lewat API publik Supabase; hanya server yang mengakses lewat `DATABASE_URL`.
+   Alternatif: tempel isi `migrations/0001_schema.sql` lalu `0002_seed_config.sql` di Supabase > SQL Editor.
+   Skema mengaktifkan RLS tanpa policy, sehingga tabel tidak bisa dibaca lewat API publik Supabase; hanya server yang mengakses lewat `DATABASE_URL`.
 
 ## 2. GitHub
 Repo ini di-push ke GitHub (private). Vercel membaca dari sana.
@@ -42,13 +42,13 @@ Repo ini di-push ke GitHub (private). Vercel membaca dari sana.
 Dari komputer Anda, ganti alamat dan nilai:
 
 ```bash
-curl -X POST https://<alamat>/api/bootstrap -H "Content-Type: application/json" -d '{"token":"<BOOTSTRAP_TOKEN>","username":"<username-master>","password":"<password-kuat>","full_name":"<nama>"}'
+curl -X POST https://<alamat>/api/bootstrap -H "Content-Type: application/json" -d '{"token":"<BOOTSTRAP_TOKEN>","username":"<KODE-MASTER>","password":"<password-kuat>","full_name":"<nama>"}'
 ```
 
 Panggilan berikutnya ditolak otomatis. Setelah berhasil, **hapus `BOOTSTRAP_TOKEN`** di Vercel dan deploy ulang.
 
 ## 5. Setelah online
-Login sebagai master: daftarkan karyawan (Master Data), mesin, atur norma waktu, kalender, dan informasi publik.
+Login sebagai master, lalu ikuti "Urutan pertama kali dipakai" di [PANDUAN-PERAN.md](PANDUAN-PERAN.md).
 
 ## Catatan teknis
 - Fungsi `api/index.mjs` dibundel dari `src/vercel.ts`. Setelah mengubah kode di `src/`, jalankan `npm run build:vercel` dan commit hasilnya (Vercel juga menjalankannya saat build).

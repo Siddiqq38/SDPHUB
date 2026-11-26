@@ -8,8 +8,7 @@
     "dev": "node --no-warnings scripts/dev-server.mjs",
     "test:e2e": "node test/e2e.mjs",
     "db:migrate": "node scripts/migrate.mjs",
-    "build:vercel": "node scripts/build-vercel.mjs",
-    "docs": "node --no-warnings scripts/gen-docs.mjs"
+    "build:vercel": "node scripts/build-vercel.mjs"
   },
   "keywords": [],
   "author": "",

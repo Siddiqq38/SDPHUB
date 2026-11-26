@@ -57,7 +57,7 @@ createServer(async (req, res) => {
       res.end(readFileSync(fp(key))); return;
     }
     if (!url.pathname.startsWith('/api/')) {
-      let p = url.pathname === '/' ? '/index.html' : url.pathname === '/simulasi' ? '/simulasi.html' : url.pathname;
+      const p = url.pathname === '/' ? '/index.html' : url.pathname;
       const file = join(root, 'public', p);
       if (file.startsWith(join(root, 'public')) && existsSync(file) && statSync(file).isFile()) {
         res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' }); res.end(readFileSync(file)); return;
