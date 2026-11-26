@@ -157,6 +157,8 @@ opsRoutes.patch('/admin/users/:id', async (c) => {
   const vals: unknown[] = [];
   if (b.active !== undefined) { sets.push('active = ?'); vals.push(b.active ? 1 : 0); }
   if (b.role !== undefined) { sets.push('role = ?'); vals.push(oneOf(b, 'role', ROLES)); }
+  if (b.name !== undefined) { sets.push('name = ?'); vals.push(reqStr(b, 'name', 120)); }
+  if (b.store !== undefined) { sets.push('store = ?'); vals.push(optStr(b, 'store', 100)); }
   if (b.new_password !== undefined) {
     const p = reqStr(b, 'new_password', 200);
     const problem = passwordProblem(p);

@@ -116,6 +116,7 @@ function makeStore_() {
       if (cols[0].n === 'id' && cols[0].num && obj.id == null) obj.id = rows.reduce(function (m, r) { return Math.max(m, r.id); }, 0) + 1;
       var sh = sheet(name);
       var at = sh.getLastRow() + 1;
+      if (at > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 500); // grid Sheets terbatas (awal 1.000 baris)
       sh.getRange(at, 1, 1, cols.length).setNumberFormat('@').setValues([cols.map(function (c) { return cell_(obj[c.n]); })]);
       var rec = { _row: at };
       cols.forEach(function (c) { rec[c.n] = obj[c.n] === undefined ? null : obj[c.n]; });
@@ -129,7 +130,15 @@ function makeStore_() {
     },
     remove: function (name, fn) {
       var sh = sheet(name);
-      store.all(name).filter(fn).map(function (r) { return r._row; }).sort(function (a, b) { return b - a; }).forEach(function (n) { sh.deleteRow(n); });
+      var nums = store.all(name).filter(fn).map(function (r) { return r._row; }).sort(function (a, b) { return b - a; });
+      for (var i = 0; i < nums.length;) {
+        var count = 1;
+        while (i + count < nums.length && nums[i + count] === nums[i] - count) count++;
+        // Baris beku tidak boleh habis: sisakan satu baris kosong di bawah judul.
+        if (sh.getMaxRows() - count < 2) sh.insertRowsAfter(sh.getMaxRows(), count);
+        sh.deleteRows(nums[i] - count + 1, count);
+        i += count;
+      }
       delete cache[name];
     }
   };
@@ -466,10 +475,105 @@ function orderAction_(ctx, id, action, b) {
   return done();
 }
 
+// ---------- Kelola Data: khusus master (sama dengan src/routes/manage.ts). audit_log tidak pernah dihapus. ----------
+var STATUSES = ['cek', 'revisi', 'bayar', 'antrian', 'produksi', 'curing', 'qc', 'packing', 'siap', 'selesai', 'ditolak'];
+function manage_(ctx, method, path, b) {
+  allow_(ctx, []);
+  var db = ctx.db, m, ok = { status: 200, data: { ok: true } };
+  function byId(table, id, label) { var r = db.find(table, function (x) { return x.id === id; }); if (!r) throw err_(404, label + ' tidak ditemukan'); return r; }
+  if ((m = /^\/api\/manage\/orders\/(\d+)$/.exec(path))) {
+    var o = byId('orders', Number(m[1]), 'Order');
+    if (method === 'DELETE') {
+      var used = {};
+      db.filter('stock_ledger', function (l) { return l.ref === o.order_no && l.type === 'Pakai'; }).forEach(function (l) { used[l.sku_code] = (used[l.sku_code] || 0) + l.qty; });
+      Object.keys(used).forEach(function (code) { var k = db.find('skus', function (x) { return x.code === code; }); if (k) db.update('skus', k, { stock: round2_((k.stock || 0) - used[code]) }); });
+      var oid = o.id, no = o.order_no, total = o.total;
+      db.remove('stock_ledger', function (l) { return l.ref === no; });
+      db.remove('payments', function (p) { return p.order_id === oid; });
+      db.remove('logs', function (l) { return l.order_no === no; });
+      db.remove('orders', function (x) { return x.id === oid; });
+      audit_(ctx, 'manage_order_delete', 'order', oid, { order_no: no, total: total });
+      return ok;
+    }
+    if (method === 'PATCH') {
+      var status = b.status === undefined ? o.status : one_(b, 'status', STATUSES);
+      var stage = b.stage === undefined ? o.stage : one_(b, 'stage', ['dtf', 'subp', 'cal']);
+      if ((stage === 'dtf') !== (o.service === 'dtf')) throw err_(400, 'Tahap mesin tidak sesuai layanan order');
+      if (status === 'curing' && stage !== 'dtf') throw err_(400, 'Curing hanya untuk DTF');
+      var running = ['produksi', 'curing'];
+      if (running.indexOf(status) >= 0 && db.find('orders', function (x) { return x.stage === stage && x.id !== o.id && running.indexOf(x.status) >= 0; })) throw err_(409, 'Mesin masih mengerjakan order lain');
+      var t = Date.now();
+      db.update('orders', o, {
+        customer_name: b.customer_name === undefined ? o.customer_name : str_(b, 'customer_name', 150),
+        wa: b.wa === undefined ? o.wa : str_(b, 'wa', 40),
+        file_ref: b.file_ref === undefined ? o.file_ref : str_(b, 'file_ref', 300),
+        note: b.note === undefined ? o.note : opt_(b, 'note', 500),
+        deadline: b.deadline === undefined ? o.deadline : opt_(b, 'deadline', 10),
+        status: status, stage: stage,
+        approved_at: o.approved_at || (['antrian', 'produksi', 'curing'].indexOf(status) >= 0 ? t : null),
+        started_at: o.started_at || (running.indexOf(status) >= 0 ? t : null)
+      });
+      audit_(ctx, 'manage_order_edit', 'order', o.id, b);
+      return ok;
+    }
+  }
+  if (method === 'DELETE' && (m = /^\/api\/manage\/(payments|logs|qc)\/(\d+)$/.exec(path))) {
+    var table = m[1] === 'qc' ? 'qc_reports' : m[1], rid = Number(m[2]);
+    var row = byId(table, rid, m[1] === 'payments' ? 'Pembayaran' : m[1] === 'qc' ? 'Laporan QC' : 'Catatan');
+    audit_(ctx, 'manage_' + m[1] + '_delete', table, rid, row);
+    db.remove(table, function (x) { return x.id === rid; });
+    return ok;
+  }
+  if ((m = /^\/api\/manage\/customers\/(\d+)$/.exec(path))) {
+    var c = byId('customers', Number(m[1]), 'Pelanggan'), cid = c.id;
+    if (method === 'DELETE') {
+      if (db.find('orders', function (x) { return x.customer_id === cid; })) throw err_(409, 'Pelanggan masih punya order. Hapus ordernya dahulu.');
+      db.remove('customers', function (x) { return x.id === cid; });
+      audit_(ctx, 'manage_customer_delete', 'customer', cid);
+      return ok;
+    }
+    if (method === 'PATCH') {
+      db.update('customers', c, {
+        name: b.name === undefined ? c.name : str_(b, 'name', 150),
+        wa: b.wa === undefined ? c.wa : str_(b, 'wa', 40),
+        status: b.status === undefined ? c.status : one_(b, 'status', ['aktif', 'menunggu', 'ditolak'])
+      });
+      audit_(ctx, 'manage_customer_edit', 'customer', cid, b);
+      return ok;
+    }
+  }
+  if (method === 'PUT' && (m = /^\/api\/manage\/stock\/([A-Za-z0-9_-]+)$/.exec(path))) {
+    var stock = num_(b, 'stock', true), sku = db.find('skus', function (x) { return x.code === m[1]; });
+    if (!sku) throw err_(404, 'SKU tidak ditemukan');
+    db.update('skus', sku, { stock: stock });
+    audit_(ctx, 'manage_stock_set', 'sku', sku.code, { stock: stock });
+    return ok;
+  }
+  if (method === 'DELETE' && (m = /^\/api\/manage\/users\/(\d+)$/.exec(path))) {
+    var uid = Number(m[1]);
+    if (uid === ctx.user.id) throw err_(403, 'Akun yang sedang dipakai tidak dapat dihapus');
+    var target = byId('users', uid, 'Pengguna'), code = target.code;
+    if (db.find('files', function (f) { return f.uploaded_by === uid; })) throw err_(409, 'Pengguna ini punya berkas unggahan. Nonaktifkan saja, atau bersihkan data simulasi dahulu.');
+    db.remove('sessions', function (x) { return x.user_id === uid; });
+    db.remove('users', function (x) { return x.id === uid; });
+    audit_(ctx, 'manage_user_delete', 'user', uid, { code: code });
+    return ok;
+  }
+  if (method === 'POST' && path === '/api/manage/reset') {
+    if (b.confirm !== 'HAPUS SEMUA') throw err_(400, 'Ketik HAPUS SEMUA untuk melanjutkan');
+    // Berkas di Drive tidak dihapus; hanya catatannya di spreadsheet.
+    ['payments', 'logs', 'stock_ledger', 'qc_reports', 'orders', 'files'].concat(b.customers === true ? ['customers'] : []).forEach(function (t2) { db.remove(t2, function () { return true; }); });
+    db.all('skus').forEach(function (k) { db.update('skus', k, { stock: 0 }); });
+    audit_(ctx, 'manage_reset', 'all', null, { customers: b.customers === true });
+    return ok;
+  }
+  throw err_(404, 'Endpoint tidak ditemukan');
+}
+
 // ---------- Potret data untuk layar ----------
 function state_(ctx) {
   var db = ctx.db, u = ctx.user, master = u.role === 'master';
-  var pages = master ? GRANTABLE.concat(['atur', 'pengguna', 'akses', 'akun']) : pages_(db, u.role).concat(['akun']);
+  var pages = master ? GRANTABLE.concat(['atur', 'pengguna', 'akses', 'data', 'akun']) : pages_(db, u.role).concat(['akun']);
   function has() { return Array.prototype.slice.call(arguments).some(function (p) { return pages.indexOf(p) >= 0; }); }
   var raw = settings_(db), cal = calendar_(raw);
   var out = { me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
@@ -480,7 +584,7 @@ function state_(ctx) {
     var closed = all.filter(function (o) { return o.status === 'selesai' || o.status === 'ditolak'; }).slice(-300);
     var list = all.filter(function (o) { return o.status !== 'selesai' && o.status !== 'ditolak'; }).concat(closed).sort(function (a, b) { return a.id - b.id; });
     var pays = {};
-    db.all('payments').forEach(function (p) { (pays[p.order_id] = pays[p.order_id] || []).push({ amount: p.amount, method: p.method, by: p.by_user, at: p.at }); });
+    db.all('payments').forEach(function (p) { (pays[p.order_id] = pays[p.order_id] || []).push({ id: p.id, amount: p.amount, method: p.method, by: p.by_user, at: p.at }); });
     var contact = master || ['cs', 'crm', 'store', 'spv', 'manager', 'fat'].indexOf(u.role) >= 0;
     out.orders = list.map(function (o) {
       return {
@@ -493,7 +597,7 @@ function state_(ctx) {
   if (has('input', 'pelanggan', 'cs', 'cekfile')) out.customers = db.all('customers').map(function (c) { return { id: c.id, code: c.code, name: c.name, wa: c.wa, source: c.source, status: c.status }; }).sort(function (a, b) { return a.name < b.name ? -1 : 1; });
   if (has('stok', 'dashboard')) out.skus = db.all('skus').map(function (k) { return { code: k.code, name: k.name, svc: k.svc, unit: k.unit, stock: k.stock || 0, min: k.min_stock || 0, use: k.use_per_m, machine: k.machine }; }).sort(function (a, b) { return a.code < b.code ? -1 : 1; });
   if (has('stok')) out.ledger = db.all('stock_ledger').slice(-50).reverse().map(function (l) { return { at: l.at, code: l.sku_code, type: l.type, qty: l.qty, ref: l.ref }; });
-  if (has('loss', 'dashboard', 'laporan')) out.loss = db.all('logs').slice(-300).reverse().map(function (l) { return { id: l.order_no, type: l.type, reason: l.reason, value: l.value, count: l.counted, at: l.at }; });
+  if (has('loss', 'dashboard', 'laporan')) out.loss = db.all('logs').slice(-300).reverse().map(function (l) { return { logId: l.id, id: l.order_no, type: l.type, reason: l.reason, value: l.value, count: l.counted, at: l.at }; });
   if (has('qc', 'produksi')) out.qcReports = db.all('qc_reports').slice(-60).map(function (r) { return { id: r.id, machine: r.machine, day: r.day, ng: JSON.parse(r.ng), note: r.note || '', action: r.action || '', photos: JSON.parse(r.photos), status: r.status, by: r.by_user, at: r.at, approvedBy: r.approved_by, leaderNote: r.leader_note || '' }; });
   if (master) {
     out.users = db.all('users').map(function (x) { return { id: x.id, code: x.code, name: x.name, role: x.role, store: x.store, active: x.active, must_change_password: x.must_change_password }; });
@@ -709,6 +813,8 @@ function route_(req) {
     var patch = {};
     if (b.active !== undefined) patch.active = b.active ? 1 : 0;
     if (b.role !== undefined) patch.role = one_(b, 'role', ROLES);
+    if (b.name !== undefined) patch.name = str_(b, 'name', 120);
+    if (b.store !== undefined) patch.store = opt_(b, 'store', 100);
     if (b.new_password !== undefined) {
       var np = passwordProblem_(b.new_password);
       if (np) throw err_(400, np);
@@ -755,6 +861,7 @@ function route_(req) {
     audit_(ctx, 'settings_updated', 'settings', null, b);
     return { status: 200, data: { ok: true } };
   }
+  if (path.indexOf('/api/manage/') === 0) return manage_(ctx, method, path, b);
   throw err_(404, 'Endpoint tidak ditemukan');
 }
 

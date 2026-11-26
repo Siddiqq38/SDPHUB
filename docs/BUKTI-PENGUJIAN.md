@@ -6,8 +6,8 @@ Dijalankan 26 November 2026, Windows 11, Node.js 26. Server uji menjalankan apli
 |---|---|
 | `npm run typecheck` | bersih |
 | `npm test` | 9 lolos, 0 gagal (harga, retail bertingkat, panjang film, kalender, hash, kesamaan konstanta layar dan server) |
-| `npm run test:e2e` (Supabase/Postgres) | 108 lolos, 0 gagal |
-| `npm run test:e2e` mode spreadsheet (tiruan layanan Google) | 107 lolos, 0 gagal (tanpa uji CSRF: token dikirim di body) |
+| `npm run test:e2e` (Supabase/Postgres) | 127 lolos, 0 gagal |
+| `npm run test:e2e` mode spreadsheet (tiruan layanan Google) | 126 lolos, 0 gagal (tanpa uji CSRF: token dikirim di body) |
 | `npm run test:migrasi` | ekspor dimuat ke Postgres, password tetap berlaku, aturan Code.gs sama dengan server |
 | Layar (skrip di browser) | semua menu tiap peran terbuka; alur DTF dari input sampai serah terima, QC pagi dengan foto, impor pelanggan, akun, hak akses, pengaturan, lacak publik |
 

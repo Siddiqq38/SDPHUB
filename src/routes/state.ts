@@ -11,7 +11,7 @@ stateRoutes.get('/', async (c) => {
   const db = c.env.DB;
   const u = c.get('user');
   const master = u.role === 'master';
-  const pages: Page[] = master ? [...GRANTABLE, 'atur', 'pengguna', 'akses', 'akun'] : [...(await pagesOf(db, u.role)), 'akun'];
+  const pages: Page[] = master ? [...GRANTABLE, 'atur', 'pengguna', 'akses', 'data', 'akun'] : [...(await pagesOf(db, u.role)), 'akun'];
   const has = (...p: Page[]) => p.some((x) => pages.includes(x));
   const raw = await loadSettings(db);
   const out: Record<string, unknown> = {
@@ -36,7 +36,7 @@ stateRoutes.get('/', async (c) => {
       ? (await db.prepare('SELECT p.* FROM payments p WHERE p.order_id >= ? ORDER BY p.id').bind(Math.min(...ids)).all<any>()).results.filter((p) => ids.has(p.order_id))
       : [];
     const byOrder = new Map<number, any[]>();
-    for (const p of pays) (byOrder.get(p.order_id) ?? byOrder.set(p.order_id, []).get(p.order_id)!).push({ amount: p.amount, method: p.method, by: p.by_user, at: p.at });
+    for (const p of pays) (byOrder.get(p.order_id) ?? byOrder.set(p.order_id, []).get(p.order_id)!).push({ id: p.id, amount: p.amount, method: p.method, by: p.by_user, at: p.at });
     // Nomor WhatsApp hanya untuk peran yang berurusan dengan customer.
     const seeContact = master || ['cs', 'crm', 'store', 'spv', 'manager', 'fat'].includes(u.role);
     out.orders = rows.results.map((o) => ({
@@ -56,7 +56,7 @@ stateRoutes.get('/', async (c) => {
     out.ledger = (await db.prepare('SELECT at, sku_code AS code, type, qty, ref FROM stock_ledger ORDER BY id DESC LIMIT 50').all()).results;
   }
   if (has('loss', 'dashboard', 'laporan')) {
-    out.loss = (await db.prepare('SELECT order_no AS id, type, reason, value, counted AS count, at FROM logs ORDER BY id DESC LIMIT 300').all()).results;
+    out.loss = (await db.prepare('SELECT id AS "logId", order_no AS id, type, reason, value, counted AS count, at FROM logs ORDER BY id DESC LIMIT 300').all()).results;
   }
   if (has('qc', 'produksi')) {
     const rows = await db.prepare('SELECT * FROM qc_reports ORDER BY id DESC LIMIT 60').all<any>();

@@ -16,10 +16,12 @@ export function loadGas() {
   };
   const makeSheet = () => {
     const data = [];
+    let max = 5; // sengaja kecil agar penambahan baris grid ikut teruji
     const sh = {
       data,
       getDataRange: () => ({ getValues: () => { const w = Math.max(1, ...data.map((r) => r.length)); return data.map((r) => Array.from({ length: w }, (_, i) => r[i] ?? '')); } }),
       getRange: (r, c, nr = 1, nc = 1) => {
+        if (r + nr - 1 > max) throw new Error('di luar batas grid sheet: baris ' + (r + nr - 1) + ' > ' + max);
         const range = {
           setValues: (vals) => { vals.forEach((row, i) => { const t = (data[r - 1 + i] ??= []); row.forEach((v, j) => { t[c - 1 + j] = store(v); }); }); return range; },
           setNumberFormat: () => range,
@@ -28,9 +30,10 @@ export function loadGas() {
         return range;
       },
       getLastRow: () => data.length,
-      getMaxRows: () => 1000,
+      getMaxRows: () => max,
       setFrozenRows: () => {},
-      deleteRow: (n) => data.splice(n - 1, 1),
+      deleteRows: (n, count) => { if (max - count < 2) throw new Error('tidak boleh menghapus semua baris tidak beku'); data.splice(n - 1, count); max -= count; },
+      insertRowsAfter: (after, count) => { max += count; },
     };
     return sh;
   };

@@ -4,7 +4,7 @@ export const ROLES = ['master', 'manager', 'spv', 'cs', 'crm', 'store', 'op', 'q
 export type Role = (typeof ROLES)[number];
 
 export const GRANTABLE = ['dashboard', 'laporan', 'input', 'cs', 'toko', 'pelanggan', 'cekfile', 'produksi', 'qc', 'serah', 'bayar', 'stok', 'loss', 'layanan', 'lacak'] as const;
-export type Page = (typeof GRANTABLE)[number] | 'atur' | 'pengguna' | 'akses' | 'akun';
+export type Page = (typeof GRANTABLE)[number] | 'atur' | 'pengguna' | 'akses' | 'data' | 'akun';
 
 export const ACCESS_DEFAULT: Record<Exclude<Role, 'master'>, Page[]> = {
   manager: ['dashboard', 'laporan', 'pelanggan', 'produksi', 'bayar', 'stok', 'loss', 'layanan', 'lacak'],

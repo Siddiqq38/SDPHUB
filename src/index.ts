@@ -4,6 +4,7 @@ import { authRoutes, bootstrapRoutes } from './routes/auth.ts';
 import { orderRoutes } from './routes/orders.ts';
 import { opsRoutes } from './routes/ops.ts';
 import { stateRoutes } from './routes/state.ts';
+import { manageRoutes } from './routes/manage.ts';
 import { fileRoutes } from './routes/files.ts';
 import { publicRoutes } from './routes/public.ts';
 
@@ -30,6 +31,7 @@ app.route('/api/bootstrap', bootstrapRoutes);
 app.route('/api/state', stateRoutes);
 app.route('/api/orders', orderRoutes);
 app.route('/api/files', fileRoutes);
+app.route('/api/manage', manageRoutes);
 app.route('/api', opsRoutes);
 
 app.onError((err, c) => {

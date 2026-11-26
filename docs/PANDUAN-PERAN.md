@@ -20,3 +20,8 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 2. CRM: impor daftar pelanggan B2B (kode, nama, WhatsApp; bisa ditempel dari Excel).
 3. Gudang: isi stok awal hasil stock opname (Catat mutasi: Stok masuk), lalu pemakaian per meter setelah diukur.
 4. Setiap pagi: Operator mengisi QC pagi tiap mesin, SPV menyetujui.
+
+## Kelola Data (hanya Admin Sistem)
+Untuk masa simulasi: ubah atau hapus order, pembayaran, pelanggan, laporan QC pagi, catatan loss, dan angka stok. Akun dapat diubah atau dihapus di menu **Pengguna**.
+
+Sebelum dipakai sungguhan, buka **Kelola Data > Bersihkan data**, ketik `HAPUS SEMUA`. Akun, harga, hak akses, dan daftar SKU tetap. Setiap tindakan tercatat di audit log.

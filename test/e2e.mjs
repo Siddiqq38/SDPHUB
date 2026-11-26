@@ -253,6 +253,36 @@ async function main() {
   check('resi salah 404', (await call(anon, 'GET', '/api/public/track/xxxxxxxxxxxxxxxxxxxxxx')).status === 404);
   r = await call(anon, 'GET', '/api/public/info');
   check('harga publik tersedia', r.data.settings.priceDtf === 23000, r.data);
+  console.log('# Kelola Data (khusus master)');
+  check('SPV tidak bisa mengelola data', (await call(C.SPV, 'DELETE', '/api/manage/orders/' + A)).status === 403);
+  check('CS tidak bisa membersihkan data', (await call(C.CS, 'POST', '/api/manage/reset', { confirm: 'HAPUS SEMUA' })).status === 403);
+  r = await call(C.CS, 'POST', '/api/orders', order({ customer_code: 'TK-0001', paid_method: 'Tunai' }));
+  const E = r.data.id;
+  check('master mengubah order', (await call(master, 'PATCH', '/api/manage/orders/' + E, { customer_name: 'Nama Baru', status: 'antrian', note: 'diubah' })).status === 200);
+  o = await get(E);
+  check('perubahan tersimpan', o.customer === 'Nama Baru' && o.status === 'antrian' && o.note === 'diubah', o);
+  check('status tidak sah ditolak', (await call(master, 'PATCH', '/api/manage/orders/' + E, { status: 'xxx' })).status === 400);
+  check('master menghapus pembayaran', (await call(master, 'DELETE', '/api/manage/payments/' + o.pay[0].id)).status === 200 && (await get(E)).pay.length === 0);
+  check('pelanggan yang punya order tidak bisa dihapus', (await call(master, 'DELETE', '/api/manage/customers/1')).status === 409);
+  const stockOf = async () => (await state(master)).skus.find((s) => s.code === 'SDP-DTF-FLM-60').stock;
+  const before = await stockOf();
+  check('master menghapus order selesai', (await call(master, 'DELETE', '/api/manage/orders/' + A)).status === 200 && !(await get(A)));
+  check('pemakaian bahan order terhapus dikembalikan ke stok', Math.abs((await stockOf()) - before - 10.5) < 1e-6, [before, await stockOf()]);
+  check('master mengubah stok', (await call(master, 'PUT', '/api/manage/stock/SDP-DTF-FLM-60', { stock: 42 })).status === 200 && (await stockOf()) === 42);
+  let st2 = await state(master);
+  check('master menghapus log', (await call(master, 'DELETE', '/api/manage/logs/' + st2.loss[0].logId)).status === 200);
+  check('master menghapus laporan QC', (await call(master, 'DELETE', '/api/manage/qc/' + st2.qcReports[0].id)).status === 200);
+  const spare = st2.users.find((u) => u.code === 'STH2');
+  check('master mengubah nama akun', (await call(master, 'PATCH', '/api/admin/users/' + spare.id, { name: 'Toko Dua' })).status === 200);
+  check('master menghapus akun tanpa berkas', (await call(master, 'DELETE', '/api/manage/users/' + spare.id)).status === 200);
+  check('master tidak bisa menghapus dirinya', (await call(master, 'DELETE', '/api/manage/users/' + st2.users.find((u) => u.code === 'MASTER1').id)).status === 403);
+
+  check('reset butuh kata konfirmasi', (await call(master, 'POST', '/api/manage/reset', { confirm: 'ya' })).status === 400);
+  check('master membersihkan data simulasi', (await call(master, 'POST', '/api/manage/reset', { confirm: 'HAPUS SEMUA', customers: true })).status === 200);
+  st2 = await state(master);
+  check('data kosong, akun dan harga tetap', st2.orders.length === 0 && st2.customers.length === 0 && st2.qcReports.length === 0 && st2.skus.length === 14 && st2.skus.every((s) => s.stock === 0) && st2.users.length > 5 && st2.settings.priceDtf === 23000, st2);
+  r = await call(C.CS, 'POST', '/api/orders', order({ name: 'Setelah Reset', wa: '0800' }));
+  check('input order setelah reset berjalan', r.status === 201, r);
   for (let i = 0; i < 5; i++) await login(client(), 'MGR', 'salah-salah-1');
   check('login dibatasi setelah 5 gagal', (await login(client(), 'MGR', PW2)).status === 429);
 
