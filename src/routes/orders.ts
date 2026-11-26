@@ -6,6 +6,8 @@ import {
   rule, type AppEnv, type Ctx,
 } from '../core.ts';
 import { evaluate } from './capacity.ts';
+import { consumeForOrder, materialData } from './inventory.ts';
+import { candidates } from '../lib/materials.ts';
 import { CURING, DEADLINE_RE, FILE_CHECKS, QC_CHECKS, buildItems, meterOf, newResi, totalOf, type Item } from '../domain.ts';
 
 export const orderRoutes = new Hono<AppEnv>();
@@ -62,6 +64,14 @@ orderRoutes.post('/', async (c) => {
     const settings = numericSettings(await loadSettings(db));
     const items: Item[] = rule(() => buildItems({ service, qty: b.qty, meter: b.meter, width: b.width }, settings));
     const total = totalOf(items);
+    // Order sublim memilih kain (bila SKU kain sudah terdaftar) agar roll bisa direkomendasikan.
+    let fabric: string | null = null;
+    if (service === 'sub') {
+      const fabrics = candidates((await materialData(db)).skus, 'cal', null);
+      fabric = optStr(b, 'fabric_sku', 30);
+      if (fabric && !fabrics.includes(fabric)) throw bad('Kain tidak dikenal');
+      if (!fabric && fabrics.length) throw bad('Pilih bahan kain');
+    }
     // Order hanya diterima bila jadwal masih cukup (deadline, atau SLA standar bila kosong).
     const capacity = await evaluate(db, await loadSettings(db), service === 'sub' ? 'sub' : 'dtf', meterOf(items), deadline);
     if (!capacity.fits) throw conflict(capacity.message);
@@ -89,9 +99,9 @@ orderRoutes.post('/', async (c) => {
     const track = newResi();
     const r = await db.prepare(
       `INSERT INTO orders (order_no, track_code, type, service, customer_id, customer_name, wa, source, store, items, meter, total, file_ref, file_key,
-         deadline, note, status, stage, created_by, created_at, request_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'cek', ?,?,?,?)`,
+         deadline, note, status, stage, created_by, created_at, request_key, fabric_sku) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'cek', ?,?,?,?,?)`,
     ).bind('TMP-' + track, track, type, svc, customerId, name, wa, source, source === 'Toko' ? (u.store || optStr(b, 'store', 100) || 'Toko') : null,
-      JSON.stringify(items), meterOf(items), total, fileRef, fileKey, deadline, optStr(b, 'note', 500), svc === 'dtf' ? 'dtf' : 'subp', u.code, t, requestKey).run();
+      JSON.stringify(items), meterOf(items), total, fileRef, fileKey, deadline, optStr(b, 'note', 500), svc === 'dtf' ? 'dtf' : 'subp', u.code, t, requestKey, fabric).run();
     const id = r.meta.last_row_id;
     const ymd = localDay(t).slice(2).replace(/-/g, '');
     const orderNo = `SDP-${ymd}-${String(id).padStart(3, '0')}`;
@@ -219,14 +229,15 @@ orderRoutes.post('/:id/finish', async (c) => {
       }
       process = `${temp} °C, ${sec} detik`;
     }
-    const meter = o.rework_m ?? o.meter; // pemakaian bahan dicatat per roll di menu SKU & Inventory
+    const meter = o.rework_m ?? o.meter;
+    const rolls = await consumeForOrder(db, o, b.materials, c.get('user').code);
     if (o.stage === 'subp') {
       await db.prepare("UPDATE orders SET status = 'antrian', stage = 'cal' WHERE id = ?").bind(o.id).run();
     } else {
       await db.prepare("UPDATE orders SET status = 'qc', process = ?, finished_at = ? WHERE id = ?").bind(process, now(), o.id).run();
     }
-    await audit(db, c.get('user').id, 'production_finish', 'order', o.id, { stage: o.stage, meter });
-    return { ok: true, next: o.stage === 'subp' ? 'press' : 'qc' };
+    await audit(db, c.get('user').id, 'production_finish', 'order', o.id, { stage: o.stage, meter, rolls });
+    return { ok: true, next: o.stage === 'subp' ? 'press' : 'qc', rolls };
   }));
 });
 

@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { localDay } from '../lib/calendar.ts';
 import { days, plan, slaDue } from '../lib/capacity.ts';
 import { activeJobs, planConfig } from './capacity.ts';
+import { materialPlan } from './inventory.ts';
+import { candidates, freeOf } from '../lib/materials.ts';
 import { WORK_BLOCKS_DEFAULT, authn, calendarOf, loadSettings, now, numericSettings, overtimeOf, pagesOf, type AppEnv } from '../core.ts';
 import { ACCESS_DEFAULT, GRANTABLE, ORDER_PAGES, type Page } from '../domain.ts';
 
@@ -17,7 +19,7 @@ stateRoutes.get('/', async (c) => {
   const has = (...p: Page[]) => p.some((x) => pages.includes(x));
   const raw = await loadSettings(db);
   const out: Record<string, unknown> = {
-    api: 5, // versi kontrak; layar memberi peringatan bila server belum diperbarui
+    api: 6, // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
     today: localDay(now(), calendarOf(raw)),
@@ -46,7 +48,7 @@ stateRoutes.get('/', async (c) => {
       dbId: o.id, id: o.order_no, track: o.track_code, type: o.type, service: o.service, custCode: o.cust_code, customer: o.customer_name,
       wa: seeContact ? o.wa : '', source: o.source, store: o.store ?? '-', items: JSON.parse(o.items), total: o.total, meter: o.meter, file: o.file_ref, fileKey: o.file_key,
       deadline: o.deadline, note: o.note, status: o.status, stage: o.stage, priority: !!o.priority, issue: o.issue, reworkM: o.rework_m, process: o.process,
-      receiver: o.receiver, createdBy: o.created_by, created: o.created_at, approved: o.approved_at, started: o.started_at, pay: byOrder.get(o.id) ?? [],
+      receiver: o.receiver, fabric: o.fabric_sku, createdBy: o.created_by, created: o.created_at, approved: o.approved_at, started: o.started_at, pay: byOrder.get(o.id) ?? [],
     }));
   }
   // Jadwal kapasitas memakai semua order (tanpa nama customer), agar Store Head melihat sisa slot yang benar.
@@ -72,6 +74,14 @@ stateRoutes.get('/', async (c) => {
     ).all()).results;
     out.bins = (await db.prepare('SELECT code, note FROM bins ORDER BY code').all()).results;
     out.ledger = (await db.prepare('SELECT at, sku_code AS code, lot_code AS lot, type, qty, ref, note, by_user AS by FROM stock_ledger ORDER BY id DESC LIMIT 200').all()).results;
+  }
+  if (has('input', 'produksi', 'stok', 'dashboard')) {
+    const plan = await materialPlan(db);
+    out.materials = { needs: plan.needs, booked: plan.booked };
+    // Roll di rak (untuk form selesai produksi) dan daftar kain (untuk input order sublim).
+    out.rolls = plan.lots.map((l) => ({ lot: l.lot_code, sku: l.sku_code, bin: l.bin, left: l.qty_left }));
+    out.mainSkus = Object.fromEntries((['dtf', 'subp', 'cal'] as const).map((s) => [s, candidates(plan.skus, s, null)]));
+    out.fabrics = candidates(plan.skus, 'cal', null).map((code) => ({ code, name: plan.skus.find((k) => k.code === code)!.name, free: freeOf([code], plan.lots, plan.booked) }));
   }
   if (has('loss', 'dashboard', 'laporan')) {
     out.loss = (await db.prepare('SELECT id AS "logId", order_no AS id, type, reason, value, counted AS count, at FROM logs ORDER BY id DESC LIMIT 300').all()).results;

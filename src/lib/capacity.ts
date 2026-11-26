@@ -6,7 +6,7 @@ export const MACHINE_LIST: Machine[] = ['dtf', 'subp', 'cal'];
 
 export interface Job {
   id: number; order_no: string; service: 'dtf' | 'sub'; status: string; stage: Machine; meter: number; rework_m: number | null;
-  priority: number; approved_at: number | null; started_at: number | null; created_at: number; finished_at: number | null; paid: boolean;
+  priority: number; approved_at: number | null; started_at: number | null; created_at: number; finished_at: number | null; paid: boolean; fabric_sku?: string | null;
 }
 export interface PlanConfig {
   cal: CalendarConfig;

@@ -37,7 +37,12 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 4. **Pemakaian** (Operator, Gudang, SPV): catat Produksi, Test print, Reject, dan Waste terpisah; sisa roll terpotong otomatis. Tinta, powder, dan kertas pelindung cukup ditandai **habis**.
 5. **Opname** per roll hanya oleh SPV, dengan alasan. Semua mutasi ada di **Kartu stok**.
 
-Rekomendasi roll otomatis menyusul pada Fase 2.
+## Rekomendasi dan booking roll
+
+- Setiap order aktif mendapat saran roll dan bin: satu roll yang cukup (roll terbuka dulu, lalu GR terlama), atau gabungan beberapa roll. Bila bahan kurang diberi tanda.
+- Order sublim memilih **Bahan kain** saat input. Cek kapasitas juga memperingatkan bila bahan bebas tidak cukup.
+- Saat **Selesai curing / cetak / press**, roll saran sudah terisi. Operator menambah test print, reject, atau waste. Memakai roll di luar saran wajib diberi alasan.
+- Bila bahan belum pernah di-GR, produksi tetap bisa diselesaikan tanpa catatan bahan.
 
 ## Monitoring produksi
 

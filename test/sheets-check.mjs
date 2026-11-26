@@ -8,12 +8,13 @@ import { verifyPassword } from '../src/lib/auth.ts';
 import { loadGas } from './gas-harness.mjs';
 import { calendarOf } from '../src/core.ts';
 import { days, plan, readyFor, slaDue } from '../src/lib/capacity.ts';
+import { allocate } from '../src/lib/materials.ts';
 import { MORNING, RETAIL, ACCESS_DEFAULT, GRANTABLE, ROLES, FILE_CHECKS, QC_CHECKS } from '../src/domain.ts';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8788';
 const sql = await (await fetch(BASE + '/__export')).text();
 const db = new PGlite({ extensions: { citext }, parsers: { 20: Number, 1700: Number } });
-for (const f of ['0001_schema.sql', '0002_seed_config.sql', '0003_inventory.sql']) await db.exec(readFileSync(new URL('../migrations/' + f, import.meta.url), 'utf8'));
+for (const f of ['0001_schema.sql', '0002_seed_config.sql', '0003_inventory.sql', '0004_materials.sql']) await db.exec(readFileSync(new URL('../migrations/' + f, import.meta.url), 'utf8'));
 await db.exec(sql);
 for (const t of ['users', 'customers', 'orders', 'payments', 'skus', 'bins', 'lots', 'stock_ledger', 'qc_reports', 'logs', 'files', 'audit_log']) {
   const n = (await db.query(`SELECT COUNT(*) n FROM ${t}`)).rows[0].n;
@@ -58,5 +59,12 @@ console.log('  ok   aturan Code.gs sama dengan server');
   for (const [svc, m] of [['dtf', 1], ['dtf', 500], ['sub', 80]]) assert.equal(g.readyFor_(jobs, now, gcfg, svc, m), readyFor(jobs, now, cfg, svc, m));
   for (const t of [now, now + 4 * 3600000, now + 30 * 3600000]) assert.equal(g.slaDue_(t, gcal), slaDue(t, cal));
   console.log('  ok   jadwal kapasitas Code.gs sama dengan server');
+
+  const skus = [{ code: 'F1', machine: 'dtf', unit: 'meter' }, { code: 'P1', machine: 'subp', unit: 'meter' }, { code: 'K1', machine: 'cal', unit: 'meter' }, { code: 'K2', machine: 'cal', unit: 'meter' }, { code: 'SDP-SUB-TSU-01', machine: 'cal', unit: 'meter' }];
+  const lot = (code, sku, left, initial, at) => ({ lot_code: code, sku_code: sku, bin: 'A1', status: 'tersedia', qty_left: left, qty_initial: initial, received_at: at });
+  const lots = [lot('F-01', 'F1', 100, 100, 1), lot('F-02', 'F1', 60, 100, 2), lot('F-03', 'F1', 300, 300, 3), lot('P-01', 'P1', 50, 50, 1), lot('K-01', 'K1', 80, 200, 1), lot('K-02', 'K2', 500, 500, 1)];
+  const mats = jobs.map((j) => ({ ...j, fabric_sku: j.service === 'sub' ? 'K1' : null }));
+  assert.deepEqual(plain(g.allocate_(mats, lots, skus, now, 120)), plain(allocate(mats, lots, skus, now, 120)));
+  console.log('  ok   rekomendasi roll Code.gs sama dengan server');
 }
 console.log('Kesiapan pindah: lolos');

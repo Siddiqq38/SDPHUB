@@ -24676,11 +24676,11 @@ var require_sasl = __commonJS({
     }
     var DEFAULT_MAX_SCRAM_ITERATIONS = 1e5;
     function startSession(mechanisms, stream, scramMaxIterations = DEFAULT_MAX_SCRAM_ITERATIONS) {
-      const candidates = ["SCRAM-SHA-256"];
-      if (stream) candidates.unshift("SCRAM-SHA-256-PLUS");
-      const mechanism = candidates.find((candidate) => mechanisms.includes(candidate));
+      const candidates2 = ["SCRAM-SHA-256"];
+      if (stream) candidates2.unshift("SCRAM-SHA-256-PLUS");
+      const mechanism = candidates2.find((candidate) => mechanisms.includes(candidate));
       if (!mechanism) {
-        throw new Error("SASL: Only mechanism(s) " + candidates.join(" and ") + " are supported");
+        throw new Error("SASL: Only mechanism(s) " + candidates2.join(" and ") + " are supported");
       }
       if (mechanism === "SCRAM-SHA-256-PLUS" && typeof stream.getPeerCertificate !== "function") {
         throw new Error("SASL: Mechanism SCRAM-SHA-256-PLUS requires a certificate");
@@ -32371,15 +32371,274 @@ bootstrapRoutes.post("/", async (c) => {
   return c.json({ ok: true });
 });
 
+// src/lib/materials.ts
+var PACKAGE_SKUS = ["SDP-SUB-TSU-01"];
+var round3 = (n) => Math.round(n * 1e3) / 1e3;
+var CONFIRMED = ["antrian", "produksi", "curing"];
+var PENDING = ["cek", "revisi", "bayar"];
+function candidates(skus, stage, fabric) {
+  const list = skus.filter((k) => k.machine === stage && k.unit === "meter" && !PACKAGE_SKUS.includes(k.code)).map((k) => k.code);
+  return stage === "cal" && fabric && list.includes(fabric) ? [fabric] : list;
+}
+var stagesOf = (service, stage) => service === "dtf" ? ["dtf"] : stage === "cal" ? ["cal"] : ["subp", "cal"];
+function allocate(jobs, lots, skus, now2, holdMin) {
+  const left = new Map(lots.filter((l) => l.status === "tersedia" && l.qty_left > 0).map((l) => [l.lot_code, l.qty_left]));
+  const usable = lots.filter((l) => left.has(l.lot_code)).sort((a, b) => a.received_at - b.received_at || (a.lot_code < b.lot_code ? -1 : 1));
+  const confirmed = jobs.filter((j) => CONFIRMED.includes(j.status)).sort((a, b) => Number(b.status !== "antrian") - Number(a.status !== "antrian") || b.priority - a.priority || (a.approved_at ?? 0) - (b.approved_at ?? 0) || a.id - b.id);
+  const pending = jobs.filter((j) => PENDING.includes(j.status) && (j.paid || now2 - j.created_at < holdMin * 6e4)).sort((a, b) => a.created_at - b.created_at || a.id - b.id);
+  const needs = [];
+  const booked = {};
+  for (const j of [...confirmed, ...pending]) {
+    for (const stage of stagesOf(j.service, j.stage)) {
+      const codes = candidates(skus, stage, j.fabric_sku ?? null);
+      const need = j.rework_m ?? j.meter;
+      const open = usable.filter((l) => codes.includes(l.sku_code) && left.get(l.lot_code) > 0).sort((a, b) => Number(left.get(b.lot_code) < b.qty_initial) - Number(left.get(a.lot_code) < a.qty_initial));
+      const single = open.find((l) => left.get(l.lot_code) >= need);
+      let rest = need;
+      const picks = [];
+      for (const l of single ? [single] : open) {
+        if (rest <= 0) break;
+        const take = round3(Math.min(rest, left.get(l.lot_code)));
+        left.set(l.lot_code, round3(left.get(l.lot_code) - take));
+        rest = round3(rest - take);
+        picks.push({ lot: l.lot_code, sku: l.sku_code, bin: l.bin, take });
+        booked[l.sku_code] = round3((booked[l.sku_code] ?? 0) + take);
+      }
+      needs.push({ id: j.id, stage, need, short: Math.max(0, rest), picks });
+    }
+  }
+  return { needs, booked };
+}
+function freeOf(codes, lots, booked) {
+  const onRack = lots.filter((l) => l.status === "tersedia" && codes.includes(l.sku_code)).reduce((a, l) => a + l.qty_left, 0);
+  return Math.max(0, round3(onRack - codes.reduce((a, c) => a + (booked[c] ?? 0), 0)));
+}
+
+// src/routes/inventory.ts
+var RECEIVERS = ["gudang", "op", "cs", "spv", "manager"];
+var USERS_OF_STOCK = ["gudang", "op", "spv"];
+var KEEPERS = ["gudang", "spv"];
+var USAGE = { produksi: "Produksi", test: "Test print", reject: "Reject", waste: "Waste" };
+var round32 = (n) => Math.round(n * 1e3) / 1e3;
+var CODE = /^[A-Z0-9][A-Z0-9._-]{1,29}$/;
+var codeOf = (b, k, label) => {
+  const v = reqStr(b, k, 30).toUpperCase();
+  if (!CODE.test(v)) throw bad(`${label} 2 sampai 30 huruf, angka, titik, garis, tanpa spasi`);
+  return v;
+};
+var amount = (v, label) => {
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1e6 || Math.abs(round32(v) - v) > 1e-9) throw bad(`${label} harus angka 0 atau lebih, maksimal 3 angka desimal`);
+  return v;
+};
+async function recount(db, sku) {
+  await db.prepare("UPDATE skus SET stock = ROUND((SELECT COALESCE(SUM(qty_left), 0) FROM lots WHERE sku_code = ? AND status = 'tersedia')::numeric, 3) WHERE code = ?").bind(sku, sku).run();
+}
+async function lotOf(db, code) {
+  const lot = await db.prepare("SELECT * FROM lots WHERE lot_code = ? FOR UPDATE").bind(code).first();
+  if (!lot) throw notFound("Roll / lot tidak ditemukan");
+  return lot;
+}
+var entry = (db, sku, lot, type, qty, ref, note, by, key = null) => db.prepare("INSERT INTO stock_ledger (sku_code, lot_code, type, qty, ref, note, by_user, at, request_key) VALUES (?,?,?,?,?,?,?,?,?)").bind(sku, lot, type, qty, ref, note, by, now(), key).run();
+async function materialData(db) {
+  const skus = (await db.prepare("SELECT code, name, machine, unit FROM skus ORDER BY code").all()).results;
+  const lots = (await db.prepare("SELECT lot_code, sku_code, bin, status, qty_left, qty_initial, received_at FROM lots WHERE status = 'tersedia' ORDER BY id").all()).results;
+  return { skus, lots };
+}
+async function materialPlan(db) {
+  const { skus, lots } = await materialData(db);
+  const cfg = planConfig(await loadSettings(db));
+  return { skus, lots, ...allocate(await activeJobs(db), lots, skus, now(), cfg.holdMin) };
+}
+async function consume(db, lot, parts, ref, note, by, key) {
+  const total = round32(parts.reduce((a, p) => a + p.qty, 0));
+  if (total > lot.qty_left + 1e-9) throw conflict(`Pemakaian ${total} melebihi sisa ${lot.lot_code} (${lot.qty_left})`);
+  const left = round32(lot.qty_left - total);
+  for (const p of parts) await entry(db, lot.sku_code, lot.lot_code, p.label, -p.qty, ref, note, by, key);
+  await db.prepare("UPDATE lots SET qty_left = ?, status = ? WHERE id = ?").bind(left, left > 0 ? "tersedia" : "habis", lot.id).run();
+  await recount(db, lot.sku_code);
+  return left;
+}
+function partsOf(b) {
+  const parts = Object.entries(USAGE).map(([k, label]) => ({ label, qty: amount(b[k] ?? 0, label) })).filter((p) => p.qty > 0);
+  if (!parts.length) throw bad("Isi minimal satu jumlah pemakaian");
+  const note = optStr(b, "note", 300);
+  if (!note && parts.some((p) => p.label === "Reject" || p.label === "Waste")) throw bad("Isi keterangan untuk reject atau waste");
+  return { parts, note };
+}
+async function consumeForOrder(db, o, input, by) {
+  const plan2 = await materialPlan(db);
+  const stage = o.stage;
+  const codes = candidates(plan2.skus, stage, o.fabric_sku);
+  const list = input === void 0 || input === null ? [] : input;
+  if (!Array.isArray(list) || list.length > 5) throw bad("Daftar bahan tidak valid");
+  if (!list.length) {
+    if (plan2.lots.some((l) => codes.includes(l.sku_code))) throw bad("Catat roll yang dipakai untuk order ini");
+    return 0;
+  }
+  const recommended = plan2.needs.find((n) => n.id === o.id && n.stage === stage)?.picks.map((p) => p.lot) ?? [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const m of list) {
+    const code = reqStr(m, "lot", 40);
+    if (seen.has(code)) throw bad("Satu roll cukup diisi satu baris");
+    seen.add(code);
+    const { parts, note } = partsOf(m);
+    const lot = await lotOf(db, code);
+    if (lot.status !== "tersedia") throw conflict(`Roll ${code} tidak tersedia`);
+    if (!codes.includes(lot.sku_code)) throw bad(`Roll ${code} bukan bahan untuk tahap ini`);
+    if (!note && recommended.length && !recommended.includes(code)) throw bad(`${code} di luar rekomendasi. Isi alasan penggantian`);
+    await consume(db, lot, parts, o.order_no, note, by, null);
+  }
+  return list.length;
+}
+var inventoryRoutes = new Hono3();
+inventoryRoutes.use("*", authn);
+inventoryRoutes.post("/sku", async (c) => {
+  await allow(c, KEEPERS, "stok");
+  const b = await readJson(c);
+  const code = codeOf(b, "code", "Kode SKU");
+  const machine = oneOf(b, "machine", ["dtf", "subp", "cal"]);
+  const unit = oneOf(b, "unit", ["meter", "ml", "gram", "pcs"]);
+  const min = reqNum(b, "min", 0, true);
+  const name = reqStr(b, "name", 150);
+  if (await c.env.DB.prepare("SELECT 1 FROM skus WHERE code = ?").bind(code).first()) throw conflict("Kode SKU sudah dipakai");
+  await c.env.DB.prepare("INSERT INTO skus (code, name, svc, unit, stock, min_stock, machine) VALUES (?,?,?,?,0,?,?)").bind(code, name, machine === "dtf" ? "dtf" : "sub", unit, min, machine).run();
+  await audit(c.env.DB, c.get("user").id, "sku_created", "sku", code);
+  return c.json({ ok: true }, 201);
+});
+inventoryRoutes.put("/sku/:code", async (c) => {
+  await allow(c, KEEPERS, "stok");
+  const b = await readJson(c);
+  const min = reqNum(b, "min", 0, true);
+  const r = await c.env.DB.prepare("UPDATE skus SET min_stock = ? WHERE code = ?").bind(min, c.req.param("code")).run();
+  if (!r.meta.changes) throw notFound("SKU tidak ditemukan");
+  await audit(c.env.DB, c.get("user").id, "sku_updated", "sku", c.req.param("code"), { min });
+  return c.json({ ok: true });
+});
+inventoryRoutes.post("/bin", async (c) => {
+  await allow(c, KEEPERS, "stok");
+  const b = await readJson(c);
+  const code = codeOf(b, "code", "Kode bin");
+  await c.env.DB.tx(async (db) => {
+    if (b.remove === true) {
+      if (await db.prepare("SELECT 1 FROM lots WHERE bin = ? AND status <> 'habis'").bind(code).first()) throw conflict("Bin masih berisi barang");
+      if (!(await db.prepare("DELETE FROM bins WHERE code = ?").bind(code).run()).meta.changes) throw notFound("Bin tidak ditemukan");
+    } else {
+      if (await db.prepare("SELECT 1 FROM bins WHERE code = ?").bind(code).first()) throw conflict("Kode bin sudah ada");
+      await db.prepare("INSERT INTO bins (code, note, created_at) VALUES (?,?,?)").bind(code, optStr(b, "note", 100), now()).run();
+    }
+    await audit(db, c.get("user").id, b.remove === true ? "bin_removed" : "bin_created", "bin", code);
+  });
+  return c.json({ ok: true }, 201);
+});
+inventoryRoutes.post("/gr", async (c) => {
+  await allow(c, RECEIVERS, "stok");
+  const b = await readJson(c);
+  const requestKey = reqStr(b, "request_key", 64);
+  const sku = reqStr(b, "sku", 60);
+  const batch = codeOf(b, "batch", "Nomor batch");
+  const rolls = reqNum(b, "rolls", 0);
+  if (!Number.isInteger(rolls) || rolls > 100) throw bad("Jumlah roll / kemasan 1 sampai 100");
+  const qty = amount(b.qty, "Isi per roll");
+  if (!qty) throw bad("Isi per roll harus lebih dari 0");
+  const supplier = reqStr(b, "supplier", 150);
+  const docNo = optStr(b, "doc_no", 60);
+  const u = c.get("user");
+  const result = await c.env.DB.tx(async (db) => {
+    const dup = await db.prepare("SELECT lot_code FROM lots WHERE request_key = ? ORDER BY id").bind(requestKey).all();
+    if (dup.results.length) return { ok: true, duplicate: true, lots: dup.results.map((x) => x.lot_code) };
+    if (!await db.prepare("SELECT 1 FROM skus WHERE code = ? FOR UPDATE").bind(sku).first()) throw notFound("SKU tidak ditemukan");
+    const used = await db.prepare("SELECT lot_code FROM lots WHERE batch = ?").bind(batch).all();
+    let n = used.results.reduce((a, x) => Math.max(a, Number(x.lot_code.slice(batch.length + 1)) || 0), 0);
+    const codes = [];
+    for (let i = 0; i < rolls; i++) {
+      const code = `${batch}-${String(++n).padStart(2, "0")}`;
+      await db.prepare("INSERT INTO lots (lot_code, sku_code, batch, qty_initial, qty_left, status, supplier, doc_no, received_by, received_at, request_key) VALUES (?,?,?,?,?, 'menunggu', ?,?,?,?,?)").bind(code, sku, batch, qty, qty, supplier, docNo, u.code, now(), requestKey).run();
+      await entry(db, sku, code, "GR", qty, docNo ?? "GR", supplier, u.code);
+      codes.push(code);
+    }
+    await audit(db, u.id, "goods_received", "sku", sku, { batch, rolls, qty });
+    return { ok: true, lots: codes };
+  });
+  return c.json(result, 201);
+});
+inventoryRoutes.post("/putaway", async (c) => {
+  await allow(c, RECEIVERS, "stok");
+  const b = await readJson(c);
+  const code = reqStr(b, "lot", 40);
+  const bin = reqStr(b, "bin", 30).toUpperCase();
+  const u = c.get("user");
+  await c.env.DB.tx(async (db) => {
+    const lot = await lotOf(db, code);
+    if (lot.status === "habis") throw conflict("Roll ini sudah habis");
+    if (!await db.prepare("SELECT 1 FROM bins WHERE code = ?").bind(bin).first()) throw bad("Bin belum terdaftar di Master Bin");
+    if (lot.bin === bin) throw conflict("Roll sudah berada di bin tersebut");
+    await db.prepare("UPDATE lots SET bin = ?, status = 'tersedia', putaway_by = ?, putaway_at = ? WHERE id = ?").bind(bin, u.code, now(), lot.id).run();
+    await entry(db, lot.sku_code, code, lot.bin ? "Pindah bin" : "Put away", 0, bin, lot.bin ? `${lot.bin} ke ${bin}` : null, u.code);
+    await recount(db, lot.sku_code);
+  });
+  return c.json({ ok: true });
+});
+inventoryRoutes.post("/use", async (c) => {
+  await allow(c, USERS_OF_STOCK, "stok");
+  const b = await readJson(c);
+  const requestKey = reqStr(b, "request_key", 64);
+  const code = reqStr(b, "lot", 40);
+  const { parts, note } = partsOf(b);
+  const orderNo = optStr(b, "order_no", 40);
+  const u = c.get("user");
+  const result = await c.env.DB.tx(async (db) => {
+    if (await db.prepare("SELECT 1 FROM stock_ledger WHERE request_key = ?").bind(requestKey).first()) return { ok: true, duplicate: true };
+    const lot = await lotOf(db, code);
+    if (lot.status !== "tersedia") throw conflict(lot.status === "menunggu" ? "Roll belum di-put away" : "Roll ini sudah habis");
+    if (orderNo && !await db.prepare("SELECT 1 FROM orders WHERE order_no = ?").bind(orderNo).first()) throw bad("Nomor order tidak ditemukan");
+    const left = await consume(db, lot, parts, orderNo ?? "manual", note, u.code, requestKey);
+    return { ok: true, left };
+  });
+  return c.json(result, 201);
+});
+inventoryRoutes.post("/empty", async (c) => {
+  await allow(c, USERS_OF_STOCK, "stok");
+  const b = await readJson(c);
+  const code = reqStr(b, "lot", 40);
+  const u = c.get("user");
+  await c.env.DB.tx(async (db) => {
+    const lot = await lotOf(db, code);
+    if (lot.status !== "tersedia") throw conflict("Hanya roll yang tersedia yang dapat ditandai habis");
+    await entry(db, lot.sku_code, code, "Habis", -lot.qty_left, "manual", optStr(b, "note", 300), u.code);
+    await db.prepare("UPDATE lots SET qty_left = 0, status = 'habis' WHERE id = ?").bind(lot.id).run();
+    await recount(db, lot.sku_code);
+  });
+  return c.json({ ok: true });
+});
+inventoryRoutes.post("/adjust", async (c) => {
+  await allow(c, ["spv"], "stok");
+  const b = await readJson(c);
+  const code = reqStr(b, "lot", 40);
+  const actual = amount(b.qty, "Sisa aktual");
+  const note = reqStr(b, "note", 300);
+  const u = c.get("user");
+  await c.env.DB.tx(async (db) => {
+    const lot = await lotOf(db, code);
+    if (lot.status === "menunggu") throw conflict("Roll belum di-put away");
+    const delta = round32(actual - lot.qty_left);
+    if (!delta) throw conflict("Sisa aktual sama dengan catatan");
+    await entry(db, lot.sku_code, code, "Opname", delta, "opname", note, u.code);
+    await db.prepare("UPDATE lots SET qty_left = ?, status = ? WHERE id = ?").bind(actual, actual > 0 ? "tersedia" : "habis", lot.id).run();
+    await recount(db, lot.sku_code);
+    await audit(db, u.id, "stock_adjusted", "lot", code, { delta });
+  });
+  return c.json({ ok: true });
+});
+
 // src/lib/capacity.ts
 var MACHINE_LIST = ["dtf", "subp", "cal"];
 var DAY2 = 864e5;
-var CONFIRMED = ["antrian", "produksi", "curing"];
-var PENDING = ["cek", "revisi", "bayar"];
+var CONFIRMED2 = ["antrian", "produksi", "curing"];
+var PENDING2 = ["cek", "revisi", "bayar"];
 var chainOf = (service, stage) => service === "dtf" ? ["dtf"] : stage === "cal" ? ["cal"] : ["subp", "cal"];
 function plan(jobs, now2, cfg) {
-  const confirmed = jobs.filter((j) => CONFIRMED.includes(j.status)).sort((a, b) => Number(b.status !== "antrian") - Number(a.status !== "antrian") || b.priority - a.priority || (a.approved_at ?? 0) - (b.approved_at ?? 0) || a.id - b.id);
-  const pending = jobs.filter((j) => PENDING.includes(j.status) && (j.paid || now2 - j.created_at < cfg.holdMin * 6e4)).sort((a, b) => a.created_at - b.created_at || a.id - b.id);
+  const confirmed = jobs.filter((j) => CONFIRMED2.includes(j.status)).sort((a, b) => Number(b.status !== "antrian") - Number(a.status !== "antrian") || b.priority - a.priority || (a.approved_at ?? 0) - (b.approved_at ?? 0) || a.id - b.id);
+  const pending = jobs.filter((j) => PENDING2.includes(j.status) && (j.paid || now2 - j.created_at < cfg.holdMin * 6e4)).sort((a, b) => a.created_at - b.created_at || a.id - b.id);
   const cursor = { dtf: now2, subp: now2, cal: now2 };
   const slots = [];
   const last = /* @__PURE__ */ new Map();
@@ -32394,7 +32653,7 @@ function plan(jobs, now2, cfg) {
       const end = running ? Math.max(now2, addWorkSeconds(start, meter * norm2, cfg.cal)) : addWorkSeconds(start, meter * norm2 * 100 / cfg.pct, cfg.cal);
       cursor[m] = Math.max(cursor[m], end);
       previous = end;
-      slots.push({ id: j.id, order_no: j.order_no, machine: m, start, end, meter, hold: !j.paid && PENDING.includes(j.status) });
+      slots.push({ id: j.id, order_no: j.order_no, machine: m, start, end, meter, hold: !j.paid && PENDING2.includes(j.status) });
     }
     last.set(j.id, previous);
   }
@@ -32468,7 +32727,7 @@ function planConfig(raw2) {
 }
 async function activeJobs(db) {
   const rows = await db.prepare(
-    `SELECT o.id, o.order_no, o.service, o.status, o.stage, o.meter, o.rework_m, o.priority, o.approved_at, o.started_at, o.created_at, o.finished_at, o.total,
+    `SELECT o.id, o.order_no, o.service, o.status, o.stage, o.meter, o.rework_m, o.priority, o.approved_at, o.started_at, o.created_at, o.finished_at, o.total, o.fabric_sku,
        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.order_id = o.id) AS paid_sum
      FROM orders o WHERE o.status IN ('cek','revisi','bayar','antrian','produksi','curing') OR o.finished_at >= ? ORDER BY o.id`
   ).bind(now() - 864e5).all();
@@ -32502,8 +32761,16 @@ var capacityRoutes = new Hono3();
 capacityRoutes.use("*", authn);
 capacityRoutes.post("/check", async (c) => {
   await allow(c, ["cs", "store"], "input");
-  const q = await quote(c.env.DB, await readJson(c));
-  return c.json({ meter: q.meter, total: q.total, ...q.result });
+  const body = await readJson(c);
+  const q = await quote(c.env.DB, body);
+  const plan2 = await materialPlan(c.env.DB);
+  const stages = q.service === "sub" ? ["subp", "cal"] : ["dtf"];
+  const fabric = typeof body.fabric_sku === "string" ? body.fabric_sku : null;
+  const materials = stages.map((stage) => {
+    const codes = candidates(plan2.skus, stage, fabric);
+    return { stage, need: q.meter, free: freeOf(codes, plan2.lots, plan2.booked) };
+  });
+  return c.json({ meter: q.meter, total: q.total, ...q.result, materials });
 });
 capacityRoutes.post("/loss", async (c) => {
   await allow(c, ["cs", "store"], "input");
@@ -32590,6 +32857,13 @@ orderRoutes.post("/", async (c) => {
     const settings = numericSettings(await loadSettings(db));
     const items = rule(() => buildItems({ service, qty: b.qty, meter: b.meter, width: b.width }, settings));
     const total = totalOf(items);
+    let fabric = null;
+    if (service === "sub") {
+      const fabrics = candidates((await materialData(db)).skus, "cal", null);
+      fabric = optStr(b, "fabric_sku", 30);
+      if (fabric && !fabrics.includes(fabric)) throw bad("Kain tidak dikenal");
+      if (!fabric && fabrics.length) throw bad("Pilih bahan kain");
+    }
     const capacity = await evaluate(db, await loadSettings(db), service === "sub" ? "sub" : "dtf", meterOf(items), deadline);
     if (!capacity.fits) throw conflict(capacity.message);
     let customerId = null;
@@ -32619,7 +32893,7 @@ orderRoutes.post("/", async (c) => {
     const track = newResi();
     const r = await db.prepare(
       `INSERT INTO orders (order_no, track_code, type, service, customer_id, customer_name, wa, source, store, items, meter, total, file_ref, file_key,
-         deadline, note, status, stage, created_by, created_at, request_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'cek', ?,?,?,?)`
+         deadline, note, status, stage, created_by, created_at, request_key, fabric_sku) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'cek', ?,?,?,?,?)`
     ).bind(
       "TMP-" + track,
       track,
@@ -32640,7 +32914,8 @@ orderRoutes.post("/", async (c) => {
       svc === "dtf" ? "dtf" : "subp",
       u.code,
       t,
-      requestKey
+      requestKey,
+      fabric
     ).run();
     const id = r.meta.last_row_id;
     const ymd = localDay(t).slice(2).replace(/-/g, "");
@@ -32758,13 +33033,14 @@ orderRoutes.post("/:id/finish", async (c) => {
       process2 = `${temp} \xB0C, ${sec} detik`;
     }
     const meter = o.rework_m ?? o.meter;
+    const rolls = await consumeForOrder(db, o, b.materials, c.get("user").code);
     if (o.stage === "subp") {
       await db.prepare("UPDATE orders SET status = 'antrian', stage = 'cal' WHERE id = ?").bind(o.id).run();
     } else {
       await db.prepare("UPDATE orders SET status = 'qc', process = ?, finished_at = ? WHERE id = ?").bind(process2, now(), o.id).run();
     }
-    await audit(db, c.get("user").id, "production_finish", "order", o.id, { stage: o.stage, meter });
-    return { ok: true, next: o.stage === "subp" ? "press" : "qc" };
+    await audit(db, c.get("user").id, "production_finish", "order", o.id, { stage: o.stage, meter, rolls });
+    return { ok: true, next: o.stage === "subp" ? "press" : "qc", rolls };
   }));
 });
 orderRoutes.post("/:id/qc", async (c) => {
@@ -32997,7 +33273,7 @@ stateRoutes.get("/", async (c) => {
   const has = (...p) => p.some((x) => pages.includes(x));
   const raw2 = await loadSettings(db);
   const out = {
-    api: 5,
+    api: 6,
     // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
@@ -33050,6 +33326,7 @@ stateRoutes.get("/", async (c) => {
       reworkM: o.rework_m,
       process: o.process,
       receiver: o.receiver,
+      fabric: o.fabric_sku,
       createdBy: o.created_by,
       created: o.created_at,
       approved: o.approved_at,
@@ -33081,6 +33358,13 @@ stateRoutes.get("/", async (c) => {
     out.bins = (await db.prepare("SELECT code, note FROM bins ORDER BY code").all()).results;
     out.ledger = (await db.prepare("SELECT at, sku_code AS code, lot_code AS lot, type, qty, ref, note, by_user AS by FROM stock_ledger ORDER BY id DESC LIMIT 200").all()).results;
   }
+  if (has("input", "produksi", "stok", "dashboard")) {
+    const plan2 = await materialPlan(db);
+    out.materials = { needs: plan2.needs, booked: plan2.booked };
+    out.rolls = plan2.lots.map((l) => ({ lot: l.lot_code, sku: l.sku_code, bin: l.bin, left: l.qty_left }));
+    out.mainSkus = Object.fromEntries(["dtf", "subp", "cal"].map((s) => [s, candidates(plan2.skus, s, null)]));
+    out.fabrics = candidates(plan2.skus, "cal", null).map((code) => ({ code, name: plan2.skus.find((k) => k.code === code).name, free: freeOf([code], plan2.lots, plan2.booked) }));
+  }
   if (has("loss", "dashboard", "laporan")) {
     out.loss = (await db.prepare('SELECT id AS "logId", order_no AS id, type, reason, value, counted AS count, at FROM logs ORDER BY id DESC LIMIT 300').all()).results;
   }
@@ -33108,179 +33392,6 @@ stateRoutes.get("/", async (c) => {
   }
   c.header("Cache-Control", "private, no-store");
   return c.json(out);
-});
-
-// src/routes/inventory.ts
-var RECEIVERS = ["gudang", "op", "cs", "spv", "manager"];
-var USERS_OF_STOCK = ["gudang", "op", "spv"];
-var KEEPERS = ["gudang", "spv"];
-var USAGE = { produksi: "Produksi", test: "Test print", reject: "Reject", waste: "Waste" };
-var round3 = (n) => Math.round(n * 1e3) / 1e3;
-var CODE = /^[A-Z0-9][A-Z0-9._-]{1,29}$/;
-var codeOf = (b, k, label) => {
-  const v = reqStr(b, k, 30).toUpperCase();
-  if (!CODE.test(v)) throw bad(`${label} 2 sampai 30 huruf, angka, titik, garis, tanpa spasi`);
-  return v;
-};
-var amount = (v, label) => {
-  if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1e6 || Math.abs(round3(v) - v) > 1e-9) throw bad(`${label} harus angka 0 atau lebih, maksimal 3 angka desimal`);
-  return v;
-};
-async function recount(db, sku) {
-  await db.prepare("UPDATE skus SET stock = ROUND((SELECT COALESCE(SUM(qty_left), 0) FROM lots WHERE sku_code = ? AND status = 'tersedia')::numeric, 3) WHERE code = ?").bind(sku, sku).run();
-}
-async function lotOf(db, code) {
-  const lot = await db.prepare("SELECT * FROM lots WHERE lot_code = ? FOR UPDATE").bind(code).first();
-  if (!lot) throw notFound("Roll / lot tidak ditemukan");
-  return lot;
-}
-var entry = (db, sku, lot, type, qty, ref, note, by, key = null) => db.prepare("INSERT INTO stock_ledger (sku_code, lot_code, type, qty, ref, note, by_user, at, request_key) VALUES (?,?,?,?,?,?,?,?,?)").bind(sku, lot, type, qty, ref, note, by, now(), key).run();
-var inventoryRoutes = new Hono3();
-inventoryRoutes.use("*", authn);
-inventoryRoutes.post("/sku", async (c) => {
-  await allow(c, KEEPERS, "stok");
-  const b = await readJson(c);
-  const code = codeOf(b, "code", "Kode SKU");
-  const machine = oneOf(b, "machine", ["dtf", "subp", "cal"]);
-  const unit = oneOf(b, "unit", ["meter", "ml", "gram", "pcs"]);
-  const min = reqNum(b, "min", 0, true);
-  const name = reqStr(b, "name", 150);
-  if (await c.env.DB.prepare("SELECT 1 FROM skus WHERE code = ?").bind(code).first()) throw conflict("Kode SKU sudah dipakai");
-  await c.env.DB.prepare("INSERT INTO skus (code, name, svc, unit, stock, min_stock, machine) VALUES (?,?,?,?,0,?,?)").bind(code, name, machine === "dtf" ? "dtf" : "sub", unit, min, machine).run();
-  await audit(c.env.DB, c.get("user").id, "sku_created", "sku", code);
-  return c.json({ ok: true }, 201);
-});
-inventoryRoutes.put("/sku/:code", async (c) => {
-  await allow(c, KEEPERS, "stok");
-  const b = await readJson(c);
-  const min = reqNum(b, "min", 0, true);
-  const r = await c.env.DB.prepare("UPDATE skus SET min_stock = ? WHERE code = ?").bind(min, c.req.param("code")).run();
-  if (!r.meta.changes) throw notFound("SKU tidak ditemukan");
-  await audit(c.env.DB, c.get("user").id, "sku_updated", "sku", c.req.param("code"), { min });
-  return c.json({ ok: true });
-});
-inventoryRoutes.post("/bin", async (c) => {
-  await allow(c, KEEPERS, "stok");
-  const b = await readJson(c);
-  const code = codeOf(b, "code", "Kode bin");
-  await c.env.DB.tx(async (db) => {
-    if (b.remove === true) {
-      if (await db.prepare("SELECT 1 FROM lots WHERE bin = ? AND status <> 'habis'").bind(code).first()) throw conflict("Bin masih berisi barang");
-      if (!(await db.prepare("DELETE FROM bins WHERE code = ?").bind(code).run()).meta.changes) throw notFound("Bin tidak ditemukan");
-    } else {
-      if (await db.prepare("SELECT 1 FROM bins WHERE code = ?").bind(code).first()) throw conflict("Kode bin sudah ada");
-      await db.prepare("INSERT INTO bins (code, note, created_at) VALUES (?,?,?)").bind(code, optStr(b, "note", 100), now()).run();
-    }
-    await audit(db, c.get("user").id, b.remove === true ? "bin_removed" : "bin_created", "bin", code);
-  });
-  return c.json({ ok: true }, 201);
-});
-inventoryRoutes.post("/gr", async (c) => {
-  await allow(c, RECEIVERS, "stok");
-  const b = await readJson(c);
-  const requestKey = reqStr(b, "request_key", 64);
-  const sku = reqStr(b, "sku", 60);
-  const batch = codeOf(b, "batch", "Nomor batch");
-  const rolls = reqNum(b, "rolls", 0);
-  if (!Number.isInteger(rolls) || rolls > 100) throw bad("Jumlah roll / kemasan 1 sampai 100");
-  const qty = amount(b.qty, "Isi per roll");
-  if (!qty) throw bad("Isi per roll harus lebih dari 0");
-  const supplier = reqStr(b, "supplier", 150);
-  const docNo = optStr(b, "doc_no", 60);
-  const u = c.get("user");
-  const result = await c.env.DB.tx(async (db) => {
-    const dup = await db.prepare("SELECT lot_code FROM lots WHERE request_key = ? ORDER BY id").bind(requestKey).all();
-    if (dup.results.length) return { ok: true, duplicate: true, lots: dup.results.map((x) => x.lot_code) };
-    if (!await db.prepare("SELECT 1 FROM skus WHERE code = ? FOR UPDATE").bind(sku).first()) throw notFound("SKU tidak ditemukan");
-    const used = await db.prepare("SELECT lot_code FROM lots WHERE batch = ?").bind(batch).all();
-    let n = used.results.reduce((a, x) => Math.max(a, Number(x.lot_code.slice(batch.length + 1)) || 0), 0);
-    const codes = [];
-    for (let i = 0; i < rolls; i++) {
-      const code = `${batch}-${String(++n).padStart(2, "0")}`;
-      await db.prepare("INSERT INTO lots (lot_code, sku_code, batch, qty_initial, qty_left, status, supplier, doc_no, received_by, received_at, request_key) VALUES (?,?,?,?,?, 'menunggu', ?,?,?,?,?)").bind(code, sku, batch, qty, qty, supplier, docNo, u.code, now(), requestKey).run();
-      await entry(db, sku, code, "GR", qty, docNo ?? "GR", supplier, u.code);
-      codes.push(code);
-    }
-    await audit(db, u.id, "goods_received", "sku", sku, { batch, rolls, qty });
-    return { ok: true, lots: codes };
-  });
-  return c.json(result, 201);
-});
-inventoryRoutes.post("/putaway", async (c) => {
-  await allow(c, RECEIVERS, "stok");
-  const b = await readJson(c);
-  const code = reqStr(b, "lot", 40);
-  const bin = reqStr(b, "bin", 30).toUpperCase();
-  const u = c.get("user");
-  await c.env.DB.tx(async (db) => {
-    const lot = await lotOf(db, code);
-    if (lot.status === "habis") throw conflict("Roll ini sudah habis");
-    if (!await db.prepare("SELECT 1 FROM bins WHERE code = ?").bind(bin).first()) throw bad("Bin belum terdaftar di Master Bin");
-    if (lot.bin === bin) throw conflict("Roll sudah berada di bin tersebut");
-    await db.prepare("UPDATE lots SET bin = ?, status = 'tersedia', putaway_by = ?, putaway_at = ? WHERE id = ?").bind(bin, u.code, now(), lot.id).run();
-    await entry(db, lot.sku_code, code, lot.bin ? "Pindah bin" : "Put away", 0, bin, lot.bin ? `${lot.bin} ke ${bin}` : null, u.code);
-    await recount(db, lot.sku_code);
-  });
-  return c.json({ ok: true });
-});
-inventoryRoutes.post("/use", async (c) => {
-  await allow(c, USERS_OF_STOCK, "stok");
-  const b = await readJson(c);
-  const requestKey = reqStr(b, "request_key", 64);
-  const code = reqStr(b, "lot", 40);
-  const parts = Object.entries(USAGE).map(([k, label]) => ({ label, qty: amount(b[k] ?? 0, label) })).filter((p) => p.qty > 0);
-  if (!parts.length) throw bad("Isi minimal satu jumlah pemakaian");
-  const note = optStr(b, "note", 300);
-  if (!note && parts.some((p) => p.label === "Reject" || p.label === "Waste")) throw bad("Isi keterangan untuk reject atau waste");
-  const orderNo = optStr(b, "order_no", 40);
-  const u = c.get("user");
-  const result = await c.env.DB.tx(async (db) => {
-    if (await db.prepare("SELECT 1 FROM stock_ledger WHERE request_key = ?").bind(requestKey).first()) return { ok: true, duplicate: true };
-    const lot = await lotOf(db, code);
-    if (lot.status !== "tersedia") throw conflict(lot.status === "menunggu" ? "Roll belum di-put away" : "Roll ini sudah habis");
-    if (orderNo && !await db.prepare("SELECT 1 FROM orders WHERE order_no = ?").bind(orderNo).first()) throw bad("Nomor order tidak ditemukan");
-    const total = round3(parts.reduce((a, p) => a + p.qty, 0));
-    if (total > lot.qty_left + 1e-9) throw conflict(`Pemakaian ${total} melebihi sisa ${lot.qty_left}`);
-    const left = round3(lot.qty_left - total);
-    for (const p of parts) await entry(db, lot.sku_code, code, p.label, -p.qty, orderNo ?? "manual", note, u.code, requestKey);
-    await db.prepare("UPDATE lots SET qty_left = ?, status = ? WHERE id = ?").bind(left, left > 0 ? "tersedia" : "habis", lot.id).run();
-    await recount(db, lot.sku_code);
-    return { ok: true, left };
-  });
-  return c.json(result, 201);
-});
-inventoryRoutes.post("/empty", async (c) => {
-  await allow(c, USERS_OF_STOCK, "stok");
-  const b = await readJson(c);
-  const code = reqStr(b, "lot", 40);
-  const u = c.get("user");
-  await c.env.DB.tx(async (db) => {
-    const lot = await lotOf(db, code);
-    if (lot.status !== "tersedia") throw conflict("Hanya roll yang tersedia yang dapat ditandai habis");
-    await entry(db, lot.sku_code, code, "Habis", -lot.qty_left, "manual", optStr(b, "note", 300), u.code);
-    await db.prepare("UPDATE lots SET qty_left = 0, status = 'habis' WHERE id = ?").bind(lot.id).run();
-    await recount(db, lot.sku_code);
-  });
-  return c.json({ ok: true });
-});
-inventoryRoutes.post("/adjust", async (c) => {
-  await allow(c, ["spv"], "stok");
-  const b = await readJson(c);
-  const code = reqStr(b, "lot", 40);
-  const actual = amount(b.qty, "Sisa aktual");
-  const note = reqStr(b, "note", 300);
-  const u = c.get("user");
-  await c.env.DB.tx(async (db) => {
-    const lot = await lotOf(db, code);
-    if (lot.status === "menunggu") throw conflict("Roll belum di-put away");
-    const delta = round3(actual - lot.qty_left);
-    if (!delta) throw conflict("Sisa aktual sama dengan catatan");
-    await entry(db, lot.sku_code, code, "Opname", delta, "opname", note, u.code);
-    await db.prepare("UPDATE lots SET qty_left = ?, status = ? WHERE id = ?").bind(actual, actual > 0 ? "tersedia" : "habis", lot.id).run();
-    await recount(db, lot.sku_code);
-    await audit(db, u.id, "stock_adjusted", "lot", code, { delta });
-  });
-  return c.json({ ok: true });
 });
 
 // src/routes/manage.ts

@@ -4,6 +4,9 @@ import { Hono } from 'hono';
 import { allow, audit, authn, bad, conflict, notFound, now, oneOf, optStr, readJson, reqNum, reqStr, type AppEnv } from '../core.ts';
 import type { Db } from '../db.ts';
 import type { Role } from '../domain.ts';
+import { allocate, candidates, type Lot, type Sku, type Stage } from '../lib/materials.ts';
+import { activeJobs, planConfig } from './capacity.ts';
+import { loadSettings } from '../core.ts';
 
 export const RECEIVERS: Role[] = ['gudang', 'op', 'cs', 'spv', 'manager']; // GR dan put away: seluruh tim SDP
 export const USERS_OF_STOCK: Role[] = ['gudang', 'op', 'spv'];
@@ -32,6 +35,66 @@ async function lotOf(db: Db, code: string) {
 }
 const entry = (db: Db, sku: string, lot: string, type: string, qty: number, ref: string, note: string | null, by: string, key: string | null = null) =>
   db.prepare('INSERT INTO stock_ledger (sku_code, lot_code, type, qty, ref, note, by_user, at, request_key) VALUES (?,?,?,?,?,?,?,?,?)').bind(sku, lot, type, qty, ref, note, by, now(), key).run();
+
+export async function materialData(db: Db) {
+  const skus = (await db.prepare('SELECT code, name, machine, unit FROM skus ORDER BY code').all<Sku & { name: string }>()).results;
+  const lots = (await db.prepare("SELECT lot_code, sku_code, bin, status, qty_left, qty_initial, received_at FROM lots WHERE status = 'tersedia' ORDER BY id").all<Lot>()).results;
+  return { skus, lots };
+}
+/** Rekomendasi dan booking untuk semua order aktif. */
+export async function materialPlan(db: Db) {
+  const { skus, lots } = await materialData(db);
+  const cfg = planConfig(await loadSettings(db));
+  return { skus, lots, ...allocate(await activeJobs(db), lots, skus, now(), cfg.holdMin) };
+}
+
+/** Potong satu roll; tiap jenis pemakaian menjadi satu baris kartu stok. */
+async function consume(db: Db, lot: any, parts: { label: string; qty: number }[], ref: string, note: string | null, by: string, key: string | null) {
+  const total = round3(parts.reduce((a, p) => a + p.qty, 0));
+  if (total > lot.qty_left + 1e-9) throw conflict(`Pemakaian ${total} melebihi sisa ${lot.lot_code} (${lot.qty_left})`);
+  const left = round3(lot.qty_left - total);
+  for (const p of parts) await entry(db, lot.sku_code, lot.lot_code, p.label, -p.qty, ref, note, by, key);
+  await db.prepare('UPDATE lots SET qty_left = ?, status = ? WHERE id = ?').bind(left, left > 0 ? 'tersedia' : 'habis', lot.id).run();
+  await recount(db, lot.sku_code);
+  return left;
+}
+function partsOf(b: Record<string, any>) {
+  const parts = Object.entries(USAGE).map(([k, label]) => ({ label, qty: amount(b[k] ?? 0, label) })).filter((p) => p.qty > 0);
+  if (!parts.length) throw bad('Isi minimal satu jumlah pemakaian');
+  const note = optStr(b, 'note', 300);
+  if (!note && parts.some((p) => p.label === 'Reject' || p.label === 'Waste')) throw bad('Isi keterangan untuk reject atau waste');
+  return { parts, note };
+}
+
+/**
+ * Pemakaian bahan saat satu tahap produksi selesai. Wajib diisi bila bahannya ada di rak;
+ * roll di luar rekomendasi boleh dipakai dengan keterangan.
+ */
+export async function consumeForOrder(db: Db, o: any, input: unknown, by: string) {
+  const plan = await materialPlan(db);
+  const stage = o.stage as Stage;
+  const codes = candidates(plan.skus, stage, o.fabric_sku);
+  const list = input === undefined || input === null ? [] : input;
+  if (!Array.isArray(list) || list.length > 5) throw bad('Daftar bahan tidak valid');
+  if (!list.length) {
+    if (plan.lots.some((l) => codes.includes(l.sku_code))) throw bad('Catat roll yang dipakai untuk order ini');
+    return 0;
+  }
+  const recommended = plan.needs.find((n) => n.id === o.id && n.stage === stage)?.picks.map((p) => p.lot) ?? [];
+  const seen = new Set<string>();
+  for (const m of list as Record<string, any>[]) {
+    const code = reqStr(m, 'lot', 40);
+    if (seen.has(code)) throw bad('Satu roll cukup diisi satu baris');
+    seen.add(code);
+    const { parts, note } = partsOf(m);
+    const lot = await lotOf(db, code);
+    if (lot.status !== 'tersedia') throw conflict(`Roll ${code} tidak tersedia`);
+    if (!codes.includes(lot.sku_code)) throw bad(`Roll ${code} bukan bahan untuk tahap ini`);
+    if (!note && recommended.length && !recommended.includes(code)) throw bad(`${code} di luar rekomendasi. Isi alasan penggantian`);
+    await consume(db, lot, parts, o.order_no, note, by, null);
+  }
+  return list.length;
+}
 
 export const inventoryRoutes = new Hono<AppEnv>();
 inventoryRoutes.use('*', authn);
@@ -136,10 +199,7 @@ inventoryRoutes.post('/use', async (c) => {
   const b = await readJson(c);
   const requestKey = reqStr(b, 'request_key', 64);
   const code = reqStr(b, 'lot', 40);
-  const parts = Object.entries(USAGE).map(([k, label]) => ({ label, qty: amount(b[k] ?? 0, label) })).filter((p) => p.qty > 0);
-  if (!parts.length) throw bad('Isi minimal satu jumlah pemakaian');
-  const note = optStr(b, 'note', 300);
-  if (!note && parts.some((p) => p.label === 'Reject' || p.label === 'Waste')) throw bad('Isi keterangan untuk reject atau waste');
+  const { parts, note } = partsOf(b);
   const orderNo = optStr(b, 'order_no', 40);
   const u = c.get('user');
   const result = await c.env.DB.tx(async (db) => {
@@ -147,12 +207,7 @@ inventoryRoutes.post('/use', async (c) => {
     const lot = await lotOf(db, code);
     if (lot.status !== 'tersedia') throw conflict(lot.status === 'menunggu' ? 'Roll belum di-put away' : 'Roll ini sudah habis');
     if (orderNo && !(await db.prepare('SELECT 1 FROM orders WHERE order_no = ?').bind(orderNo).first())) throw bad('Nomor order tidak ditemukan');
-    const total = round3(parts.reduce((a, p) => a + p.qty, 0));
-    if (total > lot.qty_left + 1e-9) throw conflict(`Pemakaian ${total} melebihi sisa ${lot.qty_left}`);
-    const left = round3(lot.qty_left - total);
-    for (const p of parts) await entry(db, lot.sku_code, code, p.label, -p.qty, orderNo ?? 'manual', note, u.code, requestKey);
-    await db.prepare('UPDATE lots SET qty_left = ?, status = ? WHERE id = ?').bind(left, left > 0 ? 'tersedia' : 'habis', lot.id).run();
-    await recount(db, lot.sku_code);
+    const left = await consume(db, lot, parts, orderNo ?? 'manual', note, u.code, requestKey);
     return { ok: true, left };
   });
   return c.json(result, 201);

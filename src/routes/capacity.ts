@@ -6,6 +6,8 @@ import {
 import type { Db } from '../db.ts';
 import { DEADLINE_RE, buildItems, meterOf, totalOf } from '../domain.ts';
 import { localDay } from '../lib/calendar.ts';
+import { candidates, freeOf } from '../lib/materials.ts';
+import { materialPlan } from './inventory.ts';
 import { deadlineTime, readyFor, showTime, slaDue, suggestDeadline, type Job, type PlanConfig } from '../lib/capacity.ts';
 
 export function planConfig(raw: Record<string, string>): PlanConfig {
@@ -20,7 +22,7 @@ export function planConfig(raw: Record<string, string>): PlanConfig {
 /** Order yang memakai kapasitas (aktif) dan yang selesai cetak dalam 24 jam terakhir. */
 export async function activeJobs(db: Db): Promise<Job[]> {
   const rows = await db.prepare(
-    `SELECT o.id, o.order_no, o.service, o.status, o.stage, o.meter, o.rework_m, o.priority, o.approved_at, o.started_at, o.created_at, o.finished_at, o.total,
+    `SELECT o.id, o.order_no, o.service, o.status, o.stage, o.meter, o.rework_m, o.priority, o.approved_at, o.started_at, o.created_at, o.finished_at, o.total, o.fabric_sku,
        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.order_id = o.id) AS paid_sum
      FROM orders o WHERE o.status IN ('cek','revisi','bayar','antrian','produksi','curing') OR o.finished_at >= ? ORDER BY o.id`,
   ).bind(now() - 864e5).all<any>();
@@ -56,8 +58,17 @@ capacityRoutes.use('*', authn);
 
 capacityRoutes.post('/check', async (c) => {
   await allow(c, ['cs', 'store'], 'input');
-  const q = await quote(c.env.DB, await readJson(c));
-  return c.json({ meter: q.meter, total: q.total, ...q.result });
+  const body = await readJson(c);
+  const q = await quote(c.env.DB, body);
+  // Peringatan bahan: sisa di rak yang belum terbooking order lain.
+  const plan = await materialPlan(c.env.DB);
+  const stages = q.service === 'sub' ? (['subp', 'cal'] as const) : (['dtf'] as const);
+  const fabric = typeof body.fabric_sku === 'string' ? body.fabric_sku : null;
+  const materials = stages.map((stage) => {
+    const codes = candidates(plan.skus, stage, fabric);
+    return { stage, need: q.meter, free: freeOf(codes, plan.lots, plan.booked) };
+  });
+  return c.json({ meter: q.meter, total: q.total, ...q.result, materials });
 });
 
 // Customer batal karena jadwal penuh: dicatat sebagai loss sales tanpa membuat order.

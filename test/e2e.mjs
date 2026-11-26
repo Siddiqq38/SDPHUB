@@ -187,10 +187,18 @@ async function main() {
   check('selesai tanpa curing ditolak', (await post(C.OPR, A, 'finish', { temp: 140, seconds: 70 })).status === 409);
   check('lanjut curing', (await post(C.OPR, A, 'curing')).status === 200);
   check('suhu curing di luar standar ditolak', (await post(C.OPR, A, 'finish', { temp: 120, seconds: 70 })).status === 400);
-  r = await post(C.OPR, A, 'finish', { temp: 140, seconds: 70 });
-  check('curing selesai', r.status === 200 && r.data.next === 'qc', r);
+  const plan = (await state(C.OPR)).materials;
+  const needA = plan.needs.find((n) => n.id === A && n.stage === 'dtf');
+  check('roll direkomendasikan untuk order berjalan', needA.picks.length === 1 && needA.picks[0].lot === 'FLM001-01' && needA.picks[0].take === 10 && needA.picks[0].bin === 'A1.2' && needA.short === 0, needA);
+  check('bahan terbooking dihitung', plan.booked['SDP-DTF-FLM-60'] >= 12, plan.booked);
+  check('selesai tanpa catatan roll ditolak', (await post(C.OPR, A, 'finish', { temp: 140, seconds: 70 })).status === 400);
+  check('roll bahan lain ditolak', (await post(C.OPR, A, 'finish', { temp: 140, seconds: 70, materials: [{ lot: 'RCVKN001-01', produksi: 10 }] })).status === 400);
+  check('pemakaian melebihi sisa ditolak saat selesai', (await post(C.OPR, A, 'finish', { temp: 140, seconds: 70, materials: [{ lot: 'FLM001-01', produksi: 900 }] })).status === 409);
+  check('order tetap curing setelah ditolak', (await get(A)).status === 'curing' && (await skuStock()) === 100);
+  r = await post(C.OPR, A, 'finish', { temp: 140, seconds: 70, materials: [{ lot: 'FLM001-01', produksi: 10, test: 0.5 }] });
+  check('curing selesai, roll terpotong', r.status === 200 && r.data.next === 'qc' && r.data.rolls === 1 && (await skuStock()) === 89.5, r);
   const orderA = (await get(A)).id;
-  check('pemakaian dicatat ke order', (await call(C.OPR, 'POST', '/api/stock/use', { request_key: key(), lot: 'FLM001-01', produksi: 10, test: 0.5, order_no: orderA })).status === 201 && (await skuStock()) === 89.5);
+  check('kartu stok mencatat nomor order', (await state(C.OPR)).ledger.filter((l) => l.ref === orderA).length === 2);
   check('order tidak dikenal ditolak', (await call(C.OPR, 'POST', '/api/stock/use', { request_key: key(), lot: 'FLM001-01', produksi: 1, order_no: 'SDP-X' })).status === 400);
   check('kemas sebelum QC ditolak', (await post(C.OPR, A, 'pack')).status === 409);
   check('QC lolos butuh semua butir', (await post(C.QC1, A, 'qc', { pass: true, checks: [true] })).status === 400);
@@ -202,7 +210,10 @@ async function main() {
 
   console.log('# Sublim: revisi, print, press, reject, cetak ulang');
   const art = (await upload(C.CS, 'artwork', 'desain.pdf')).data.key;
-  r = await call(C.CS, 'POST', '/api/orders', order({ service: 'sub', width: 'priceSub160', meter: 20, customer_code: 'TK-0002', paid_method: 'QRIS', file_key: art }));
+  check('order sublim wajib memilih kain', (await call(C.CS, 'POST', '/api/orders', order({ service: 'sub', width: 'priceSub160', meter: 20, customer_code: 'TK-0002' }))).status === 400);
+  r = await call(C.CS, 'POST', '/api/capacity/check', { service: 'sub', width: 'priceSub160', meter: 500, fabric_sku: 'KIM001', deadline: new Date(Date.now() + 20 * 864e5).toISOString().slice(0, 10) });
+  check('cek kapasitas memperingatkan bahan kurang', r.data.materials.some((m) => m.stage === 'cal' && m.free < m.need), r);
+  r = await call(C.CS, 'POST', '/api/orders', order({ service: 'sub', width: 'priceSub160', meter: 20, customer_code: 'TK-0002', paid_method: 'QRIS', file_key: art, fabric_sku: 'KIM001' }));
   check('order sublim dengan berkas unggahan', r.status === 201 && r.data.total === 520000, r);
   const S1 = r.data.id;
   check('operator mengunduh berkas', (await call(C.OPR, 'GET', '/api/files/' + art, undefined, { raw: true })).status === 200);
@@ -223,12 +234,14 @@ async function main() {
   check('print selesai lanjut press', r.data.next === 'press' && (await get(S1)).stage === 'cal', r);
   await post(C.OPR, S1, 'start');
   check('press butuh suhu dan waktu', (await post(C.OPR, S1, 'finish', {})).status === 400);
-  await post(C.OPR, S1, 'finish', { temp: 200, seconds: 40 });
+  check('press wajib mencatat kain', (await post(C.OPR, S1, 'finish', { temp: 200, seconds: 40 })).status === 400);
+  await post(C.OPR, S1, 'finish', { temp: 200, seconds: 40, materials: [{ lot: 'RCVKN001-01', produksi: 20 }] });
   check('reject melebihi hasil ditolak', (await post(C.OPR, S1, 'qc', { pass: false, reject_m: 99 })).status === 400);
   await post(C.OPR, S1, 'qc', { pass: false, reject_m: 3 });
   o = await get(S1);
   check('reject: antri cetak ulang 3 m dari tahap print', o.status === 'antrian' && o.stage === 'subp' && o.reworkM === 3, o);
-  for (const [p, b] of [['start'], ['finish'], ['start'], ['finish', { temp: 200, seconds: 40 }]]) await post(C.OPR, S1, p, b);
+  for (const [p, b] of [['start'], ['finish'], ['start'], ['finish', { temp: 200, seconds: 40, materials: [{ lot: 'RCVKN001-01', produksi: 3 }] }]]) await post(C.OPR, S1, p, b);
+  check('kain terpotong 20 + 3 meter', (await skuStock('KIM001')) === 75.5);
   await post(C.OPR, S1, 'qc', { pass: true, checks: [true, true, true, true, true] });
   await post(C.OPR, S1, 'pack');
   await post(C.CS, S1, 'handover', { receiver: 'Andi' });
@@ -251,7 +264,7 @@ async function main() {
   r = await call(anon, 'GET', '/api/public/track/' + resi.toLowerCase());
   check('lacak dengan resi, huruf kecil diterima', r.status === 200 && r.data.status === 'antrian', r);
   check('resi acak lain 404', (await call(anon, 'GET', '/api/public/track/RS-00000-00000')).status === 404);
-  check('versi server dikirim', (await state(C.CS)).api === 5);
+  check('versi server dikirim', (await state(C.CS)).api === 6);
 
   console.log('# Kapasitas produksi');
   let cap = (await state(C.CS)).capacity;

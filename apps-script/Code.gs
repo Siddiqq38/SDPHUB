@@ -13,7 +13,7 @@ var SCHEMA = {
   settings: 'key,value',
   role_access: 'role,pages',
   customers: 'id#,code,name,wa,source,status,verified_by,verified_at#,created_at#',
-  orders: 'id#,order_no,track_code,type,service,customer_id#,customer_name,wa,source,store,items,meter#,total#,file_ref,file_key,deadline,note,status,stage,priority#,issue,rework_m#,process,receiver,created_by,created_at#,approved_at#,started_at#,finished_at#,qc_by,handed_at#,request_key',
+  orders: 'id#,order_no,track_code,type,service,customer_id#,customer_name,wa,source,store,items,meter#,total#,file_ref,file_key,deadline,note,status,stage,priority#,issue,rework_m#,process,receiver,created_by,created_at#,approved_at#,started_at#,finished_at#,qc_by,handed_at#,request_key,fabric_sku',
   payments: 'id#,order_id#,amount#,method,by_user,at#,request_key',
   skus: 'code,name,svc,unit,stock#,min_stock#,use_per_m#,machine',
   stock_ledger: 'id#,sku_code,type,qty#,ref,by_user,at#,lot_code,note,request_key',
@@ -89,6 +89,7 @@ function cell_(v) {
   if (typeof v === 'string' && /^[=+\-@']/.test(v)) return "'" + v;
   return v;
 }
+function widen_(sh, n) { var have = sh.getMaxColumns(); if (have < n) sh.insertColumnsAfter(have, n - have); }
 function makeStore_() {
   var cache = {};
   var ss = book_();
@@ -131,6 +132,7 @@ function makeStore_() {
       var sh = sheet(name);
       var at = sh.getLastRow() + 1;
       if (at > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 500); // grid Sheets terbatas (awal 1.000 baris)
+      widen_(sh, cols.length);
       sh.getRange(at, 1, 1, cols.length).setNumberFormat('@').setValues([cols.map(function (c) { return cell_(obj[c.n]); })]);
       var rec = { _row: at };
       cols.forEach(function (c) { rec[c.n] = obj[c.n] === undefined ? null : obj[c.n]; });
@@ -140,6 +142,7 @@ function makeStore_() {
     update: function (name, row, patch) {
       var cols = columns_(name);
       Object.keys(patch).forEach(function (k) { row[k] = patch[k]; });
+      widen_(sheet(name), cols.length);
       sheet(name).getRange(row._row, 1, 1, cols.length).setNumberFormat('@').setValues([cols.map(function (c) { return cell_(row[c.n]); })]);
     },
     remove: function (name, fn) {
@@ -343,7 +346,7 @@ function activeJobs_(db) {
   var since = Date.now() - 864e5, paid = {};
   db.all('payments').forEach(function (p) { paid[p.order_id] = (paid[p.order_id] || 0) + p.amount; });
   return db.filter('orders', function (o) { return CONFIRMED_.indexOf(o.status) >= 0 || PENDING_.indexOf(o.status) >= 0 || (o.finished_at || 0) >= since; }).map(function (o) {
-    return { id: o.id, order_no: o.order_no, service: o.service, status: o.status, stage: o.stage, meter: o.meter, rework_m: o.rework_m, priority: o.priority || 0, approved_at: o.approved_at, started_at: o.started_at, created_at: o.created_at, finished_at: o.finished_at, paid: (paid[o.id] || 0) >= o.total };
+    return { id: o.id, order_no: o.order_no, service: o.service, status: o.status, stage: o.stage, meter: o.meter, rework_m: o.rework_m, priority: o.priority || 0, approved_at: o.approved_at, started_at: o.started_at, created_at: o.created_at, finished_at: o.finished_at, paid: (paid[o.id] || 0) >= o.total, fabric_sku: o.fabric_sku };
   }).sort(function (a, b) { return a.id - b.id; });
 }
 function effective_(start, end, c) {
@@ -449,6 +452,8 @@ function capacityRoute_(ctx, action, b) {
     allow_(ctx, ['cs', 'store'], 'input');
     var q = quote_(db, b), data = { meter: q.meter, total: q.total };
     Object.keys(q.result).forEach(function (k) { data[k] = q.result[k]; });
+    var plan = materialPlan_(db), fab = typeof b.fabric_sku === 'string' ? b.fabric_sku : null;
+    data.materials = (b.service === 'sub' ? ['subp', 'cal'] : ['dtf']).map(function (stage) { return { stage: stage, need: q.meter, free: freeOf_(candidates_(plan.skus, stage, fab), plan.lots, plan.booked) }; });
     return { status: 200, data: data };
   }
   if (action === 'loss') {
@@ -477,6 +482,100 @@ function capacityRoute_(ctx, action, b) {
   if (row) db.update('settings', row, { value: JSON.stringify(list) }); else db.insert('settings', { key: 'overtime', value: JSON.stringify(list) });
   audit_(ctx, b.remove === true ? 'overtime_removed' : 'overtime_added', 'settings', day, b);
   return { status: 200, data: { ok: true } };
+}
+
+// ---------- Rekomendasi dan booking roll (sama dengan src/lib/materials.ts) ----------
+var PACKAGE_SKUS = ['SDP-SUB-TSU-01'];
+function candidates_(skus, stage, fabric) {
+  var list = skus.filter(function (k) { return k.machine === stage && k.unit === 'meter' && PACKAGE_SKUS.indexOf(k.code) < 0; }).map(function (k) { return k.code; });
+  return stage === 'cal' && fabric && list.indexOf(fabric) >= 0 ? [fabric] : list;
+}
+function allocate_(jobs, lots, skus, now, holdMin) {
+  var left = {};
+  var usable = lots.filter(function (l) { return l.status === 'tersedia' && l.qty_left > 0; });
+  usable.forEach(function (l) { left[l.lot_code] = l.qty_left; });
+  usable.sort(function (a, b) { return a.received_at - b.received_at || (a.lot_code < b.lot_code ? -1 : 1); });
+  var confirmed = jobs.filter(function (j) { return CONFIRMED_.indexOf(j.status) >= 0; }).sort(function (a, b) {
+    return (b.status !== 'antrian') - (a.status !== 'antrian') || b.priority - a.priority || (a.approved_at || 0) - (b.approved_at || 0) || a.id - b.id;
+  });
+  var pending = jobs.filter(function (j) { return PENDING_.indexOf(j.status) >= 0 && (j.paid || now - j.created_at < holdMin * 60000); }).sort(function (a, b) { return a.created_at - b.created_at || a.id - b.id; });
+  var needs = [], booked = {};
+  confirmed.concat(pending).forEach(function (j) {
+    chainOf_(j.service, j.stage).forEach(function (stage) {
+      var codes = candidates_(skus, stage, j.fabric_sku);
+      var need = j.rework_m == null ? j.meter : j.rework_m;
+      var open = usable.filter(function (l) { return codes.indexOf(l.sku_code) >= 0 && left[l.lot_code] > 0; })
+        .sort(function (a, b) { return (left[b.lot_code] < b.qty_initial) - (left[a.lot_code] < a.qty_initial); });
+      var single = open.filter(function (l) { return left[l.lot_code] >= need; })[0];
+      var rest = need, picks = [];
+      (single ? [single] : open).forEach(function (l) {
+        if (rest <= 0) return;
+        var take = round3_(Math.min(rest, left[l.lot_code]));
+        left[l.lot_code] = round3_(left[l.lot_code] - take);
+        rest = round3_(rest - take);
+        picks.push({ lot: l.lot_code, sku: l.sku_code, bin: l.bin, take: take });
+        booked[l.sku_code] = round3_((booked[l.sku_code] || 0) + take);
+      });
+      needs.push({ id: j.id, stage: stage, need: need, short: Math.max(0, rest), picks: picks });
+    });
+  });
+  return { needs: needs, booked: booked };
+}
+function freeOf_(codes, lots, booked) {
+  var onRack = lots.filter(function (l) { return l.status === 'tersedia' && codes.indexOf(l.sku_code) >= 0; }).reduce(function (a, l) { return a + l.qty_left; }, 0);
+  return Math.max(0, round3_(onRack - codes.reduce(function (a, c) { return a + (booked[c] || 0); }, 0)));
+}
+function materialPlan_(db) {
+  var skus = db.all('skus').map(function (k) { return { code: k.code, name: k.name, machine: k.machine, unit: k.unit }; }).sort(function (a, b) { return a.code < b.code ? -1 : 1; });
+  var lots = db.all('lots').filter(function (l) { return l.status === 'tersedia'; });
+  var out = allocate_(activeJobs_(db), lots, skus, Date.now(), planConfig_(settings_(db)).holdMin);
+  out.skus = skus; out.lots = lots;
+  return out;
+}
+function partsOf_(b) {
+  var parts = USAGE_.map(function (p) { return { label: p[1], qty: amount_(b[p[0]] === undefined || b[p[0]] === null ? 0 : b[p[0]], p[1]) }; }).filter(function (p) { return p.qty > 0; });
+  if (!parts.length) throw err_(400, 'Isi minimal satu jumlah pemakaian');
+  var note = opt_(b, 'note', 300);
+  if (!note && parts.some(function (p) { return p.label === 'Reject' || p.label === 'Waste'; })) throw err_(400, 'Isi keterangan untuk reject atau waste');
+  return { parts: parts, note: note };
+}
+function lotByCode_(db, code) { var l = db.find('lots', function (x) { return x.lot_code === code; }); if (!l) throw err_(404, 'Roll / lot tidak ditemukan'); return l; }
+function totalParts_(lot, parts) {
+  var total = round3_(parts.reduce(function (a, p) { return a + p.qty; }, 0));
+  if (total > lot.qty_left + 1e-9) throw err_(409, 'Pemakaian ' + total + ' melebihi sisa ' + lot.lot_code + ' (' + lot.qty_left + ')');
+  return total;
+}
+function consume_(ctx, lot, parts, ref, note, key) {
+  var db = ctx.db, left = round3_(lot.qty_left - totalParts_(lot, parts));
+  parts.forEach(function (p) { db.insert('stock_ledger', { sku_code: lot.sku_code, lot_code: lot.lot_code, type: p.label, qty: -p.qty, ref: ref, note: note, by_user: ctx.user.code, at: Date.now(), request_key: key || null }); });
+  db.update('lots', lot, { qty_left: left, status: left > 0 ? 'tersedia' : 'habis' });
+  recount_(db, lot.sku_code);
+  return left;
+}
+// Wajib diisi bila bahannya ada di rak. Semua baris diperiksa dulu, baru ditulis (spreadsheet tidak punya rollback).
+function consumeForOrder_(ctx, o, input) {
+  var db = ctx.db, plan = materialPlan_(db), codes = candidates_(plan.skus, o.stage, o.fabric_sku);
+  var list = input === undefined || input === null ? [] : input;
+  if (!Array.isArray(list) || list.length > 5) throw err_(400, 'Daftar bahan tidak valid');
+  if (!list.length) {
+    if (plan.lots.some(function (l) { return codes.indexOf(l.sku_code) >= 0; })) throw err_(400, 'Catat roll yang dipakai untuk order ini');
+    return 0;
+  }
+  var need = plan.needs.filter(function (n) { return n.id === o.id && n.stage === o.stage; })[0];
+  var recommended = need ? need.picks.map(function (p) { return p.lot; }) : [], seen = {};
+  var ready = list.map(function (m) {
+    var code = str_(m, 'lot', 40);
+    if (seen[code]) throw err_(400, 'Satu roll cukup diisi satu baris');
+    seen[code] = true;
+    var p = partsOf_(m), lot = lotByCode_(db, code);
+    if (lot.status !== 'tersedia') throw err_(409, 'Roll ' + code + ' tidak tersedia');
+    if (codes.indexOf(lot.sku_code) < 0) throw err_(400, 'Roll ' + code + ' bukan bahan untuk tahap ini');
+    if (!p.note && recommended.length && recommended.indexOf(code) < 0) throw err_(400, code + ' di luar rekomendasi. Isi alasan penggantian');
+    totalParts_(lot, p.parts);
+    return { lot: lot, parts: p.parts, note: p.note };
+  });
+  ready.forEach(function (r) { consume_(ctx, r.lot, r.parts, o.order_no, r.note, null); });
+  return ready.length;
 }
 
 // ---------- Order ----------
@@ -545,6 +644,14 @@ function createOrder_(ctx, b) {
   var items = buildItems_(b, numeric_(raw));
   var total = Math.round(items.reduce(function (a, i) { return a + i.price * i.qty; }, 0));
   var meter = round2_(items.reduce(function (a, i) { return a + i.meter; }, 0));
+  // Order sublim memilih kain (bila SKU kain sudah terdaftar) agar roll bisa direkomendasikan.
+  var fabric = null;
+  if (service === 'sub') {
+    var fabrics = candidates_(db.all('skus'), 'cal', null);
+    fabric = opt_(b, 'fabric_sku', 30);
+    if (fabric && fabrics.indexOf(fabric) < 0) throw err_(400, 'Kain tidak dikenal');
+    if (!fabric && fabrics.length) throw err_(400, 'Pilih bahan kain');
+  }
   // Order hanya diterima bila jadwal masih cukup (deadline, atau SLA standar bila kosong).
   var capacity = evaluate_(db, raw, service === 'sub' ? 'sub' : 'dtf', meter, deadline);
   if (!capacity.fits) throw err_(409, capacity.message);
@@ -567,7 +674,7 @@ function createOrder_(ctx, b) {
   db.insert('orders', {
     id: id, order_no: orderNo, track_code: track, type: type, service: svc, customer_id: customerId, customer_name: name, wa: wa, source: source,
     store: source === 'Toko' ? u.store || opt_(b, 'store', 100) || 'Toko' : null, items: JSON.stringify(items), meter: meter, total: total, file_ref: fileRef, file_key: fileKey,
-    deadline: deadline, note: opt_(b, 'note', 500), status: 'cek', stage: svc === 'dtf' ? 'dtf' : 'subp', priority: 0, created_by: u.code, created_at: t, request_key: requestKey
+    deadline: deadline, note: opt_(b, 'note', 500), status: 'cek', stage: svc === 'dtf' ? 'dtf' : 'subp', priority: 0, created_by: u.code, created_at: t, request_key: requestKey, fabric_sku: fabric
   });
   if (method) db.insert('payments', { order_id: id, amount: total, method: method, by_user: u.code, at: t });
   audit_(ctx, 'order_created', 'order', id);
@@ -652,10 +759,10 @@ function orderAction_(ctx, id, action, b) {
       if (o.stage === 'dtf' && (temp < CURING.minC || temp > CURING.maxC || sec < CURING.minS || sec > CURING.maxS)) throw err_(400, 'Standar curing ' + CURING.minC + ' sampai ' + CURING.maxC + ' °C selama ' + CURING.minS + ' sampai ' + CURING.maxS + ' detik');
       process = temp + ' °C, ' + sec + ' detik';
     }
-    // Pemakaian bahan dicatat per roll di menu SKU & Inventory.
+    var rolls = consumeForOrder_(ctx, o, b.materials);
     var next = o.stage === 'subp' ? 'press' : 'qc';
     db.update('orders', o, o.stage === 'subp' ? { status: 'antrian', stage: 'cal' } : { status: 'qc', process: process, finished_at: now });
-    return done({ ok: true, next: next });
+    return done({ ok: true, next: next, rolls: rolls });
   }
   if (action === 'qc') {
     need(o.status === 'qc', 'Order tidak sedang menunggu QC');
@@ -762,22 +869,13 @@ function inventory_(ctx, action, b) {
   if (action === 'use') {
     allow_(ctx, STOCK_USERS_, 'stok');
     var rk = str_(b, 'request_key', 64), uc = str_(b, 'lot', 40);
-    var parts = USAGE_.map(function (p) { return { label: p[1], qty: amount_(b[p[0]] === undefined || b[p[0]] === null ? 0 : b[p[0]], p[1]) }; }).filter(function (p) { return p.qty > 0; });
-    if (!parts.length) throw err_(400, 'Isi minimal satu jumlah pemakaian');
-    var note = opt_(b, 'note', 300);
-    if (!note && parts.some(function (p) { return p.label === 'Reject' || p.label === 'Waste'; })) throw err_(400, 'Isi keterangan untuk reject atau waste');
+    var parsed = partsOf_(b);
     var orderNo = opt_(b, 'order_no', 40);
     if (db.find('stock_ledger', function (l) { return l.request_key === rk; })) return { status: 201, data: { ok: true, duplicate: true } };
     var ul = lotOf(uc);
     if (ul.status !== 'tersedia') throw err_(409, ul.status === 'menunggu' ? 'Roll belum di-put away' : 'Roll ini sudah habis');
     if (orderNo && !db.find('orders', function (o) { return o.order_no === orderNo; })) throw err_(400, 'Nomor order tidak ditemukan');
-    var total = round3_(parts.reduce(function (a, p) { return a + p.qty; }, 0));
-    if (total > ul.qty_left + 1e-9) throw err_(409, 'Pemakaian ' + total + ' melebihi sisa ' + ul.qty_left);
-    var left = round3_(ul.qty_left - total);
-    parts.forEach(function (p) { entry(ul.sku_code, uc, p.label, -p.qty, orderNo || 'manual', note, rk); });
-    db.update('lots', ul, { qty_left: left, status: left > 0 ? 'tersedia' : 'habis' });
-    recount_(db, ul.sku_code);
-    return { status: 201, data: { ok: true, left: left } };
+    return { status: 201, data: { ok: true, left: consume_(ctx, ul, parsed.parts, orderNo || 'manual', parsed.note, rk) } };
   }
   if (action === 'empty') {
     allow_(ctx, STOCK_USERS_, 'stok');
@@ -910,7 +1008,7 @@ function state_(ctx) {
   var pages = master ? GRANTABLE.concat(['atur', 'pengguna', 'akses', 'data', 'akun']) : pages_(db, u.role).concat(['akun']);
   function has() { return Array.prototype.slice.call(arguments).some(function (p) { return pages.indexOf(p) >= 0; }); }
   var raw = settings_(db), cal = calendar_(raw);
-  var out = { api: 5, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
+  var out = { api: 6, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
   if (ORDER_PAGES.some(function (p) { return pages.indexOf(p) >= 0; })) {
     var custCode = {};
     db.all('customers').forEach(function (c) { custCode[c.id] = c.code; });
@@ -924,7 +1022,7 @@ function state_(ctx) {
       return {
         dbId: o.id, id: o.order_no, track: o.track_code, type: o.type, service: o.service, custCode: custCode[o.customer_id] || null, customer: o.customer_name, wa: contact ? o.wa : '', source: o.source, store: o.store || '-',
         items: JSON.parse(o.items), total: o.total, meter: o.meter, file: o.file_ref, fileKey: o.file_key, deadline: o.deadline, note: o.note, status: o.status, stage: o.stage, priority: !!o.priority, issue: o.issue, reworkM: o.rework_m, process: o.process,
-        receiver: o.receiver, createdBy: o.created_by, created: o.created_at, approved: o.approved_at, started: o.started_at, pay: pays[o.id] || []
+        receiver: o.receiver, fabric: o.fabric_sku, createdBy: o.created_by, created: o.created_at, approved: o.approved_at, started: o.started_at, pay: pays[o.id] || []
       };
     });
   }
@@ -943,6 +1041,13 @@ function state_(ctx) {
   if (has('input', 'dashboard', 'produksi')) {
     var cfg = planConfig_(raw), jobs = activeJobs_(db), t = Date.now();
     out.capacity = { days: days_(jobs, t, cfg), slots: plan_(jobs, t, cfg).slots, slaDue: slaDue_(t, cfg.cal), overtime: overtimeOf_(raw).filter(function (o) { return o.day >= out.today; }) };
+  }
+  if (has('input', 'produksi', 'stok', 'dashboard')) {
+    var mp = materialPlan_(db);
+    out.materials = { needs: mp.needs, booked: mp.booked };
+    out.rolls = mp.lots.map(function (l) { return { lot: l.lot_code, sku: l.sku_code, bin: l.bin, left: l.qty_left }; });
+    out.mainSkus = { dtf: candidates_(mp.skus, 'dtf', null), subp: candidates_(mp.skus, 'subp', null), cal: candidates_(mp.skus, 'cal', null) };
+    out.fabrics = out.mainSkus.cal.map(function (code) { return { code: code, name: mp.skus.filter(function (k) { return k.code === code; })[0].name, free: freeOf_([code], mp.lots, mp.booked) }; });
   }
   if (has('loss', 'dashboard', 'laporan')) out.loss = db.all('logs').slice(-300).reverse().map(function (l) { return { logId: l.id, id: l.order_no, type: l.type, reason: l.reason, value: l.value, count: l.counted, at: l.at }; });
   var driveIds = {};

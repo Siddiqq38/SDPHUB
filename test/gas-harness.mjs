@@ -17,6 +17,7 @@ export function loadGas() {
   const makeSheet = () => {
     const data = [];
     let max = 5; // sengaja kecil agar penambahan baris grid ikut teruji
+    let cols = 26;
     const sh = {
       data,
       getDataRange: () => ({ getValues: () => { const w = Math.max(1, ...data.map((r) => r.length)); return data.map((r) => Array.from({ length: w }, (_, i) => r[i] ?? '')); } }),
@@ -31,6 +32,8 @@ export function loadGas() {
       },
       getLastRow: () => data.length,
       getMaxRows: () => max,
+      getMaxColumns: () => cols,
+      insertColumnsAfter: (after, count) => { cols += count; },
       setFrozenRows: () => {},
       deleteRows: (n, count) => { if (max - count < 2) throw new Error('tidak boleh menghapus semua baris tidak beku'); data.splice(n - 1, count); max -= count; },
       insertRowsAfter: (after, count) => { max += count; },
