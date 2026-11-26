@@ -4,7 +4,7 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 
 | Peran | Tugas di aplikasi |
 |---|---|
-| Admin Sistem | Pengguna, hak akses, harga, norma waktu; semua menu |
+| Master Akun | Pengguna, hak akses, harga, norma waktu; semua menu |
 | Manager | Memantau dashboard, laporan, pembayaran, stok; tanpa tombol tindakan |
 | SPV SDP | Menyetujui atau menahan QC pagi, prioritas antrian, dapat menjalankan produksi dan QC |
 | CS | Input order, Meja CS (revisi file, tagihan, tolak = loss sales), catat pembayaran, serah terima |
@@ -21,7 +21,7 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 3. Gudang: isi stok awal hasil stock opname (Catat mutasi: Stok masuk), lalu pemakaian per meter setelah diukur.
 4. Setiap pagi: Operator mengisi QC pagi tiap mesin, SPV menyetujui.
 
-## Kelola Data (hanya Admin Sistem)
+## Kelola Data (hanya Master Akun)
 Untuk masa simulasi: ubah atau hapus order, pembayaran, pelanggan, laporan QC pagi, catatan loss, dan angka stok. Akun dapat diubah atau dihapus di menu **Pengguna**.
 
 Sebelum dipakai sungguhan, buka **Kelola Data > Bersihkan data**, ketik `HAPUS SEMUA`. Akun, harga, hak akses, dan daftar SKU tetap. Setiap tindakan tercatat di audit log.

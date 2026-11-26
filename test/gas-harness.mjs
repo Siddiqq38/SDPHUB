@@ -78,8 +78,8 @@ if (process.argv[1]?.endsWith('gas-harness.mjs')) {
     if (!path.startsWith('/api/')) {
       const name = path === '/' ? 'index.html' : path.slice(1);
       if (name === 'config.js') { res.writeHead(200, { 'content-type': 'text/javascript' }); res.end("window.SDP_CONFIG={sheetsUrl:'/exec'};"); return; }
-      if (!['index.html', 'app.js', 'styles.css'].includes(name)) { res.writeHead(404); res.end(); return; }
-      res.writeHead(200, { 'content-type': name.endsWith('js') ? 'text/javascript' : name.endsWith('css') ? 'text/css' : 'text/html; charset=utf-8' });
+      if (!['index.html', 'app.js', 'styles.css', 'logo-light.png', 'logo-dark.png', 'icon.png'].includes(name)) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'content-type': name.endsWith('js') ? 'text/javascript' : name.endsWith('css') ? 'text/css' : name.endsWith('png') ? 'image/png' : 'text/html; charset=utf-8' });
       res.end(readFileSync(new URL('../public/' + name, import.meta.url)));
       return;
     }

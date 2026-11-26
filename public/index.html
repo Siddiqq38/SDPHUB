@@ -4,17 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SDP Print Hub</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Inter:wght@400;500;600&display=swap">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap">
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body style="margin:0">
+<body>
+<div id="busy" role="status" hidden><span class="spin"></span>Menghubungkan…</div>
 <div class="shell">
-<aside class="side"><span class="logo"><span class="cmyk" aria-hidden="true"><i class="c1"></i><i class="c2"></i><i class="c3"></i><i class="c4"></i></span>SDP Print Hub</span>
-<div class="who" id="who"></div>
-<nav aria-label="Menu" id="menu"></nav></aside>
+<aside class="side"><a class="logo" href="#"><img src="/logo-dark.png" width="640" height="216" alt="SDP Print Hub"></a>
+<nav aria-label="Menu" id="menu"></nav>
+<div class="who" id="who"></div></aside>
 <div class="body">
-<main class="in" id="view"><p class="boot">Memuat…</p></main>
+<main class="in" id="view"><div class="state" role="status"><span class="spin big"></span><p>Memuat…</p></div></main>
+<footer class="in foot">SDP Print Hub • Operasional Sublimasi &amp; DTF</footer>
 </div></div>
+<div id="net" role="alert" hidden></div>
 <div id="toast" role="status" hidden></div>
 <script src="/config.js" defer></script>
 <script src="/app.js" defer></script>

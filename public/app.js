@@ -1,7 +1,7 @@
 'use strict';
 // SDP Print Hub: layar mengikuti simulasi yang disetujui. Semua aturan dan hak akses ditegakkan di server;
 // pemeriksaan di sini hanya untuk tampilan. Data dinamis dirender lewat textContent.
-const ROLES={master:'Admin Sistem',manager:'Manager',spv:'SPV SDP',cs:'CS (DTF + Sublim)',crm:'CRM',store:'Store Head',op:'Operator Produksi',qc:'QC',gudang:'Gudang',fat:'FAT / Finance'};
+const ROLES={master:'Master Akun',manager:'Manager',spv:'SPV SDP',cs:'CS (DTF + Sublim)',crm:'CRM',store:'Store Head',op:'Operator Produksi',qc:'QC',gudang:'Gudang',fat:'FAT / Finance'};
 const PAGES={masuk:'Masuk',dashboard:'Dashboard',input:'Input Order',cs:'Meja CS',cekfile:'Cek File',toko:'Order Toko Saya',produksi:'Antrian Produksi',qc:'QC',serah:'Serah Terima',bayar:'Pembayaran',
 pelanggan:'Pelanggan B2B',stok:'SKU & Inventory',loss:'Loss Sales & Log QC',laporan:'Laporan',layanan:'Layanan & Harga',lacak:'Lacak Order',atur:'Pengaturan',pengguna:'Pengguna',akses:'Hak Akses',data:'Kelola Data',akun:'Akun Saya'};
 const GROUPS=[['Ringkasan',['dashboard','laporan']],['Order',['input','cs','toko','pelanggan','lacak']],['Produksi',['cekfile','produksi','qc','serah']],['Keuangan dan data',['bayar','stok','loss']],['Referensi',['layanan']],['Admin',['atur','pengguna','akses','data']],['Akun',['masuk','akun']]];
@@ -24,6 +24,21 @@ const MORNING={
   step('08.57-09.00','Kesiapan produksi',['Seluruh hasil QC sudah diperiksa, bahan cukup, serta mesin dan area aman untuk produksi'])],
  subp:[step('Usulan','Persiapan printer sublim',['Mesin dan area bersih dan aman','Tinta dan kertas sublim tersedia']),step('Usulan','Nozzle check dan test print',['Nozzle check lengkap','Test print sesuai file'],'Nozzle check / test print')],
  cal:[step('Usulan','Persiapan press',['Mesin dan area bersih dan aman','Suhu dan kecepatan sesuai instruksi']),step('Usulan','Uji transfer',['Hasil transfer pada kain uji rata dan warna sesuai'],'Hasil press')]};
+
+// Nama bawaan akun master di data lama ditampilkan sebagai nama pemegang akunnya.
+const nameOf=u=>u.role==='master'&&u.name==='Admin Sistem'?'Ahmad Assidiq':u.name;
+// Ikon garis sederhana (24x24).
+const ICONS={grid:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',chart:'M5 20V11M12 20V4M19 20v-6',plus:'M12 5v14M5 12h14',
+ plusbox:'M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM12 8v8M8 12h8',headset:'M4 14v-2a8 8 0 0 1 16 0v2M4 14h3v6H5a1 1 0 0 1-1-1zM20 14h-3v6h2a1 1 0 0 0 1-1z',
+ store:'M4 10v10h16V10M3 10l2-6h14l2 6zM10 20v-5h4v5',users:'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 20a6 6 0 0 1 12 0M16 4.5a3.5 3.5 0 0 1 0 6.5M17 14.5a6 6 0 0 1 4 5.5',
+ search:'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',file:'M6 3h8l5 5v13H6zM14 3v5h5M9 13h6M9 17h6',layers:'M12 3l9 5-9 5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5',
+ check:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12l3 3 5-6',box:'M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9',wallet:'M4 7h15a1 1 0 0 1 1 1v11H5a1 1 0 0 1-1-1V6a2 2 0 0 1 2-2h11v3M16 13h1',
+ archive:'M4 4h16v5H4zM5 9v11h14V9M10 13h4',trend:'M3 7l6 6 4-4 8 8M21 11v6h-6',tag:'M3 12V4h8l10 10-8 8zM7.5 8.5h.01',sliders:'M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4',
+ user:'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',database:'M5 6c0-4 14-4 14 0s-14 4-14 0zM5 6v12c0 4 14 4 14 0V6M5 12c0 4 14 4 14 0',
+ login:'M14 4h5v16h-5M3 12h11M10 8l4 4-4 4',logout:'M10 4H5v16h5M9 12h11M16 8l4 4-4 4',refresh:'M20 11a8 8 0 0 0-14-4.5L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4.5l2-2.5M20 20v-5h-5',
+ truck:'M3 6h11v10H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',coins:'M4 7c0-3 11-3 11 0s-11 3-11 0zM4 7v8c0 2 4 3 7 2M4 11c0 2 4 3 7 2M11 15c0-3 10-3 10 0s-10 3-10 0zM11 15v4c0 3 10 3 10 0v-4',alert:'M12 4l10 17H2zM12 10v5M12 18h.01'};
+const PAGE_ICON={masuk:'login',dashboard:'grid',laporan:'chart',input:'plusbox',cs:'headset',toko:'store',pelanggan:'users',lacak:'search',cekfile:'file',produksi:'layers',qc:'check',serah:'box',bayar:'wallet',stok:'archive',loss:'trend',layanan:'tag',atur:'sliders',pengguna:'user',akses:'shield',data:'database',akun:'user'};
+function icon(name){const NS='http://www.w3.org/2000/svg',svg=document.createElementNS(NS,'svg'),p=document.createElementNS(NS,'path');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','i');svg.setAttribute('aria-hidden','true');p.setAttribute('d',ICONS[name]);svg.append(p);return svg;}
 
 let me=null,S=null,PUB=null;
 // Backend: kosong = server Vercel + Supabase; berisi URL Apps Script = Google Spreadsheet (sementara).
@@ -48,38 +63,67 @@ const copy=(text,ok)=>navigator.clipboard.writeText(text).then(()=>toast(ok),()=
 const checklist=items=>{const boxes=items.map(()=>h('input',{type:'checkbox'}));return{view:items.map((t,i)=>h('label',{class:'row'},boxes[i],t)),values:()=>boxes.map(b=>b.checked),all:()=>boxes.every(b=>b.checked)};};
 
 // ---------- Komunikasi dengan server ----------
+const TIMEOUT=45000;
+// Galat "network" berarti server tidak terjangkau atau bermasalah; layar menawarkan Coba Lagi.
+const netError=(m,extra)=>Object.assign(new Error(m),{network:true},extra);
 async function send(method,path,body){
- if(SHEETS){
-  // text/plain menghindari preflight CORS, yang tidak didukung Apps Script.
-  const res=await fetch(SHEETS,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({method,path,body,token}),redirect:'follow'});
-  let j=null;try{j=await res.json();}catch(e){}
-  if(!j)throw new Error('Apps Script tidak merespons. Periksa URL dan izin deployment.');
-  return j;
- }
- const headers={};if(me?.csrf&&method!=='GET')headers['X-CSRF-Token']=me.csrf;
- if(body!==undefined)headers['Content-Type']='application/json';
- const res=await fetch(path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),credentials:'same-origin'});
- let data=null;try{data=await res.json();}catch(e){}
- return{status:res.status,data};
+ const ctl=new AbortController(),limit=setTimeout(()=>ctl.abort(),TIMEOUT);
+ try{
+  if(SHEETS){
+   // text/plain menghindari preflight CORS, yang tidak didukung Apps Script.
+   const res=await fetch(SHEETS,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({method,path,body,token}),redirect:'follow',signal:ctl.signal});
+   let j=null;try{j=await res.json();}catch(e){}
+   if(!j)throw netError('Apps Script tidak merespons. Periksa URL dan izin deployment.');
+   return j;
+  }
+  const headers={};if(me?.csrf&&method!=='GET')headers['X-CSRF-Token']=me.csrf;
+  if(body!==undefined)headers['Content-Type']='application/json';
+  const res=await fetch(path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),credentials:'same-origin',signal:ctl.signal});
+  let data=null;try{data=await res.json();}catch(e){}
+  return{status:res.status,data};
+ }catch(e){
+  if(e.network)throw e;
+  throw netError(ctl.signal.aborted?'Server terlalu lama merespons.':'Tidak dapat terhubung ke server. Periksa koneksi internet.');
+ }finally{clearTimeout(limit);}
 }
-async function api(method,path,body){
- const{status,data}=await send(method,path,body);
+let pending=0;
+function setPending(d){pending+=d;document.getElementById('busy').hidden=pending<=0;}
+/** quiet: penyegaran latar belakang, tanpa ikon loading. */
+async function api(method,path,body,quiet){
+ let res;if(!quiet)setPending(1);
+ try{res=await send(method,path,body);}finally{if(!quiet)setPending(-1);}
+ const{status,data}=res;
  if(SHEETS&&status===200&&path==='/api/auth/login')setToken(data.token);
  if(SHEETS&&path==='/api/auth/logout')setToken('');
- if(status===401&&me){me=null;S=null;setToken('');goto('masuk');throw new Error('Sesi berakhir, silakan masuk lagi.');}
- if(status>=400)throw new Error(data?.error||'Permintaan gagal ('+status+')');
+ if(status===401&&me){me=null;S=null;setToken('');goto('masuk');throw Object.assign(new Error('Sesi berakhir, silakan masuk lagi.'),{status});}
+ if(status>=500)throw netError(data?.error||'Server bermasalah ('+status+')',{status});
+ if(status>=400)throw Object.assign(new Error(data?.error||'Permintaan gagal ('+status+')'),{status});
  return data;
 }
-async function load(){
- if(!me&&(!SHEETS||token)){try{me=await api('GET','/api/auth/me');}catch(e){me=null;setToken('');}}
- S=me&&!me.must_change?await api('GET','/api/state'):null;
- if(!S&&!PUB)PUB=await api('GET','/api/public/info');
+async function load(quiet){
+ if(!me&&(!SHEETS||token)){try{me=await api('GET','/api/auth/me',undefined,quiet);}catch(e){if(e.status!==401&&e.status!==403)throw e;me=null;setToken('');}}
+ S=me&&!me.must_change?await api('GET','/api/state',undefined,quiet):null;
+ if(!S&&!PUB)PUB=await api('GET','/api/public/info',undefined,quiet);
+ netOk();
 }
+const spinner=t=>h('div',{class:'state',role:'status'},h('span',{class:'spin big'}),h('p',{},t));
+let broken=null;
+function showFail(){document.getElementById('view').replaceChildren(h('div',{class:'card state',role:'alert'},h('span',{class:'ico bad'},icon('alert')),h('h2',{},'Gagal terhubung'),h('p',{},broken.message),h('button',{class:'pri',onclick:connect},icon('refresh'),'Coba Lagi')));}
+/** Muat data satu layar penuh: ikon loading, lalu halaman atau pesan gagal dengan Coba Lagi. */
+async function connect(){
+ broken=null;netOk();document.getElementById('view').replaceChildren(spinner('Menghubungkan ke server…'));
+ try{await load();}catch(e){broken=e;showFail();return false;}
+ render();return true;
+}
+function netOk(){document.getElementById('net').hidden=true;}
+function netBar(text){const bar=document.getElementById('net');
+ bar.replaceChildren(icon('alert'),h('span',{},text),h('button',{class:'pri',onclick:async()=>{netOk();try{await load();render();toast('Data dimuat ulang.');}catch(e){netBar('Masih gagal. '+e.message);}}},'Coba Lagi'),h('button',{onclick:netOk},'Tutup'));bar.hidden=false;}
+const oops=e=>e.network?netBar(e.message+' Periksa apakah perubahan sudah tersimpan sebelum mengulang.'):toast(e.message);
 /** Jalankan aksi, muat ulang data dari server, lalu tampilkan hasilnya. Tombol dikunci selama proses. */
 async function act(ev,fn,msg){
- const b=ev?.currentTarget;if(b)b.disabled=true;
+ const b=ev?.currentTarget;if(b){b.disabled=true;b.classList.add('wait');}
  try{const r=await fn();await load();render();const m=typeof msg==='function'?msg(r):msg;if(m)toast(m);}
- catch(e){toast(e.message);if(b)b.disabled=false;}
+ catch(e){oops(e);if(b){b.disabled=false;b.classList.remove('wait');}}
 }
 // Unggah dua langkah: izin dari server, unggah langsung ke storage, lalu konfirmasi.
 async function upload(kind,file){
@@ -91,7 +135,7 @@ async function upload(kind,file){
  const init=await api('POST','/api/files/init',{kind,file_name:file.name,content_type:file.type||'application/octet-stream',size_bytes:file.size});
  const{url,method,fields,file_field}=init.upload,fd=new FormData();
  for(const[k,v]of Object.entries(fields))fd.set(k,v);fd.set(file_field,file,file.name);
- const put=await fetch(url,{method,body:fd});if(!put.ok)throw new Error('Unggah ke penyimpanan gagal ('+put.status+')');
+ const put=await fetch(url,{method,body:fd}).catch(()=>{throw netError('Unggah ke penyimpanan gagal. Periksa koneksi internet.');});if(!put.ok)throw new Error('Unggah ke penyimpanan gagal ('+put.status+')');
  await api('POST','/api/files/confirm',{key:init.key});return init.key;
 }
 
@@ -198,7 +242,7 @@ V.data=()=>{const tabs=[['order','Order'],['bayar','Pembayaran'],['pelanggan','P
   reset:()=>{const word=h('input',{'aria-label':'Konfirmasi',placeholder:'ketik HAPUS SEMUA',style:'max-width:240px'}),cust=h('input',{type:'checkbox'});
    return card(h('h2',{},'Bersihkan data simulasi'),h('p',{},'Menghapus semua order, pembayaran, log, QC pagi, riwayat stok, dan catatan file, serta mengembalikan stok ke 0. Akun, harga, hak akses, dan daftar SKU tetap. Tidak dapat dibatalkan.'),h('label',{class:'row'},cust,'Hapus juga daftar pelanggan'),h('div',{class:'row mt'},word,h('button',{class:'d',onclick:ev=>{if(word.value!=='HAPUS SEMUA')return toast('Ketik HAPUS SEMUA untuk melanjutkan.');act(ev,()=>api('POST','/api/manage/reset',{confirm:word.value,customers:cust.checked}),'Data simulasi sudah dibersihkan.');}},'Bersihkan sekarang')));}
  };
- return[h('h1',{},'Kelola data'),h('p',{class:'muted'},'Khusus Admin Sistem. Setiap perubahan tercatat di audit log.'),h('div',{class:'row'},tabs.map(([k,t])=>h('button',{class:dataTab===k?'pri':'',onclick:()=>{dataTab=k;editId=null;render();}},t))),body[dataTab]()];};
+ return[h('h1',{},'Kelola data'),h('p',{class:'muted'},'Khusus Master Akun. Setiap perubahan tercatat di audit log.'),h('div',{class:'row'},tabs.map(([k,t])=>h('button',{class:dataTab===k?'pri':'',onclick:()=>{dataTab=k;editId=null;render();}},t))),body[dataTab]()];};
 
 let trackArg='';
 V.lacak=()=>{const out=h('div'),box=h('input',{id:'code',value:trackArg,style:'max-width:300px','aria-label':'Kode resi'});
@@ -213,8 +257,29 @@ const kpi=(t,v,s)=>card(h('div',{class:'small muted'},t),h('div',{class:'kpi'},v
 const live=()=>S.orders.filter(o=>o.status!=='ditolak');
 const sumOf=(list,fn)=>list.reduce((a,o)=>a+(fn(o)||0),0);
 const count=(...st)=>S.orders.filter(o=>st.includes(o.status)).length;
-V.dashboard=()=>{const open=S.orders.filter(o=>!['selesai','ditolak'].includes(o.status)),low=S.skus.filter(k=>k.min>0&&k.stock<=k.min),loss=S.loss.filter(l=>l.count).reduce((a,l)=>a+(l.value||0),0),sub=queueOf('subp').concat(queueOf('cal'));
- return[h('h1',{},'Dashboard SDP'),h('div',{class:'grid mt'},kpi('Menunggu cek file',count('cek'),'oleh Operator'),kpi('Menunggu revisi',count('revisi'),'CS minta file baru'),kpi('Antrian DTF',num(sumOf(queueOf('dtf'),meterOf))+' m',queueOf('dtf').length+' order'),kpi('Antrian Sublim',num(sumOf(sub,meterOf))+' m',sub.length+' order, print dan press'),kpi('Menunggu pelunasan',count('bayar'),'belum boleh diproses'),kpi('QC dan kemas',count('qc','packing'),'order'),kpi('Siap kirim',count('siap'),'order'),kpi('Nilai order berjalan',money(sumOf(open,o=>o.total)),'belum tentu sudah dibayar'),kpi('Loss sales',money(loss),'double input tidak dihitung'),kpi('SKU di bawah minimum',low.length,low.map(x=>x.code).join(', ')||'semua aman'))];};
+// Dashboard: periode menyaring menurut tanggal order diinput (dan tanggal loss sales).
+const PERIODS=[['all','Semua periode'],['1','Hari ini'],['7','7 hari terakhir'],['30','30 hari terakhir']];
+let period='all',dashSvc='all';
+function since(){if(period==='all')return 0;const off=S.calendar.offsetMin*60000,D=864e5;return Math.floor((Date.now()+off)/D)*D-off-(Number(period)-1)*D;}
+const stat=(ic,t,v,s)=>h('div',{class:'stat'},h('span',{class:'ico'},icon(ic)),h('div',{},h('div',{class:'st'},t),h('div',{class:'kpi'+(String(v).length>12?' xl':String(v).length>8?' l':'')},v),h('div',{class:'small muted'},s)));
+V.dashboard=()=>{const from=since(),orders=S.orders.filter(o=>o.created>=from),n=(...st)=>orders.filter(o=>st.includes(o.status)).length;
+ const open=orders.filter(o=>!['selesai','ditolak'].includes(o.status)),low=S.skus.filter(k=>k.min>0&&k.stock<=k.min),loss=S.loss.filter(l=>l.count&&l.at>=from).reduce((a,l)=>a+(l.value||0),0);
+ const queued=m=>queueOf(m).filter(o=>o.created>=from),dtf=queued('dtf'),sub=queued('subp').concat(queued('cal')),est=estimates();
+ const rows=dtf.concat(sub).filter(o=>dashSvc==='all'||o.service===dashSvc);
+ const flow=[['Cek file','Pengecekan kelengkapan dan kesiapan file.',n('cek')],['Produksi','Proses cetak DTF atau sublimasi.',n('antrian','produksi','curing')],['QC dan kemas','Pemeriksaan hasil cetak dan pengemasan.',n('qc','packing')],['Siap kirim','Order siap diserahkan ke pelanggan.',n('siap')]];
+ return[h('div',{class:'head'},h('div',{},h('h1',{},'Dashboard SDP'),h('p',{class:'muted'},'Ringkasan operasional DTF & Sublimasi')),
+   h('div',{class:'row'},sel('Periode order',PERIODS,{value:period,onchange:e=>{period=e.target.value;render();}}),allowed().includes('input')?h('a',{class:'btn pri big',href:'#input'},icon('plus'),'Input Order'):null)),
+  period==='all'?null:h('p',{class:'small muted'},'Angka mencakup order yang diinput dalam periode terpilih. SKU di bawah minimum selalu kondisi saat ini.'),
+  h('div',{class:'stats'},stat('file','Menunggu cek file',n('cek'),'Order menunggu pengecekan file.'),stat('refresh','Menunggu revisi',n('revisi'),'Order perlu revisi file atau desain.'),
+   stat('layers','Antrian DTF',num(sumOf(dtf,meterOf))+' m',dtf.length+' order di antrian produksi.'),stat('layers','Antrian Sublim',num(sumOf(sub,meterOf))+' m',sub.length+' order, print dan press.'),
+   stat('wallet','Menunggu pelunasan',n('bayar'),'Belum boleh diproses.'),stat('box','QC dan kemas',n('qc','packing'),'Order dalam proses QC dan pengemasan.'),
+   stat('truck','Siap kirim',n('siap'),'Order siap diserahkan.'),stat('coins','Nilai order berjalan',money(sumOf(open,o=>o.total)),'Belum tentu sudah dibayar.'),
+   stat('trend','Loss sales',money(loss),'Double input tidak dihitung.'),stat('alert','SKU di bawah minimum',low.length,low.map(x=>x.code).join(', ')||'Semua aman.')),
+  h('div',{class:'panels'},
+   card(h('h2',{},'Antrian Produksi'),h('div',{class:'tabs'},[['all','Semua'],['dtf','DTF'],['sub','Sublimasi']].map(([k,t])=>h('button',{'aria-pressed':String(dashSvc===k),onclick:()=>{dashSvc=k;render();}},t))),
+    rows.length?table([['No. Order',o=>o.id],['Pelanggan',o=>o.customer],['Layanan',o=>svcTag(o.service)],['Status',stTag],['Target',o=>est[o.id]?dt(est[o.id]):o.deadline?'Deadline '+o.deadline:'Belum diatur']],rows)
+     :h('div',{class:'state'},h('span',{class:'ico plain'},icon('layers')),h('h3',{},'Belum ada antrian produksi'),h('p',{class:'muted'},'Order yang siap diproses akan tampil di sini.'))),
+   card(h('h2',{},'Alur Operasional'),h('ol',{class:'flow'},flow.map(([t,d,c],i)=>h('li',{},h('span',{class:'no'},i+1),h('div',{},h('b',{},t),h('div',{class:'small muted'},d)),h('span',{class:'cnt'},c))))))];};
 V.laporan=()=>{const group=(title,keys,get)=>card(h('h2',{},title),table([[title,k=>k[1]],['Order',k=>live().filter(o=>get(o)===k[0]).length],['Meter',k=>num(sumOf(live().filter(o=>get(o)===k[0]),o=>o.meter))],['Nilai order',k=>money(sumOf(live().filter(o=>get(o)===k[0]),o=>o.total))],['Dibayar',k=>money(sumOf(live().filter(o=>get(o)===k[0]),paidOf))]],keys));
  return[h('h1',{},'Laporan'),h('p',{class:'muted'},'Mencakup semua order berjalan dan 300 order selesai atau ditolak terakhir. Nilai order, pembayaran, dan loss sales dipisah.'),group('Layanan',[['dtf','DTF'],['sub','Sublim']],o=>o.service),group('Jenis customer',[['retail','Retail'],['maklon','B2B Maklon']],o=>o.type),group('Sumber order',[['WhatsApp','WhatsApp'],['Datang langsung','Datang langsung'],['Toko','Toko']],o=>o.source)];};
 
@@ -294,36 +359,43 @@ V.atur=()=>{const keys=['priceDtf','priceSub120','priceSub160','priceSub180','no
  return[h('h1',{},'Pengaturan'),card(h('h2',{},'Harga per meter (Rp)'),h('div',{class:'f'},f('priceDtf','DTF maklon'),WIDTHS.map(([k,t])=>f(k,'Sublim, '+t.toLowerCase()))),h('h2',{class:'mt'},'Norma waktu (detik per meter)'),h('div',{class:'f'},f('normDtf','DTF'),f('normSubPrint','Print sublim'),f('normPress','Press')),
  h('div',{class:'mt'},h('button',{class:'pri',onclick:ev=>act(ev,()=>api('PUT','/api/admin/settings',Object.fromEntries(keys.map(k=>[k,inputs[k].value===''?null:Number(inputs[k].value)]))),'Pengaturan tersimpan. Harga baru berlaku untuk order baru.')},'Simpan')),h('p',{class:'small muted'},'Norma DTF 240 detik (4 menit) per meter berasal dari aplikasi DTF Manage Pro.'))];};
 
-V.masuk=()=>{const code=h('input',{id:'u',autocomplete:'username',autocapitalize:'characters'}),pass=h('input',{id:'p',type:'password',autocomplete:'current-password'}),err=h('p',{class:'small',role:'alert',style:'color:var(--bad)'});
- const form=h('form',{class:'f',onsubmit:async e=>{e.preventDefault();err.textContent='';try{await api('POST','/api/auth/login',{username:code.value,password:pass.value});me=null;await load();goto(me.must_change?'akun':home());render();}catch(x){err.textContent=x.message;}}},lab('Kode pengguna',code),lab('Password',pass),h('div',{},h('button',{class:'pri',type:'submit'},'Masuk')));
- return[h('h1',{},'Masuk SDP'),h('p',{class:'muted'},'Aplikasi internal departemen SDP: DTF dan Sublim.'),h('div',{class:'card login'},form,err)];};
+V.masuk=()=>{const code=h('input',{id:'u',autocomplete:'username',autocapitalize:'characters'}),pass=h('input',{id:'p',type:'password',autocomplete:'current-password'}),err=h('div',{class:'err',role:'alert'}),go=h('button',{class:'pri big',type:'submit'},'Masuk');
+ const form=h('form',{class:'f',onsubmit:async e=>{e.preventDefault();err.replaceChildren();go.disabled=true;go.classList.add('wait');
+  try{await api('POST','/api/auth/login',{username:code.value,password:pass.value});}
+  catch(x){go.disabled=false;go.classList.remove('wait');err.replaceChildren(h('p',{},x.message),x.network?h('button',{type:'button',onclick:()=>form.requestSubmit()},'Coba Lagi'):'');return;}
+  me=null;if(await connect())goto(me.must_change?'akun':home());}},lab('Kode pengguna',code),lab('Password',pass),h('div',{},go));
+ return[h('div',{class:'login'},h('div',{class:'card'},h('img',{class:'brand on-light',src:'/logo-light.png',alt:'SDP Print Hub',width:640,height:216}),h('img',{class:'brand on-dark',src:'/logo-dark.png',alt:'SDP Print Hub',width:640,height:216}),h('h1',{},'Masuk SDP'),h('p',{class:'muted'},'Aplikasi internal departemen SDP: DTF dan Sublim.'),form,err))];};
 
 V.akun=()=>{const old=h('input',{id:'old',type:'password',autocomplete:'current-password'}),n1=h('input',{id:'n1',type:'password',autocomplete:'new-password'}),n2=h('input',{id:'n2',type:'password',autocomplete:'new-password'});
- return[h('h1',{},'Akun saya'),card(h('p',{},me.code+' · '+me.name+' · '+ROLES[me.role]),me.must_change?h('p',{},h('span',{class:'tag warn'},'Password awal wajib diganti sebelum memakai aplikasi')):null),
- h('div',{class:'card login'},h('h2',{},'Ganti password'),h('div',{class:'f'},lab('Password sekarang',old),lab('Password baru (minimal 10 karakter, huruf dan angka)',n1),lab('Ulangi password baru',n2),h('div',{},h('button',{class:'pri',onclick:async()=>{if(n1.value!==n2.value)return toast('Ulangan password tidak sama.');try{await api('POST','/api/auth/change-password',{current_password:old.value,new_password:n1.value});me=null;S=null;await load();goto('masuk');toast('Password diganti. Silakan masuk dengan password baru.');}catch(e){toast(e.message);}}},'Simpan'))))];};
+ return[h('h1',{},'Akun saya'),card(h('p',{},me.code+' · '+nameOf(me)+' · '+ROLES[me.role]),me.must_change?h('p',{},h('span',{class:'tag warn'},'Password awal wajib diganti sebelum memakai aplikasi')):null),
+ h('div',{class:'card login'},h('h2',{},'Ganti password'),h('div',{class:'f'},lab('Password sekarang',old),lab('Password baru (minimal 10 karakter, huruf dan angka)',n1),lab('Ulangi password baru',n2),h('div',{},h('button',{class:'pri',onclick:async()=>{if(n1.value!==n2.value)return toast('Ulangan password tidak sama.');try{await api('POST','/api/auth/change-password',{current_password:old.value,new_password:n1.value});}catch(e){return oops(e);}me=null;S=null;setToken('');if(await connect()){goto('masuk');toast('Password diganti. Silakan masuk dengan password baru.');}}},'Simpan'))))];};
 
 V.pengguna=()=>{const code=h('input',{id:'nu-code'}),name=h('input',{id:'nu-name'}),r=sel('Peran',Object.entries(ROLES),{id:'nu-role'}),store=h('input',{id:'nu-store',placeholder:'khusus Store Head'}),pw=h('input',{id:'nu-pass',type:'password',autocomplete:'new-password'}),reset=h('input',{type:'password','aria-label':'Password reset',placeholder:'Password sementara untuk reset',autocomplete:'new-password',style:'max-width:280px'});r.value='cs';
  const patch=(u,body,msg)=>ev=>act(ev,()=>api('PATCH','/api/admin/users/'+u.id,body()),msg);
  return[h('h1',{},'Pengguna'),card(h('h2',{},'Tambah pengguna'),h('div',{class:'f'},lab('Kode pengguna',code),lab('Nama',name),lab('Peran',r),lab('Toko',store),lab('Password awal (min 10, huruf dan angka)',pw)),h('div',{class:'mt'},h('button',{class:'pri',onclick:ev=>act(ev,()=>api('POST','/api/admin/users',{code:code.value,name:name.value,role:r.value,store:store.value||undefined,password:pw.value}),'Akun dibuat. Password awal wajib diganti saat login pertama.')},'Buat akun'))),
- card(h('div',{class:'row'},reset),table([['Kode',u=>u.code],['Nama',u=>u.name],['Peran',u=>ROLES[u.role]+(u.store?' · '+u.store:'')],['Status',u=>h('span',{class:'tag '+(u.active?'ok':'bad')},u.active?'Aktif':'Nonaktif')],['Aksi',u=>u.code===me.code?h('span',{class:'muted small'},'Akun Anda'):h('div',{class:'row'},h('button',{onclick:patch(u,()=>({active:!u.active}),'Status akun diubah, sesi dicabut.')},u.active?'Nonaktifkan':'Aktifkan'),h('button',{onclick:patch(u,()=>({new_password:reset.value}),'Password direset, sesi dicabut.')},'Reset password'),h('button',{onclick:ev=>{const nama=prompt('Nama pengguna',u.name);if(nama)patch(u,()=>({name:nama}),'Nama diubah, sesi dicabut.')(ev);}},'Ubah nama'),sel('Peran '+u.code,Object.entries(ROLES),{style:'width:auto',value:u.role,onchange:ev=>patch(u,()=>({role:ev.target.value}),'Peran diubah, sesi dicabut.')(null)}),h('button',{class:'d',onclick:del('/api/manage/users/'+u.id,'Hapus akun '+u.code+'?','Akun dihapus.')},'Hapus'))]],S.users))];};
+ card(h('div',{class:'row'},reset),table([['Kode',u=>u.code],['Nama',nameOf],['Peran',u=>ROLES[u.role]+(u.store?' · '+u.store:'')],['Status',u=>h('span',{class:'tag '+(u.active?'ok':'bad')},u.active?'Aktif':'Nonaktif')],['Aksi',u=>u.code===me.code?h('span',{class:'muted small'},'Akun Anda'):h('div',{class:'row'},h('button',{onclick:patch(u,()=>({active:!u.active}),'Status akun diubah, sesi dicabut.')},u.active?'Nonaktifkan':'Aktifkan'),h('button',{onclick:patch(u,()=>({new_password:reset.value}),'Password direset, sesi dicabut.')},'Reset password'),h('button',{onclick:ev=>{const nama=prompt('Nama pengguna',nameOf(u));if(nama)patch(u,()=>({name:nama}),'Nama diubah, sesi dicabut.')(ev);}},'Ubah nama'),sel('Peran '+u.code,Object.entries(ROLES),{style:'width:auto',value:u.role,onchange:ev=>patch(u,()=>({role:ev.target.value}),'Peran diubah, sesi dicabut.')(null)}),h('button',{class:'d',onclick:del('/api/manage/users/'+u.id,'Hapus akun '+u.code+'?','Akun dihapus.')},'Hapus'))]],S.users))];};
 
-V.akses=()=>[h('h1',{},'Hak akses'),h('p',{class:'muted'},'Centang menu yang boleh dibuka tiap peran. Admin Sistem selalu memegang semua menu. Mencabut menu juga mencabut tindakannya. Membuka menu tidak memberi hak tindakan baru: pembayaran dicatat CS dan Store Head; cek file dan produksi oleh Operator dan SPV; QC oleh Operator, QC, atau SPV; persetujuan QC pagi oleh SPV.'),
+V.akses=()=>[h('h1',{},'Hak akses'),h('p',{class:'muted'},'Centang menu yang boleh dibuka tiap peran. Master Akun selalu memegang semua menu. Mencabut menu juga mencabut tindakannya. Membuka menu tidak memberi hak tindakan baru: pembayaran dicatat CS dan Store Head; cek file dan produksi oleh Operator dan SPV; QC oleh Operator, QC, atau SPV; persetujuan QC pagi oleh SPV.'),
  card(table([['Menu',k=>PAGES[k]],...STAFF_ROLES.map(r=>[ROLES[r],k=>h('input',{type:'checkbox','aria-label':PAGES[k]+' untuk '+ROLES[r],checked:S.access[r].includes(k),onchange:e=>{const on=e.target.checked,next=on?[...S.access[r],k]:S.access[r].filter(x=>x!==k);if(!next.length){e.target.checked=true;return toast('Setiap peran butuh minimal satu menu.');}act(null,()=>api('PUT','/api/admin/access',{role:r,pages:next}),'Hak akses '+ROLES[r]+' diperbarui.');}})])],GRANTABLE),h('div',{class:'mt'},h('button',{onclick:ev=>act(ev,()=>api('DELETE','/api/admin/access'),'Hak akses kembali ke bawaan.')},'Kembalikan bawaan')))];
 
+let shownPage='';
 function render(){
+ if(broken)return showFail();
  const parts=location.hash.slice(1).split('/'),ok=allowed();let p=parts[0];
  if(p==='lacak'&&parts[1])trackArg=parts[1];
  if(!ok.includes(p))p=home();
- const out=async()=>{try{await api('POST','/api/auth/logout',{});}catch(e){}me=null;S=null;await load();goto('masuk');toast('Anda sudah keluar.');};
- document.getElementById('who').replaceChildren(...(me?[h('b',{},me.name),h('span',{},me.code+' · '+ROLES[me.role]),h('div',{class:'row'},S?h('button',{onclick:ev=>act(ev,async()=>{},'Data dimuat ulang.')},'Muat ulang'):null,h('button',{onclick:out},'Keluar'))]:[h('span',{},'Belum masuk'),h('a',{class:'btn',href:'#masuk'},'Masuk')]));
- document.getElementById('menu').replaceChildren(...GROUPS.flatMap(([title,keys])=>{const ks=keys.filter(k=>ok.includes(k));return ks.length?[h('span',{class:'grp'},title),...ks.map(k=>h('a',{href:'#'+k,'aria-current':k===p?'page':null},PAGES[k]))]:[];}));
+ const out=async()=>{try{await api('POST','/api/auth/logout',{});}catch(e){}me=null;S=null;setToken('');if(await connect()){goto('masuk');toast('Anda sudah keluar.');}};
+ document.getElementById('who').replaceChildren(...(me?[h('div',{class:'id'},h('span',{class:'avatar'},icon('user')),h('div',{},h('b',{},nameOf(me)),h('span',{},ROLES[me.role]+' · '+me.code))),h('div',{class:'acts'},S?h('button',{onclick:ev=>act(ev,async()=>{},'Data dimuat ulang.')},icon('refresh'),'Muat ulang'):null,h('button',{onclick:out},icon('logout'),'Keluar'))]
+  :[h('div',{class:'id'},h('span',{class:'avatar'},icon('user')),h('div',{},h('b',{},'Belum masuk'))),h('div',{class:'acts'},h('a',{class:'btn',href:'#masuk'},icon('login'),'Masuk'))]));
+ document.getElementById('menu').replaceChildren(...GROUPS.flatMap(([title,keys])=>{const ks=keys.filter(k=>ok.includes(k));return ks.length?[h('span',{class:'grp'},title),...ks.map(k=>h('a',{href:'#'+k,'aria-current':k===p?'page':null},icon(PAGE_ICON[k]),PAGES[k]))]:[];}));
+ if(p!==shownPage){shownPage=p;const nav=document.getElementById('menu'),on=nav.querySelector('[aria-current]');if(on){const n=nav.getBoundingClientRect(),r=on.getBoundingClientRect();if(r.top<n.top||r.bottom>n.bottom)nav.scrollTop+=r.top-n.top-n.height/2;if(r.left<n.left||r.right>n.right)nav.scrollLeft+=r.left-n.left-12;}}
  try{document.getElementById('view').replaceChildren(...V[p]().flat(Infinity).filter(Boolean));}
  catch(e){console.error(e);document.getElementById('view').replaceChildren(card(h('p',{},'Halaman gagal ditampilkan: '+e.message)));}
 }
 addEventListener('hashchange',render);
 // Mode spreadsheet: file diambil lewat API (setelah cek hak akses), lalu disimpan sebagai unduhan.
 document.addEventListener('click',async e=>{const a=e.target.closest&&e.target.closest('a[href^="/api/files/"]');if(!SHEETS||!a)return;e.preventDefault();
- try{const f=await api('GET',a.getAttribute('href'));const bytes=Uint8Array.from(atob(f.data),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:f.content_type}));const link=h('a',{href:url,download:f.file_name});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(x){toast(x.message);}});
+ try{const f=await api('GET',a.getAttribute('href'));const bytes=Uint8Array.from(atob(f.data),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:f.content_type}));const link=h('a',{href:url,download:f.file_name});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(x){oops(x);}});
 // Penyegaran otomatis hanya di halaman pantauan, agar isian formulir tidak hilang.
-setInterval(()=>{if(S&&!document.hidden&&['#dashboard','#laporan','#toko'].includes(location.hash))load().then(render).catch(()=>{});},30000);
-load().then(render).catch(e=>{document.getElementById('view').replaceChildren(card(h('p',{},'Server tidak dapat dihubungi: '+e.message)));});
+setInterval(()=>{if(S&&!broken&&!document.hidden&&['#dashboard','#laporan','#toko'].includes(location.hash))load(true).then(render).catch(e=>netBar('Data belum diperbarui. '+e.message));},30000);
+connect();
