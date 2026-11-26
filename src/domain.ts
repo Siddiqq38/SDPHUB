@@ -86,6 +86,15 @@ export function filmCm(d: { w: number; l: number }, q: number): number {
   return best;
 }
 
+/** Deadline: tanggal, boleh diikuti jam (WITA). */
+export const DEADLINE_RE = /^\d{4}-\d{2}-\d{2}( ([01]\d|2[0-3]):[0-5]\d)?$/;
+// Resi untuk customer: 10 karakter acak tanpa I, L, O, U agar mudah dibaca dan diketik.
+const RESI_CHARS = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+export function newResi(): string {
+  const s = [...crypto.getRandomValues(new Uint8Array(10))].map((b) => RESI_CHARS[b & 31]).join('');
+  return `RS-${s.slice(0, 5)}-${s.slice(5)}`;
+}
+
 export class RuleError extends Error {}
 
 export type OrderInput = { service: 'dtfr' | 'dtfm' | 'sub'; qty?: Record<string, unknown>; meter?: unknown; width?: unknown };

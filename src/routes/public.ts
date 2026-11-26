@@ -11,10 +11,11 @@ publicRoutes.get('/info', async (c) => {
   return c.json({ settings: { priceDtf: s.priceDtf, priceSub120: s.priceSub120, priceSub160: s.priceSub160, priceSub180: s.priceSub180 } });
 });
 
-// Lacak order: resi acak 128 bit. Tanpa nama, nomor telepon, harga, atau catatan internal.
+// Lacak order dengan resi acak. Tanpa nama, nomor telepon, harga, atau catatan internal.
 publicRoutes.get('/track/:code', async (c) => {
-  const code = c.req.param('code');
-  if (!/^[A-Za-z0-9_-]{20,64}$/.test(code)) throw notFound('Resi tidak ditemukan');
+  const raw = c.req.param('code');
+  const code = /^rs-/i.test(raw) ? raw.toUpperCase() : raw; // resi lama (acak panjang) tetap berlaku
+  if (!/^([A-Za-z0-9_-]{20,64}|RS-[0-9A-Z]{5}-[0-9A-Z]{5})$/.test(code)) throw notFound('Resi tidak ditemukan');
   const o = await c.env.DB.prepare('SELECT id, service, items, status, stage, started_at, rework_m, meter FROM orders WHERE track_code = ?').bind(code).first<any>();
   if (!o) throw notFound('Resi tidak ditemukan');
   let estimate: number | null = null;

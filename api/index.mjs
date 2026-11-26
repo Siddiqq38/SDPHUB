@@ -8068,10 +8068,10 @@ var require_RealtimePostgresFilterBuilder = __commonJS({
     exports.postgresChangesFilter = exports.RealtimePostgresFilterBuilder = void 0;
     var PostgrestReservedCharsRegexp2 = /[,()"\\]/;
     var needsQuoting = (value) => PostgrestReservedCharsRegexp2.test(value) || value !== value.trim();
-    var quote = (value) => `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    var quote2 = (value) => `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
     var serializeScalar = (value) => {
       const serialized = value === null ? "null" : String(value);
-      return needsQuoting(serialized) ? quote(serialized) : serialized;
+      return needsQuoting(serialized) ? quote2(serialized) : serialized;
     };
     var serializeIsValue = (value) => value === null ? "null" : String(value);
     var serialize2 = (operator, value) => {
@@ -23390,27 +23390,27 @@ var require_postgres_array = __commonJS({
         }
       }
       parse(nested) {
-        var character, parser, quote;
+        var character, parser, quote2;
         this.consumeDimensions();
         while (!this.isEof()) {
           character = this.nextCharacter();
-          if (character.value === "{" && !quote) {
+          if (character.value === "{" && !quote2) {
             this.dimension++;
             if (this.dimension > 1) {
               parser = new _ArrayParser(this.source.substr(this.position - 1), this.transform);
               this.entries.push(parser.parse(true));
               this.position += parser.position - 2;
             }
-          } else if (character.value === "}" && !quote) {
+          } else if (character.value === "}" && !quote2) {
             this.dimension--;
             if (!this.dimension) {
               this.newEntry();
               if (nested) return this.entries;
             }
           } else if (character.value === '"' && !character.escaped) {
-            if (quote) this.newEntry(true);
-            quote = !quote;
-          } else if (character.value === "," && !quote) {
+            if (quote2) this.newEntry(true);
+            quote2 = !quote2;
+          } else if (character.value === "," && !quote2) {
             this.newEntry();
           } else {
             this.record(character.value);
@@ -23602,9 +23602,9 @@ var require_postgres_interval = __commonJS({
     var NUMBER = "([+-]?\\d+)";
     var YEAR = NUMBER + "\\s+years?";
     var MONTH = NUMBER + "\\s+mons?";
-    var DAY2 = NUMBER + "\\s+days?";
+    var DAY3 = NUMBER + "\\s+days?";
     var TIME = "([+-])?([\\d]*):(\\d\\d):(\\d\\d)\\.?(\\d{1,6})?";
-    var INTERVAL = new RegExp([YEAR, MONTH, DAY2, TIME].map(function(regexString) {
+    var INTERVAL = new RegExp([YEAR, MONTH, DAY3, TIME].map(function(regexString) {
       return "(" + regexString + ")?";
     }).join("\\s*"));
     var positions = {
@@ -32009,6 +32009,12 @@ function filmCm(d, q) {
   }
   return best;
 }
+var DEADLINE_RE = /^\d{4}-\d{2}-\d{2}( ([01]\d|2[0-3]):[0-5]\d)?$/;
+var RESI_CHARS = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+function newResi() {
+  const s = [...crypto.getRandomValues(new Uint8Array(10))].map((b) => RESI_CHARS[b & 31]).join("");
+  return `RS-${s.slice(0, 5)}-${s.slice(5)}`;
+}
 var RuleError = class extends Error {
 };
 function buildItems(input, settings) {
@@ -32056,6 +32062,7 @@ function parseBlocks(s) {
   });
 }
 var MIN = 6e4;
+var DAY_MS = 24 * 60 * MIN;
 var DAY = 24 * 60 * MIN;
 function local(ms, cfg) {
   const shifted = ms + cfg.offsetMin * MIN;
@@ -32066,6 +32073,25 @@ function local(ms, cfg) {
 }
 function fromLocal(dayIndex, minOfDay, cfg) {
   return dayIndex * DAY + minOfDay * MIN - cfg.offsetMin * MIN;
+}
+function blocksOf(dayIndex, weekday, cfg) {
+  return cfg.days?.[dayIndex] ?? (cfg.closedWeekdays.includes(weekday) ? [] : cfg.blocks);
+}
+function withOvertime(cfg, overtime) {
+  const days2 = {};
+  const min = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+  for (const o of overtime) {
+    const index = Date.parse(o.day + "T00:00:00Z") / DAY_MS;
+    const base = days2[index] ?? blocksOf(index, (index + 4) % 7, cfg);
+    const merged = [];
+    for (const [a, b] of [...base, [min(o.start), min(o.end)]].sort((x, y) => x[0] - y[0])) {
+      const tail = merged[merged.length - 1];
+      if (tail && a <= tail[1]) tail[1] = Math.max(tail[1], b);
+      else merged.push([a, b]);
+    }
+    days2[index] = merged;
+  }
+  return { ...cfg, days: days2 };
 }
 function localDay(ms, cfg = DEFAULT_CALENDAR) {
   const { dayIndex } = local(ms, cfg);
@@ -32078,8 +32104,8 @@ function addWorkSeconds(startMs, workSeconds, cfg = DEFAULT_CALENDAR) {
   let cursorMs = startMs;
   let guard = 0;
   while (guard++ < 3650) {
-    if (!cfg.closedWeekdays.includes(weekday)) {
-      for (const [a, b] of cfg.blocks) {
+    {
+      for (const [a, b] of blocksOf(dayIndex, weekday, cfg)) {
         const from = Math.max(minOfDay, a);
         if (from >= b) continue;
         const blockStart = fromLocal(dayIndex, from, cfg);
@@ -32098,6 +32124,20 @@ function addWorkSeconds(startMs, workSeconds, cfg = DEFAULT_CALENDAR) {
   }
   void cursorMs;
   throw new Error("kalender kerja tidak menghasilkan slot");
+}
+function effectiveSeconds(startMs, endMs, cfg = DEFAULT_CALENDAR) {
+  if (endMs <= startMs) return 0;
+  let total = 0;
+  let { dayIndex, weekday } = local(startMs, cfg);
+  const last = local(endMs, cfg).dayIndex;
+  for (let d = dayIndex; d <= last; d++, weekday = (weekday + 1) % 7) {
+    for (const [a, b] of blocksOf(d, weekday, cfg)) {
+      const s = Math.max(fromLocal(d, a, cfg), startMs);
+      const e = Math.min(fromLocal(d, b, cfg), endMs);
+      if (e > s) total += e - s;
+    }
+  }
+  return Math.round(total / 1e3);
 }
 
 // src/core.ts
@@ -32169,15 +32209,28 @@ async function loadSettings(db) {
 }
 function numericSettings(s) {
   const keys = ["priceDtf", "priceSub120", "priceSub160", "priceSub180", "normDtf", "normSubPrint", "normPress"];
-  return Object.fromEntries(keys.map((k) => [k, s[k] ? Number(s[k]) : null]));
+  return {
+    ...Object.fromEntries(keys.map((k) => [k, s[k] ? Number(s[k]) : null])),
+    ...Object.fromEntries(Object.entries(PLAN_DEFAULT).map(([k, d]) => [k, s[k] ? Number(s[k]) : d]))
+  };
+}
+var PLAN_DEFAULT = { capPct: 90, holdMin: 120, finDtf: 30, finSub: 60 };
+var WORK_BLOCKS_DEFAULT = "09:00-12:00,13:00-21:30";
+function overtimeOf(s) {
+  try {
+    const list = JSON.parse(s.overtime || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
 }
 function calendarOf(s) {
   try {
-    return {
+    return withOvertime({
       offsetMin: s.tz_offset_min ? Number(s.tz_offset_min) : DEFAULT_CALENDAR.offsetMin,
-      blocks: s.prod_blocks ? parseBlocks(s.prod_blocks) : DEFAULT_CALENDAR.blocks,
+      blocks: parseBlocks(s.work_blocks || WORK_BLOCKS_DEFAULT),
       closedWeekdays: s.closed_weekdays !== void 0 ? s.closed_weekdays.split(",").filter((x) => x !== "").map(Number) : DEFAULT_CALENDAR.closedWeekdays
-    };
+    }, overtimeOf(s));
   } catch {
     return DEFAULT_CALENDAR;
   }
@@ -32318,6 +32371,180 @@ bootstrapRoutes.post("/", async (c) => {
   return c.json({ ok: true });
 });
 
+// src/lib/capacity.ts
+var MACHINE_LIST = ["dtf", "subp", "cal"];
+var DAY2 = 864e5;
+var CONFIRMED = ["antrian", "produksi", "curing"];
+var PENDING = ["cek", "revisi", "bayar"];
+var chainOf = (service, stage) => service === "dtf" ? ["dtf"] : stage === "cal" ? ["cal"] : ["subp", "cal"];
+function plan(jobs, now2, cfg) {
+  const confirmed = jobs.filter((j) => CONFIRMED.includes(j.status)).sort((a, b) => Number(b.status !== "antrian") - Number(a.status !== "antrian") || b.priority - a.priority || (a.approved_at ?? 0) - (b.approved_at ?? 0) || a.id - b.id);
+  const pending = jobs.filter((j) => PENDING.includes(j.status) && (j.paid || now2 - j.created_at < cfg.holdMin * 6e4)).sort((a, b) => a.created_at - b.created_at || a.id - b.id);
+  const cursor = { dtf: now2, subp: now2, cal: now2 };
+  const slots = [];
+  const last = /* @__PURE__ */ new Map();
+  for (const j of [...confirmed, ...pending]) {
+    const meter = j.rework_m ?? j.meter;
+    let previous = now2;
+    for (const m of chainOf(j.service, j.stage)) {
+      const norm2 = cfg.norms[m];
+      if (!norm2) continue;
+      const running = (j.status === "produksi" || j.status === "curing") && m === j.stage;
+      const start = running ? j.started_at : addWorkSeconds(Math.max(cursor[m], previous), 0, cfg.cal);
+      const end = running ? Math.max(now2, addWorkSeconds(start, meter * norm2, cfg.cal)) : addWorkSeconds(start, meter * norm2 * 100 / cfg.pct, cfg.cal);
+      cursor[m] = Math.max(cursor[m], end);
+      previous = end;
+      slots.push({ id: j.id, order_no: j.order_no, machine: m, start, end, meter, hold: !j.paid && PENDING.includes(j.status) });
+    }
+    last.set(j.id, previous);
+  }
+  return { slots, cursor, last };
+}
+function readyFor(jobs, now2, cfg, service, meter) {
+  const stages = chainOf(service, service === "dtf" ? "dtf" : "subp").filter((m) => cfg.norms[m]);
+  if (!stages.length) return null;
+  const probe = { id: -1, order_no: "", service, status: "cek", stage: service === "dtf" ? "dtf" : "subp", meter, rework_m: null, priority: 0, approved_at: null, started_at: null, created_at: now2, finished_at: null, paid: true };
+  const printed = plan([...jobs, probe], now2, cfg).last.get(-1);
+  return addWorkSeconds(printed, (service === "dtf" ? cfg.finDtf : cfg.finSub) * 60, cfg.cal);
+}
+var dayStart = (day, cal) => Date.parse(day + "T00:00:00Z") - cal.offsetMin * 6e4;
+function slaDue(now2, cal) {
+  const today = dayStart(localDay(now2, cal), cal);
+  let from = now2 - today < 12 * 36e5 ? today : today + DAY2;
+  for (let i = 0; i < 60; i++, from += DAY2) if (effectiveSeconds(from, from + DAY2, cal)) return closing(from, cal);
+  return from;
+}
+function closing(start, cal) {
+  const index = Math.floor((start + cal.offsetMin * 6e4) / DAY2);
+  const blocks = cal.days?.[index] ?? cal.blocks;
+  return start + Math.max(...blocks.map((b) => b[1])) * 6e4;
+}
+function days(jobs, now2, cfg, count = 7) {
+  const { slots } = plan(jobs, now2, cfg);
+  const out = [];
+  const round = (n) => Math.round(n * 10) / 10;
+  for (const m of MACHINE_LIST) {
+    const norm2 = cfg.norms[m];
+    if (!norm2) continue;
+    const perMeter = norm2 * 100 / cfg.pct;
+    let start = dayStart(localDay(now2, cfg.cal), cfg.cal);
+    for (let n = 0, guard = 0; n < count && guard < 60; guard++, start += DAY2) {
+      const seconds = effectiveSeconds(start, start + DAY2, cfg.cal);
+      if (!seconds) continue;
+      n++;
+      const capacity = seconds / perMeter;
+      const booked = slots.filter((s) => s.machine === m).reduce((a, s) => a + effectiveSeconds(Math.max(s.start, start), Math.min(s.end, start + DAY2), cfg.cal), 0) / perMeter;
+      const isToday = start <= now2;
+      const done = isToday ? jobs.filter((j) => m !== "subp" && (j.finished_at ?? 0) >= start && (j.service === "dtf" ? m === "dtf" : m === "cal")).reduce((a, j) => a + j.meter, 0) : 0;
+      let free = capacity - booked - done;
+      if (isToday) free = Math.min(free, effectiveSeconds(now2, start + DAY2, cfg.cal) / perMeter - booked);
+      out.push({ day: localDay(start + 1, cfg.cal), machine: m, capacity: round(capacity), booked: round(booked), done: round(done), free: round(Math.max(0, free)) });
+    }
+  }
+  return out;
+}
+function suggestDeadline(ready, cal) {
+  const step2 = 30 * 6e4;
+  const t = Math.ceil((ready + 15 * 6e4) / step2) * step2 + cal.offsetMin * 6e4;
+  return new Date(t).toISOString().slice(0, 16).replace("T", " ");
+}
+var deadlineTime = (d, cal) => Date.parse(`${d.slice(0, 10)}T${d.slice(11) || "23:59"}:00Z`) - cal.offsetMin * 6e4;
+var showTime = (ms, cal) => {
+  const s = new Date(ms + cal.offsetMin * 6e4).toISOString();
+  return `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16).replace(":", ".")}`;
+};
+
+// src/routes/capacity.ts
+function planConfig(raw2) {
+  const s = numericSettings(raw2);
+  return {
+    cal: calendarOf(raw2),
+    norms: { dtf: s.normDtf ?? null, subp: s.normSubPrint ?? null, cal: s.normPress ?? null },
+    pct: s.capPct,
+    holdMin: s.holdMin,
+    finDtf: s.finDtf,
+    finSub: s.finSub
+  };
+}
+async function activeJobs(db) {
+  const rows = await db.prepare(
+    `SELECT o.id, o.order_no, o.service, o.status, o.stage, o.meter, o.rework_m, o.priority, o.approved_at, o.started_at, o.created_at, o.finished_at, o.total,
+       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.order_id = o.id) AS paid_sum
+     FROM orders o WHERE o.status IN ('cek','revisi','bayar','antrian','produksi','curing') OR o.finished_at >= ? ORDER BY o.id`
+  ).bind(now() - 864e5).all();
+  return rows.results.map((r) => ({ ...r, paid: Number(r.paid_sum) >= r.total }));
+}
+async function evaluate(db, raw2, service, meter, deadline) {
+  const cfg = planConfig(raw2);
+  const t = now();
+  const ready = readyFor(await activeJobs(db), t, cfg, service, meter);
+  const target = deadline ? deadlineTime(deadline, cfg.cal) : slaDue(t, cfg.cal);
+  const fits = ready === null || ready <= target;
+  return {
+    ready,
+    target,
+    fits,
+    byDeadline: !!deadline,
+    suggest: ready === null ? null : suggestDeadline(ready, cfg.cal),
+    message: fits ? "" : `Kapasitas tidak cukup untuk ${deadline ? "deadline" : "SLA standar"} ${showTime(target, cfg.cal)}. Paling cepat selesai ${showTime(ready, cfg.cal)}.`
+  };
+}
+async function quote(db, b) {
+  const service = oneOf(b, "service", ["dtfr", "dtfm", "sub"]);
+  const deadline = optStr(b, "deadline", 16);
+  if (deadline && !DEADLINE_RE.test(deadline)) throw bad("Format deadline tidak valid");
+  const raw2 = await loadSettings(db);
+  const items = rule(() => buildItems({ service, qty: b.qty, meter: b.meter, width: b.width }, numericSettings(raw2)));
+  const meter = meterOf(items);
+  return { raw: raw2, meter, total: totalOf(items), deadline, result: await evaluate(db, raw2, service === "sub" ? "sub" : "dtf", meter, deadline), service };
+}
+var capacityRoutes = new Hono3();
+capacityRoutes.use("*", authn);
+capacityRoutes.post("/check", async (c) => {
+  await allow(c, ["cs", "store"], "input");
+  const q = await quote(c.env.DB, await readJson(c));
+  return c.json({ meter: q.meter, total: q.total, ...q.result });
+});
+capacityRoutes.post("/loss", async (c) => {
+  await allow(c, ["cs", "store"], "input");
+  const b = await readJson(c);
+  const name = reqStr(b, "name", 150);
+  const u = c.get("user");
+  await c.env.DB.tx(async (db) => {
+    const q = await quote(db, b);
+    if (q.result.fits) throw bad("Kapasitas masih tersedia; loss sales kapasitas hanya dicatat bila penuh");
+    const cal = calendarOf(q.raw);
+    const reason = `Kapasitas penuh: ${name}, ${q.meter} m, target ${showTime(q.result.target, cal)}, tersedia ${showTime(q.result.ready, cal)}`;
+    await db.prepare("INSERT INTO logs (order_no, type, reason, value, counted, by_user, at) VALUES ('-', 'Loss Sales', ?, ?, 1, ?, ?)").bind(reason, q.total, u.code, now()).run();
+    await audit(db, u.id, "capacity_loss", "log", void 0, { meter: q.meter, total: q.total });
+  });
+  return c.json({ ok: true }, 201);
+});
+capacityRoutes.post("/overtime", async (c) => {
+  await allow(c, ["spv"], "produksi");
+  const b = await readJson(c);
+  const day = reqStr(b, "day", 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day + "T00:00:00Z"))) throw bad("Tanggal tidak valid");
+  const u = c.get("user");
+  await c.env.DB.tx(async (db) => {
+    const raw2 = await loadSettings(db);
+    const today = localDay(now(), calendarOf(raw2));
+    let list = overtimeOf(raw2).filter((o) => o.day >= today);
+    if (b.remove === true) list = list.filter((o) => o.day !== day);
+    else {
+      const start = reqStr(b, "start", 5), end = reqStr(b, "end", 5), reason = reqStr(b, "reason", 200);
+      const time = /^([01]\d|2[0-3]):[0-5]\d$/;
+      if (!time.test(start) || !time.test(end) || start >= end) throw bad("Jam lembur tidak valid");
+      if (day < today) throw bad("Tanggal lembur sudah lewat");
+      list.push({ day, start, end, reason, by: u.code });
+      if (list.length > 60) throw bad("Terlalu banyak jadwal lembur");
+    }
+    await db.prepare("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").bind("overtime", JSON.stringify(list)).run();
+    await audit(db, u.id, b.remove === true ? "overtime_removed" : "overtime_added", "settings", day, b);
+  });
+  return c.json({ ok: true });
+});
+
 // src/routes/orders.ts
 var orderRoutes = new Hono3();
 orderRoutes.use("*", authn);
@@ -32333,11 +32560,6 @@ async function withOrder(c, id, fn) {
   });
 }
 var paidOf = async (db, orderId) => (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE order_id = ?").bind(orderId).first()).s;
-async function customerActive(db, o) {
-  if (!o.customer_id) return true;
-  const c = await db.prepare("SELECT status FROM customers WHERE id = ?").bind(o.customer_id).first();
-  return c?.status === "aktif";
-}
 async function release(db, orderId) {
   const o = await db.prepare("SELECT status, total FROM orders WHERE id = ?").bind(orderId).first();
   if (o.status !== "bayar" || await paidOf(db, orderId) < o.total) return false;
@@ -32359,8 +32581,8 @@ orderRoutes.post("/", async (c) => {
   const source = u.role === "store" ? "Toko" : oneOf(b, "source", ["WhatsApp", "Datang langsung", "Toko"]);
   const fileRef = reqStr(b, "file_ref", 300);
   const fileKey = optStr(b, "file_key", 200);
-  const deadline = optStr(b, "deadline", 10);
-  if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) throw bad("Format deadline tidak valid");
+  const deadline = optStr(b, "deadline", 16);
+  if (deadline && !DEADLINE_RE.test(deadline)) throw bad("Format deadline tidak valid");
   const method = b.paid_method == null ? null : oneOf(b, "paid_method", METHODS2);
   const result = await c.env.DB.tx(async (db) => {
     const dup = await db.prepare("SELECT id, order_no, track_code FROM orders WHERE request_key = ?").bind(requestKey).first();
@@ -32369,13 +32591,15 @@ orderRoutes.post("/", async (c) => {
     const settings = numericSettings(await loadSettings(db));
     const items = rule(() => buildItems({ service, qty: b.qty, meter: b.meter, width: b.width }, settings));
     const total = totalOf(items);
+    const capacity = await evaluate(db, await loadSettings(db), service === "sub" ? "sub" : "dtf", meterOf(items), deadline);
+    if (!capacity.fits) throw conflict(capacity.message);
     let customerId = null;
     let name;
     let wa;
     if (type === "maklon") {
       if (b.customer_code) {
         const cu = await db.prepare("SELECT * FROM customers WHERE code = ?").bind(reqStr(b, "customer_code", 40)).first();
-        if (!cu || cu.status === "ditolak") throw bad("Pelanggan tidak ditemukan atau ditolak CRM");
+        if (!cu || cu.status === "ditolak") throw bad("Pelanggan tidak ditemukan atau dinonaktifkan");
         customerId = cu.id;
         name = cu.name;
         wa = cu.wa;
@@ -32384,7 +32608,7 @@ orderRoutes.post("/", async (c) => {
         wa = reqStr(b, "wa", 40);
         const n = await db.prepare("SELECT COUNT(*) n FROM customers WHERE code LIKE 'BR-%'").first();
         const code = `BR-${String(n.n + 1).padStart(4, "0")}`;
-        const r2 = await db.prepare("INSERT INTO customers (code, name, wa, source, status, created_at) VALUES (?,?,?, 'Customer baru', 'menunggu', ?)").bind(code, name, wa, now()).run();
+        const r2 = await db.prepare("INSERT INTO customers (code, name, wa, source, status, created_at) VALUES (?,?,?, 'Customer baru', 'aktif', ?)").bind(code, name, wa, now()).run();
         customerId = r2.meta.last_row_id;
       }
     } else {
@@ -32393,7 +32617,7 @@ orderRoutes.post("/", async (c) => {
     }
     const t = now();
     const svc = service === "sub" ? "sub" : "dtf";
-    const track = randomToken(16);
+    const track = newResi();
     const r = await db.prepare(
       `INSERT INTO orders (order_no, track_code, type, service, customer_id, customer_name, wa, source, store, items, meter, total, file_ref, file_key,
          deadline, note, status, stage, created_by, created_at, request_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'cek', ?,?,?,?)`
@@ -32437,7 +32661,6 @@ orderRoutes.post("/:id/file-check", async (c) => {
   const issue = ok ? null : reqStr(b, "issue", 500);
   return c.json(await withOrder(c, intParam(c, "id"), async (db, o) => {
     if (o.status !== "cek") throw conflict("Order tidak sedang menunggu cek file");
-    if (!await customerActive(db, o)) throw conflict("Customer belum diverifikasi CRM");
     await db.prepare("UPDATE orders SET status = ?, issue = ? WHERE id = ?").bind(ok ? "bayar" : "revisi", issue, o.id).run();
     const released = ok ? await release(db, o.id) : false;
     await audit(db, c.get("user").id, ok ? "file_ok" : "file_rejected", "order", o.id);
@@ -32669,15 +32892,6 @@ opsRoutes.post("/customers/import", async (c) => {
   });
   return c.json({ ok: true, added, skipped: rows.length - added }, 201);
 });
-opsRoutes.post("/customers/:id/decide", async (c) => {
-  await allow(c, ["crm"], "pelanggan");
-  const b = await readJson(c);
-  const status = oneOf(b, "status", ["aktif", "ditolak"]);
-  const r = await c.env.DB.prepare("UPDATE customers SET status = ?, verified_by = ?, verified_at = ? WHERE id = ? AND status = 'menunggu'").bind(status, c.get("user").code, now(), intParam(c, "id")).run();
-  if (!r.meta.changes) throw conflict("Customer tidak sedang menunggu verifikasi");
-  await audit(c.env.DB, c.get("user").id, "customer_" + status, "customer", c.req.param("id"));
-  return c.json({ ok: true });
-});
 opsRoutes.post("/stock/move", async (c) => {
   await allow(c, ["gudang", "op", "spv"], "stok");
   const b = await readJson(c);
@@ -32775,14 +32989,26 @@ opsRoutes.delete("/admin/access", async (c) => {
   await c.env.DB.prepare("DELETE FROM role_access").run();
   return c.json({ ok: true });
 });
-var SETTING_KEYS = ["priceDtf", "priceSub120", "priceSub160", "priceSub180", "normDtf", "normSubPrint", "normPress"];
+var validBlocks = (v) => {
+  let previous = "";
+  return v.split(",").every((block) => {
+    const m = /^(([01]\d|2[0-3]):[0-5]\d)-(([01]\d|2[0-3]):[0-5]\d)$/.exec(block.trim());
+    if (!m || m[1] >= m[3] || m[1] < previous) return false;
+    previous = m[3];
+    return true;
+  });
+};
+var SETTING_KEYS = ["priceDtf", "priceSub120", "priceSub160", "priceSub180", "normDtf", "normSubPrint", "normPress", "capPct", "holdMin", "finDtf", "finSub", "work_blocks"];
 opsRoutes.put("/admin/settings", async (c) => {
   await allow(c, []);
   const b = await readJson(c);
   const stmts = [];
   for (const [k, v] of Object.entries(b)) {
     if (!SETTING_KEYS.includes(k)) throw bad(`Pengaturan "${k}" tidak dikenal`);
-    if (v !== null && !(typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1e9)) throw bad(`Nilai "${k}" harus angka lebih dari 0, atau kosong`);
+    if (k === "work_blocks") {
+      if (typeof v !== "string" || !validBlocks(v)) throw bad("Jam produksi ditulis seperti 09:00-12:00,13:00-21:30");
+    } else if (k === "capPct" && v !== null && v > 100) throw bad("Persen kapasitas maksimal 100");
+    if (k !== "work_blocks" && v !== null && !(typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1e9)) throw bad(`Nilai "${k}" harus angka lebih dari 0, atau kosong`);
     if (k === "priceDtf" && v === null) throw bad("Harga DTF tidak boleh kosong");
     if (k.startsWith("price") && v !== null && !Number.isInteger(v)) throw bad("Harga rupiah harus bilangan bulat");
     stmts.push(c.env.DB.prepare("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").bind(k, v === null ? "" : String(v)));
@@ -32804,6 +33030,8 @@ stateRoutes.get("/", async (c) => {
   const has = (...p) => p.some((x) => pages.includes(x));
   const raw2 = await loadSettings(db);
   const out = {
+    api: 3,
+    // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
     today: localDay(now(), calendarOf(raw2)),
@@ -32862,6 +33090,16 @@ stateRoutes.get("/", async (c) => {
       pay: byOrder.get(o.id) ?? []
     }));
   }
+  if (has("input", "dashboard", "produksi")) {
+    const cfg = planConfig(raw2), jobs = await activeJobs(db), t = now();
+    out.capacity = {
+      days: days(jobs, t, cfg),
+      slots: plan(jobs, t, cfg).slots,
+      slaDue: slaDue(t, cfg.cal),
+      overtime: overtimeOf(raw2).filter((o) => o.day >= out.today)
+    };
+  }
+  out.workBlocks = raw2.work_blocks || WORK_BLOCKS_DEFAULT;
   if (has("input", "pelanggan", "cs", "cekfile")) {
     out.customers = (await db.prepare("SELECT id, code, name, wa, source, status FROM customers ORDER BY name LIMIT 5000").all()).results;
   }
@@ -32901,6 +33139,11 @@ stateRoutes.get("/", async (c) => {
 });
 
 // src/routes/manage.ts
+var deadlineOf = (b) => {
+  const d = optStr(b, "deadline", 16);
+  if (d && !DEADLINE_RE.test(d)) throw bad("Format deadline tidak valid");
+  return d;
+};
 var manageRoutes = new Hono3();
 manageRoutes.use("*", authn, async (c, next) => {
   await allow(c, []);
@@ -32935,7 +33178,7 @@ manageRoutes.patch("/orders/:id", async (c) => {
       b.wa === void 0 ? o.wa : reqStr(b, "wa", 40),
       b.file_ref === void 0 ? o.file_ref : reqStr(b, "file_ref", 300),
       b.note === void 0 ? o.note : optStr(b, "note", 500),
-      b.deadline === void 0 ? o.deadline : optStr(b, "deadline", 10),
+      b.deadline === void 0 ? o.deadline : deadlineOf(b),
       status,
       stage,
       ["antrian", "produksi", "curing"].includes(status) ? t : null,
@@ -33103,8 +33346,9 @@ publicRoutes.get("/info", async (c) => {
   return c.json({ settings: { priceDtf: s.priceDtf, priceSub120: s.priceSub120, priceSub160: s.priceSub160, priceSub180: s.priceSub180 } });
 });
 publicRoutes.get("/track/:code", async (c) => {
-  const code = c.req.param("code");
-  if (!/^[A-Za-z0-9_-]{20,64}$/.test(code)) throw notFound("Resi tidak ditemukan");
+  const raw2 = c.req.param("code");
+  const code = /^rs-/i.test(raw2) ? raw2.toUpperCase() : raw2;
+  if (!/^([A-Za-z0-9_-]{20,64}|RS-[0-9A-Z]{5}-[0-9A-Z]{5})$/.test(code)) throw notFound("Resi tidak ditemukan");
   const o = await c.env.DB.prepare("SELECT id, service, items, status, stage, started_at, rework_m, meter FROM orders WHERE track_code = ?").bind(code).first();
   if (!o) throw notFound("Resi tidak ditemukan");
   let estimate = null;
@@ -33157,6 +33401,7 @@ function createApp(getEnv) {
   app2.route("/api/bootstrap", bootstrapRoutes);
   app2.route("/api/state", stateRoutes);
   app2.route("/api/orders", orderRoutes);
+  app2.route("/api/capacity", capacityRoutes);
   app2.route("/api/files", fileRoutes);
   app2.route("/api/manage", manageRoutes);
   app2.route("/api", opsRoutes);

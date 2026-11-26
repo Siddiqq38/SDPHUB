@@ -9,7 +9,7 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 | SPV SDP | Menyetujui atau menahan QC pagi, prioritas antrian, dapat menjalankan produksi dan QC |
 | CS | Input order, Meja CS (revisi file, tagihan, tolak = loss sales), catat pembayaran, serah terima |
 | Store Head | Input order toko, catat pembayaran order sendiri, pantau Order Toko Saya |
-| CRM | Verifikasi customer B2B baru, impor pelanggan Tigalapan Kaos |
+| CRM | Impor dan memantau daftar pelanggan B2B (tanpa verifikasi order) |
 | Operator | Cek file, QC pagi, produksi, QC hasil, kemas, mutasi stok |
 | QC | QC pagi, QC hasil, kemas |
 | Gudang | Stok, minimum dan pemakaian per meter, serah terima |
@@ -21,7 +21,16 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 3. Gudang: isi stok awal hasil stock opname (Catat mutasi: Stok masuk), lalu pemakaian per meter setelah diukur.
 4. Setiap pagi: Operator mengisi QC pagi tiap mesin, SPV menyetujui.
 
+## Kapasitas produksi
+
+- CS dan Store Head: di **Input Order**, isi ukuran dan deadline lalu tekan **Cek kapasitas**. Bila penuh, tawarkan jadwal yang disarankan; bila customer menolak, tekan **catat Loss Sales**.
+- Server menolak order yang tidak muat sebelum deadline. Tanpa deadline dipakai SLA standar: lunas sebelum 12.00 selesai hari itu, selebihnya hari kerja berikutnya.
+- Order belum lunas menahan slot selama 2 jam, lalu slot dilepas.
+- SPV: tambah **Lembur** di Antrian Produksi bila kapasitas perlu ditambah.
+- Kapasitas = jam efektif (09.00-12.00, 13.00-21.30) dibagi norma waktu, dijual 90%. Finishing masih estimasi (DTF 30 menit, sublim 60 menit). Semua angka dapat diubah di Pengaturan.
+
 ## Kelola Data (hanya Master Akun)
+
 Untuk masa simulasi: ubah atau hapus order, pembayaran, pelanggan, laporan QC pagi, catatan loss, dan angka stok. Akun dapat diubah atau dihapus di menu **Pengguna**.
 
 Sebelum dipakai sungguhan, buka **Kelola Data > Bersihkan data**, ketik `HAPUS SEMUA`. Akun, harga, hak akses, dan daftar SKU tetap. Setiap tindakan tercatat di audit log.

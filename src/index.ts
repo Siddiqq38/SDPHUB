@@ -7,6 +7,7 @@ import { stateRoutes } from './routes/state.ts';
 import { manageRoutes } from './routes/manage.ts';
 import { fileRoutes } from './routes/files.ts';
 import { publicRoutes } from './routes/public.ts';
+import { capacityRoutes } from './routes/capacity.ts';
 
 /** Aplikasi dibuat dengan penyedia lingkungan (DB, storage, secret) agar sama untuk Vercel, server dev, dan uji. */
 export function createApp(getEnv: () => Promise<Env>) {
@@ -30,6 +31,7 @@ app.route('/api/auth', authRoutes);
 app.route('/api/bootstrap', bootstrapRoutes);
 app.route('/api/state', stateRoutes);
 app.route('/api/orders', orderRoutes);
+app.route('/api/capacity', capacityRoutes);
 app.route('/api/files', fileRoutes);
 app.route('/api/manage', manageRoutes);
 app.route('/api', opsRoutes);

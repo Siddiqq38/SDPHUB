@@ -6,6 +6,8 @@ import { PGlite } from '@electric-sql/pglite';
 import { citext } from '@electric-sql/pglite/contrib/citext';
 import { verifyPassword } from '../src/lib/auth.ts';
 import { loadGas } from './gas-harness.mjs';
+import { calendarOf } from '../src/core.ts';
+import { days, plan, readyFor, slaDue } from '../src/lib/capacity.ts';
 import { MORNING, RETAIL, ACCESS_DEFAULT, GRANTABLE, ROLES, FILE_CHECKS, QC_CHECKS } from '../src/domain.ts';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8788';
@@ -41,4 +43,20 @@ for (const [m, steps] of Object.entries(MORNING)) {
   assert.deepEqual(plain(g.MORNING[m]), [steps.flatMap((s) => s.checks).length, steps.filter((s) => s.photo).map((s) => s.photo)]);
 }
 console.log('  ok   aturan Code.gs sama dengan server');
+
+// Jadwal kapasitas harus identik di kedua backend.
+{
+  const cal = calendarOf({ overtime: JSON.stringify([{ day: '2026-11-29', start: '09:00', end: '12:00' }, { day: '2026-11-27', start: '21:00', end: '23:00' }]) });
+  const gcal = g.calendar_({ overtime: JSON.stringify([{ day: '2026-11-29', start: '09:00', end: '12:00' }, { day: '2026-11-27', start: '21:00', end: '23:00' }]) });
+  const cfg = { cal, norms: { dtf: 240, subp: 60, cal: 90 }, pct: 90, holdMin: 120, finDtf: 30, finSub: 60 };
+  const now = Date.parse('2026-11-27T02:15:00Z');
+  const job = (id, extra) => ({ id, order_no: 'O' + id, service: 'dtf', status: 'antrian', stage: 'dtf', meter: 40, rework_m: null, priority: 0, approved_at: now - 1000 + id, started_at: null, created_at: now - 3600000, finished_at: null, paid: true, ...extra });
+  const jobs = [job(1, { status: 'produksi', started_at: now - 600000 }), job(2, { meter: 150 }), job(3, { service: 'sub', stage: 'subp', meter: 200 }), job(4, { status: 'bayar', paid: false }), job(5, { status: 'cek', paid: false, created_at: now - 8 * 3600000 }), job(6, { status: 'qc', finished_at: now - 100, meter: 12 })];
+  const gcfg = { ...cfg, cal: gcal };
+  assert.deepEqual(plain(g.plan_(jobs, now, gcfg).slots), plain(plan(jobs, now, cfg).slots));
+  assert.deepEqual(plain(g.days_(jobs, now, gcfg)), plain(days(jobs, now, cfg)));
+  for (const [svc, m] of [['dtf', 1], ['dtf', 500], ['sub', 80]]) assert.equal(g.readyFor_(jobs, now, gcfg, svc, m), readyFor(jobs, now, cfg, svc, m));
+  for (const t of [now, now + 4 * 3600000, now + 30 * 3600000]) assert.equal(g.slaDue_(t, gcal), slaDue(t, cal));
+  console.log('  ok   jadwal kapasitas Code.gs sama dengan server');
+}
 console.log('Kesiapan pindah: lolos');

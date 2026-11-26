@@ -200,23 +200,61 @@ async function main() {
   check('sublim selesai setelah cetak ulang', (await get(S1)).status === 'selesai');
   check('Log QC tercatat', (await state(C.SPV)).loss.some((l) => l.type === 'Reject' && /3 m/.test(l.reason)));
 
-  console.log('# Customer baru dan CRM');
-  r = await call(C.CS, 'POST', '/api/orders', order({ name: 'Brand Baru', wa: '0899', paid_method: 'Transfer' }));
-  const N = r.data.id;
+  console.log('# Customer baru tanpa verifikasi, resi, dan jam deadline');
+  const wita = (ms) => new Date(ms + 8 * 3600000).toISOString().slice(0, 16).replace('T', ' ');
+  const soon = wita(Date.now() + 5 * 864e5);
+  r = await call(C.CS, 'POST', '/api/orders', order({ name: 'Brand Baru', wa: '0899', paid_method: 'Transfer', deadline: soon }));
+  const N = r.data.id, resi = r.data.track_code;
   check('order customer baru dibuat', r.status === 201, r);
-  r = await post(C.OPR, N, 'file-check', { ok: true, checks: [true, true, true, true] });
-  check('ditahan sampai CRM memverifikasi', r.status === 409 && /CRM/.test(r.data.error), r);
-  const cu = (await state(C.CRM)).customers.find((x) => x.name === 'Brand Baru');
-  check('CS tidak bisa memverifikasi', (await call(C.CS, 'POST', `/api/customers/${cu.id}/decide`, { status: 'aktif' })).status === 403);
-  check('CRM menyetujui', (await call(C.CRM, 'POST', `/api/customers/${cu.id}/decide`, { status: 'aktif' })).status === 200);
-  check('setelah disetujui lanjut', (await post(C.OPR, N, 'file-check', { ok: true, checks: [true, true, true, true] })).status === 200);
+  check('resi otomatis berformat RS-XXXXX-XXXXX', /^RS-[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/.test(resi), resi);
+  check('jam deadline tersimpan', (await get(N)).deadline === soon);
+  for (const bad of ['2026-11-27 25:00', '27/11/2026', '2026-11-27 12']) {
+    check('deadline tidak valid ditolak: ' + bad, (await call(C.CS, 'POST', '/api/orders', order({ customer_code: 'TK-0001', deadline: bad }))).status === 400);
+  }
+  check('langsung bisa dicek Operator tanpa CRM', (await post(C.OPR, N, 'file-check', { ok: true, checks: [true, true, true, true] })).status === 200);
+  check('customer baru berstatus aktif', (await state(C.CRM)).customers.find((x) => x.name === 'Brand Baru').status === 'aktif');
+  r = await call(anon, 'GET', '/api/public/track/' + resi.toLowerCase());
+  check('lacak dengan resi, huruf kecil diterima', r.status === 200 && r.data.status === 'antrian', r);
+  check('resi acak lain 404', (await call(anon, 'GET', '/api/public/track/RS-00000-00000')).status === 404);
+  check('versi server dikirim', (await state(C.CS)).api === 3);
+
+  console.log('# Kapasitas produksi');
+  let cap = (await state(C.CS)).capacity;
+  const first = cap.days.find((d) => d.machine === 'dtf');
+  check('jadwal 7 hari kerja, 155,3 m per hari penuh', cap.days.filter((d) => d.machine === 'dtf').length === 7 && cap.days.some((d) => d.machine === 'dtf' && d.capacity === 155.3), first);
+  const ask = { service: 'dtfm', meter: 5 };
+  r = await call(C.CS, 'POST', '/api/capacity/check', { ...ask, deadline: soon });
+  check('cek kapasitas: muat sebelum deadline', r.status === 200 && r.data.fits === true && r.data.ready > Date.now(), r);
+  r = await call(C.CS, 'POST', '/api/capacity/check', { service: 'dtfm', meter: 900, deadline: wita(Date.now() + 864e5) });
+  check('cek kapasitas: 900 m besok tidak muat, ada saran jadwal', r.data.fits === false && /^\d{4}-\d\d-\d\d \d\d:(00|30)$/.test(r.data.suggest), r);
+  const suggest = r.data.suggest;
+  r = await call(C.CS, 'POST', '/api/orders', order({ customer_code: 'TK-0001', meter: 900, deadline: wita(Date.now() + 864e5) }));
+  check('server menolak order melebihi kapasitas', r.status === 409 && /Kapasitas tidak cukup/.test(r.data.error), r);
+  r = await call(C.CS, 'POST', '/api/capacity/check', { service: 'dtfm', meter: 900, deadline: suggest });
+  check('jadwal saran diterima', r.data.fits === true, r);
+  check('FAT tidak bisa cek kapasitas', (await call(C.FAT, 'POST', '/api/capacity/check', ask)).status === 403);
+  check('loss sales ditolak bila kapasitas masih ada', (await call(C.CS, 'POST', '/api/capacity/loss', { ...ask, deadline: soon, name: 'X' })).status === 400);
+  r = await call(C.CS, 'POST', '/api/capacity/loss', { service: 'dtfm', meter: 900, deadline: wita(Date.now() + 864e5), name: 'Konveksi Penuh' });
+  check('loss sales kapasitas tercatat tanpa order', r.status === 201 && (await state(C.SPV)).loss.some((l) => l.id === '-' && l.value === 900 * 23000 && /Kapasitas penuh: Konveksi Penuh/.test(l.reason)), r);
+  const lemburDay = soon.slice(0, 10);
+  const capOf = async () => (await state(C.SPV)).capacity.days.find((d) => d.machine === 'dtf' && d.day === lemburDay)?.capacity ?? 0;
+  const capBefore = await capOf();
+  check('CS tidak bisa menambah lembur', (await call(C.CS, 'POST', '/api/capacity/overtime', { day: lemburDay, start: '21:30', end: '23:00', reason: 'x' })).status === 403);
+  check('jam lembur terbalik ditolak', (await call(C.SPV, 'POST', '/api/capacity/overtime', { day: lemburDay, start: '23:00', end: '21:30', reason: 'x' })).status === 400);
+  check('SPV menambah lembur', (await call(C.SPV, 'POST', '/api/capacity/overtime', { day: lemburDay, start: '21:00', end: '23:00', reason: 'order besar' })).status === 200);
+  const after = await capOf();
+  check('lembur menambah kapasitas tanpa hitung dobel', after > capBefore, { capBefore, after });
+  await call(C.SPV, 'POST', '/api/capacity/overtime', { day: lemburDay, remove: true });
+  check('lembur dihapus', (await capOf()) === capBefore);
+  check('jam produksi salah ditolak', (await call(master, 'PUT', '/api/admin/settings', { work_blocks: '13:00-12:00' })).status === 400);
+  check('persen kapasitas di atas 100 ditolak', (await call(master, 'PUT', '/api/admin/settings', { capPct: 120 })).status === 400);
 
   console.log('# Penolakan dan loss sales');
   r = await call(C.CS, 'POST', '/api/orders', order({ customer_code: 'TK-0001' }));
   await post(C.CS, r.data.id, 'reject', { reason: 'Double input' });
   r = await call(C.CS, 'POST', '/api/orders', order({ customer_code: 'TK-0001' }));
   await post(C.CS, r.data.id, 'reject', { reason: 'Customer batal' });
-  const loss = (await state(C.SPV)).loss.filter((l) => l.type === 'Loss Sales');
+  const loss = (await state(C.SPV)).loss.filter((l) => l.type === 'Loss Sales' && l.id !== '-');
   check('double input tidak dihitung loss sales', loss.filter((l) => l.count).length === 1 && loss.length === 2, loss);
   check('order antrian tidak bisa ditolak', (await post(C.CS, B, 'reject', { reason: 'Customer batal' })).status === 409);
 

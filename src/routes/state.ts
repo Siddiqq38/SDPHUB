@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { localDay } from '../lib/calendar.ts';
-import { authn, calendarOf, loadSettings, now, numericSettings, pagesOf, type AppEnv } from '../core.ts';
+import { days, plan, slaDue } from '../lib/capacity.ts';
+import { activeJobs, planConfig } from './capacity.ts';
+import { WORK_BLOCKS_DEFAULT, authn, calendarOf, loadSettings, now, numericSettings, overtimeOf, pagesOf, type AppEnv } from '../core.ts';
 import { ACCESS_DEFAULT, GRANTABLE, ORDER_PAGES, type Page } from '../domain.ts';
 
 export const stateRoutes = new Hono<AppEnv>();
@@ -15,6 +17,7 @@ stateRoutes.get('/', async (c) => {
   const has = (...p: Page[]) => p.some((x) => pages.includes(x));
   const raw = await loadSettings(db);
   const out: Record<string, unknown> = {
+    api: 3, // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
     today: localDay(now(), calendarOf(raw)),
@@ -46,6 +49,15 @@ stateRoutes.get('/', async (c) => {
       receiver: o.receiver, createdBy: o.created_by, created: o.created_at, approved: o.approved_at, started: o.started_at, pay: byOrder.get(o.id) ?? [],
     }));
   }
+  // Jadwal kapasitas memakai semua order (tanpa nama customer), agar Store Head melihat sisa slot yang benar.
+  if (has('input', 'dashboard', 'produksi')) {
+    const cfg = planConfig(raw), jobs = await activeJobs(db), t = now();
+    out.capacity = {
+      days: days(jobs, t, cfg), slots: plan(jobs, t, cfg).slots, slaDue: slaDue(t, cfg.cal),
+      overtime: overtimeOf(raw).filter((o) => o.day >= (out.today as string)),
+    };
+  }
+  out.workBlocks = raw.work_blocks || WORK_BLOCKS_DEFAULT;
   if (has('input', 'pelanggan', 'cs', 'cekfile')) {
     out.customers = (await db.prepare('SELECT id, code, name, wa, source, status FROM customers ORDER BY name LIMIT 5000').all()).results;
   }

@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
-import { randomToken } from '../lib/auth.ts';
 import { localDay } from '../lib/calendar.ts';
 import type { Db } from '../db.ts';
 import {
   allow, audit, authn, bad, calendarOf, conflict, forbidden, intParam, loadSettings, notFound, now, numericSettings, oneOf, optStr, readJson, reqNum, reqStr,
   rule, type AppEnv, type Ctx,
 } from '../core.ts';
-import { CURING, FILE_CHECKS, QC_CHECKS, buildItems, meterOf, totalOf, type Item } from '../domain.ts';
+import { evaluate } from './capacity.ts';
+import { CURING, DEADLINE_RE, FILE_CHECKS, QC_CHECKS, buildItems, meterOf, newResi, totalOf, type Item } from '../domain.ts';
 
 export const orderRoutes = new Hono<AppEnv>();
 orderRoutes.use('*', authn);
@@ -26,12 +26,6 @@ async function withOrder<T>(c: Ctx, id: number, fn: (db: Db, o: any) => Promise<
 }
 const paidOf = async (db: Db, orderId: number) =>
   (await db.prepare('SELECT COALESCE(SUM(amount),0) s FROM payments WHERE order_id = ?').bind(orderId).first<{ s: number }>())!.s;
-
-async function customerActive(db: Db, o: any) {
-  if (!o.customer_id) return true;
-  const c = await db.prepare('SELECT status FROM customers WHERE id = ?').bind(o.customer_id).first<{ status: string }>();
-  return c?.status === 'aktif';
-}
 
 /** Order masuk antrian cetak hanya bila file sudah layak (status bayar) dan lunas. */
 async function release(db: Db, orderId: number): Promise<boolean> {
@@ -58,8 +52,8 @@ orderRoutes.post('/', async (c) => {
   const source = u.role === 'store' ? 'Toko' : oneOf(b, 'source', ['WhatsApp', 'Datang langsung', 'Toko'] as const);
   const fileRef = reqStr(b, 'file_ref', 300);
   const fileKey = optStr(b, 'file_key', 200);
-  const deadline = optStr(b, 'deadline', 10);
-  if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) throw bad('Format deadline tidak valid');
+  const deadline = optStr(b, 'deadline', 16);
+  if (deadline && !DEADLINE_RE.test(deadline)) throw bad('Format deadline tidak valid');
   const method = b.paid_method == null ? null : oneOf(b, 'paid_method', METHODS);
 
   const result = await c.env.DB.tx(async (db) => {
@@ -69,6 +63,9 @@ orderRoutes.post('/', async (c) => {
     const settings = numericSettings(await loadSettings(db));
     const items: Item[] = rule(() => buildItems({ service, qty: b.qty, meter: b.meter, width: b.width }, settings));
     const total = totalOf(items);
+    // Order hanya diterima bila jadwal masih cukup (deadline, atau SLA standar bila kosong).
+    const capacity = await evaluate(db, await loadSettings(db), service === 'sub' ? 'sub' : 'dtf', meterOf(items), deadline);
+    if (!capacity.fits) throw conflict(capacity.message);
 
     let customerId: number | null = null;
     let name: string;
@@ -76,13 +73,13 @@ orderRoutes.post('/', async (c) => {
     if (type === 'maklon') {
       if (b.customer_code) {
         const cu = await db.prepare('SELECT * FROM customers WHERE code = ?').bind(reqStr(b, 'customer_code', 40)).first<any>();
-        if (!cu || cu.status === 'ditolak') throw bad('Pelanggan tidak ditemukan atau ditolak CRM');
+        if (!cu || cu.status === 'ditolak') throw bad('Pelanggan tidak ditemukan atau dinonaktifkan');
         customerId = cu.id; name = cu.name; wa = cu.wa;
       } else {
         name = reqStr(b, 'name', 150); wa = reqStr(b, 'wa', 40);
         const n = await db.prepare("SELECT COUNT(*) n FROM customers WHERE code LIKE 'BR-%'").first<{ n: number }>();
         const code = `BR-${String(n!.n + 1).padStart(4, '0')}`;
-        const r = await db.prepare("INSERT INTO customers (code, name, wa, source, status, created_at) VALUES (?,?,?, 'Customer baru', 'menunggu', ?)").bind(code, name, wa, now()).run();
+        const r = await db.prepare("INSERT INTO customers (code, name, wa, source, status, created_at) VALUES (?,?,?, 'Customer baru', 'aktif', ?)").bind(code, name, wa, now()).run();
         customerId = r.meta.last_row_id;
       }
     } else {
@@ -90,7 +87,7 @@ orderRoutes.post('/', async (c) => {
     }
     const t = now();
     const svc = service === 'sub' ? 'sub' : 'dtf';
-    const track = randomToken(16);
+    const track = newResi();
     const r = await db.prepare(
       `INSERT INTO orders (order_no, track_code, type, service, customer_id, customer_name, wa, source, store, items, meter, total, file_ref, file_key,
          deadline, note, status, stage, created_by, created_at, request_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'cek', ?,?,?,?)`,
@@ -116,7 +113,6 @@ orderRoutes.post('/:id/file-check', async (c) => {
   const issue = ok ? null : reqStr(b, 'issue', 500);
   return c.json(await withOrder(c, intParam(c, 'id'), async (db, o) => {
     if (o.status !== 'cek') throw conflict('Order tidak sedang menunggu cek file');
-    if (!(await customerActive(db, o))) throw conflict('Customer belum diverifikasi CRM');
     await db.prepare('UPDATE orders SET status = ?, issue = ? WHERE id = ?').bind(ok ? 'bayar' : 'revisi', issue, o.id).run();
     const released = ok ? await release(db, o.id) : false;
     await audit(db, c.get('user').id, ok ? 'file_ok' : 'file_rejected', 'order', o.id);

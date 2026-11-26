@@ -62,7 +62,7 @@ opsRoutes.post('/qc/morning/:id/decide', async (c) => {
   return c.json({ ok: true });
 });
 
-// ---- Pelanggan B2B: CRM hanya memverifikasi customer baru ----
+// ---- Pelanggan B2B: impor pelanggan terdaftar ----
 opsRoutes.post('/customers/import', async (c) => {
   await allow(c, ['crm'], 'pelanggan');
   const b = await readJson(c);
@@ -85,17 +85,6 @@ opsRoutes.post('/customers/import', async (c) => {
     await audit(db, c.get('user').id, 'customers_imported', 'customer', undefined, { added });
   });
   return c.json({ ok: true, added, skipped: rows.length - added }, 201);
-});
-
-opsRoutes.post('/customers/:id/decide', async (c) => {
-  await allow(c, ['crm'], 'pelanggan');
-  const b = await readJson(c);
-  const status = oneOf(b, 'status', ['aktif', 'ditolak'] as const);
-  const r = await c.env.DB.prepare("UPDATE customers SET status = ?, verified_by = ?, verified_at = ? WHERE id = ? AND status = 'menunggu'")
-    .bind(status, c.get('user').code, now(), intParam(c, 'id')).run();
-  if (!r.meta.changes) throw conflict('Customer tidak sedang menunggu verifikasi');
-  await audit(c.env.DB, c.get('user').id, 'customer_' + status, 'customer', c.req.param('id'));
-  return c.json({ ok: true });
 });
 
 // ---- Inventory ----
@@ -192,14 +181,26 @@ opsRoutes.delete('/admin/access', async (c) => {
   return c.json({ ok: true });
 });
 
-const SETTING_KEYS = ['priceDtf', 'priceSub120', 'priceSub160', 'priceSub180', 'normDtf', 'normSubPrint', 'normPress'];
+const validBlocks = (v: string) => {
+  let previous = '';
+  return v.split(',').every((block) => {
+    const m = /^(([01]\d|2[0-3]):[0-5]\d)-(([01]\d|2[0-3]):[0-5]\d)$/.exec(block.trim());
+    if (!m || m[1] >= m[3] || m[1] < previous) return false;
+    previous = m[3];
+    return true;
+  });
+};
+const SETTING_KEYS = ['priceDtf', 'priceSub120', 'priceSub160', 'priceSub180', 'normDtf', 'normSubPrint', 'normPress', 'capPct', 'holdMin', 'finDtf', 'finSub', 'work_blocks'];
 opsRoutes.put('/admin/settings', async (c) => {
   await allow(c, []);
   const b = await readJson(c);
   const stmts = [];
   for (const [k, v] of Object.entries(b)) {
     if (!SETTING_KEYS.includes(k)) throw bad(`Pengaturan "${k}" tidak dikenal`);
-    if (v !== null && !(typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 1e9)) throw bad(`Nilai "${k}" harus angka lebih dari 0, atau kosong`);
+    if (k === 'work_blocks') {
+      if (typeof v !== 'string' || !validBlocks(v)) throw bad('Jam produksi ditulis seperti 09:00-12:00,13:00-21:30');
+    } else if (k === 'capPct' && v !== null && (v as number) > 100) throw bad('Persen kapasitas maksimal 100');
+    if (k !== 'work_blocks' && v !== null && !(typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 1e9)) throw bad(`Nilai "${k}" harus angka lebih dari 0, atau kosong`);
     if (k === 'priceDtf' && v === null) throw bad('Harga DTF tidak boleh kosong');
     if (k.startsWith('price') && v !== null && !Number.isInteger(v)) throw bad('Harga rupiah harus bilangan bulat');
     stmts.push(c.env.DB.prepare('INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').bind(k, v === null ? '' : String(v)));

@@ -3,6 +3,13 @@
 import { Hono } from 'hono';
 import type { Db } from '../db.ts';
 import { allow, audit, authn, bad, conflict, forbidden, intParam, notFound, now, oneOf, optStr, readJson, reqNum, reqStr, type AppEnv } from '../core.ts';
+import { DEADLINE_RE } from '../domain.ts';
+
+const deadlineOf = (b: Record<string, unknown>) => {
+  const d = optStr(b, 'deadline', 16);
+  if (d && !DEADLINE_RE.test(d)) throw bad('Format deadline tidak valid');
+  return d;
+};
 
 export const manageRoutes = new Hono<AppEnv>();
 manageRoutes.use('*', authn, async (c, next) => {
@@ -43,7 +50,7 @@ manageRoutes.patch('/orders/:id', async (c) => {
         b.wa === undefined ? o.wa : reqStr(b, 'wa', 40),
         b.file_ref === undefined ? o.file_ref : reqStr(b, 'file_ref', 300),
         b.note === undefined ? o.note : optStr(b, 'note', 500),
-        b.deadline === undefined ? o.deadline : optStr(b, 'deadline', 10),
+        b.deadline === undefined ? o.deadline : deadlineOf(b),
         status, stage,
         ['antrian', 'produksi', 'curing'].includes(status) ? t : null,
         ['produksi', 'curing'].includes(status) ? t : null,

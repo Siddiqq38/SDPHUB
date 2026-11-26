@@ -5,6 +5,7 @@ export interface CalendarConfig {
   offsetMin: number;          // 480 untuk WITA
   blocks: [number, number][]; // blok produksi efektif, menit sejak 00:00 lokal
   closedWeekdays: number[];   // 0 = Minggu
+  days?: Record<number, [number, number][]>; // blok khusus per tanggal (lembur), kunci = indeks hari lokal
 }
 
 export const DEFAULT_CALENDAR: CalendarConfig = {
@@ -25,6 +26,7 @@ export function parseBlocks(s: string): [number, number][] {
 }
 
 const MIN = 60_000;
+const DAY_MS = 24 * 60 * MIN;
 const DAY = 24 * 60 * MIN;
 
 /** Menit sejak tengah malam lokal + indeks hari lokal dari epoch. */
@@ -38,6 +40,29 @@ function local(ms: number, cfg: CalendarConfig) {
 
 function fromLocal(dayIndex: number, minOfDay: number, cfg: CalendarConfig) {
   return dayIndex * DAY + minOfDay * MIN - cfg.offsetMin * MIN;
+}
+
+/** Blok kerja satu tanggal: blok khusus bila ada, selebihnya jam biasa (kosong pada hari libur). */
+export function blocksOf(dayIndex: number, weekday: number, cfg: CalendarConfig): [number, number][] {
+  return cfg.days?.[dayIndex] ?? (cfg.closedWeekdays.includes(weekday) ? [] : cfg.blocks);
+}
+
+/** Gabungkan jam lembur ke jam biasa tanpa menghitung dobel. */
+export function withOvertime(cfg: CalendarConfig, overtime: { day: string; start: string; end: string }[]): CalendarConfig {
+  const days: Record<number, [number, number][]> = {};
+  const min = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+  for (const o of overtime) {
+    const index = Date.parse(o.day + 'T00:00:00Z') / DAY_MS;
+    const base = days[index] ?? blocksOf(index, (index + 4) % 7, cfg);
+    const merged: [number, number][] = [];
+    for (const [a, b] of [...base, [min(o.start), min(o.end)] as [number, number]].sort((x, y) => x[0] - y[0])) {
+      const tail = merged[merged.length - 1];
+      if (tail && a <= tail[1]) tail[1] = Math.max(tail[1], b);
+      else merged.push([a, b]);
+    }
+    days[index] = merged;
+  }
+  return { ...cfg, days };
 }
 
 /** Hari lokal 'YYYY-MM-DD' untuk epoch ms. */
@@ -58,8 +83,8 @@ export function addWorkSeconds(startMs: number, workSeconds: number, cfg: Calend
   let cursorMs = startMs;
   let guard = 0;
   while (guard++ < 3650) {
-    if (!cfg.closedWeekdays.includes(weekday)) {
-      for (const [a, b] of cfg.blocks) {
+    {
+      for (const [a, b] of blocksOf(dayIndex, weekday, cfg)) {
         const from = Math.max(minOfDay, a);
         if (from >= b) continue;
         const blockStart = fromLocal(dayIndex, from, cfg);
@@ -87,8 +112,7 @@ export function effectiveSeconds(startMs: number, endMs: number, cfg: CalendarCo
   let { dayIndex, weekday } = local(startMs, cfg);
   const last = local(endMs, cfg).dayIndex;
   for (let d = dayIndex; d <= last; d++, weekday = (weekday + 1) % 7) {
-    if (cfg.closedWeekdays.includes(weekday)) continue;
-    for (const [a, b] of cfg.blocks) {
+    for (const [a, b] of blocksOf(d, weekday, cfg)) {
       const s = Math.max(fromLocal(d, a, cfg), startMs);
       const e = Math.min(fromLocal(d, b, cfg), endMs);
       if (e > s) total += e - s;

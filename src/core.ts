@@ -4,7 +4,7 @@ import { sha256 } from './lib/auth.ts';
 import type { Db } from './db.ts';
 import type { Storage } from './storage.ts';
 import { ACCESS_DEFAULT, RuleError, type Page, type Role } from './domain.ts';
-import { DEFAULT_CALENDAR, parseBlocks, type CalendarConfig } from './lib/calendar.ts';
+import { DEFAULT_CALENDAR, parseBlocks, withOvertime, type CalendarConfig } from './lib/calendar.ts';
 
 export type Env = {
   DB: Db;
@@ -96,15 +96,30 @@ export async function loadSettings(db: Db): Promise<Record<string, string>> {
 /** Harga dan norma: kosong berarti belum diatur (null). */
 export function numericSettings(s: Record<string, string>): Record<string, number | null> {
   const keys = ['priceDtf', 'priceSub120', 'priceSub160', 'priceSub180', 'normDtf', 'normSubPrint', 'normPress'];
-  return Object.fromEntries(keys.map((k) => [k, s[k] ? Number(s[k]) : null]));
+  return {
+    ...Object.fromEntries(keys.map((k) => [k, s[k] ? Number(s[k]) : null])),
+    ...Object.fromEntries(Object.entries(PLAN_DEFAULT).map(([k, d]) => [k, s[k] ? Number(s[k]) : d])),
+  };
+}
+/** Angka perencanaan kapasitas: persen kapasitas dijual, menit tahan slot, estimasi menit finishing. */
+export const PLAN_DEFAULT: Record<string, number> = { capPct: 90, holdMin: 120, finDtf: 30, finSub: 60 };
+/** Jam produksi efektif (menit prepare dan test print sudah dikeluarkan). */
+export const WORK_BLOCKS_DEFAULT = '09:00-12:00,13:00-21:30';
+export function overtimeOf(s: Record<string, string>): { day: string; start: string; end: string; reason: string; by: string }[] {
+  try {
+    const list = JSON.parse(s.overtime || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
 }
 export function calendarOf(s: Record<string, string>): CalendarConfig {
   try {
-    return {
+    return withOvertime({
       offsetMin: s.tz_offset_min ? Number(s.tz_offset_min) : DEFAULT_CALENDAR.offsetMin,
-      blocks: s.prod_blocks ? parseBlocks(s.prod_blocks) : DEFAULT_CALENDAR.blocks,
+      blocks: parseBlocks(s.work_blocks || WORK_BLOCKS_DEFAULT),
       closedWeekdays: s.closed_weekdays !== undefined ? s.closed_weekdays.split(',').filter((x) => x !== '').map(Number) : DEFAULT_CALENDAR.closedWeekdays,
-    };
+    }, overtimeOf(s));
   } catch {
     return DEFAULT_CALENDAR;
   }

@@ -52,6 +52,9 @@ var RETAIL = {
 var CANVAS_CM = 58;
 var WIDTHS = [['priceSub120', 'Lebar kain sampai 120 cm'], ['priceSub160', 'Lebar kain 121 sampai 160 cm'], ['priceSub180', 'Lebar kain 161 sampai 180 cm']];
 var NORM_KEY = { dtf: 'normDtf', subp: 'normSubPrint', cal: 'normPress' };
+// Perencanaan kapasitas (sama dengan src/core.ts).
+var PLAN_DEFAULT = { capPct: 90, holdMin: 120, finDtf: 30, finSub: 60 };
+var WORK_BLOCKS_DEFAULT = '09:00-12:00,13:00-21:30';
 var FILE_CHECK_COUNT = 4;
 var QC_CHECK_COUNT = { dtf: 5, sub: 5 };
 var CURING = { minC: 130, maxC: 150, minS: 60, maxS: 90 };
@@ -239,21 +242,50 @@ function passwordProblem_(p) {
   return null;
 }
 function settings_(db) { var o = {}; db.all('settings').forEach(function (r) { o[r.key] = r.value || ''; }); return o; }
-function numeric_(s) { var o = {}; ['priceDtf', 'priceSub120', 'priceSub160', 'priceSub180', 'normDtf', 'normSubPrint', 'normPress'].forEach(function (k) { o[k] = s[k] ? Number(s[k]) : null; }); return o; }
+function numeric_(s) {
+  var o = {};
+  ['priceDtf', 'priceSub120', 'priceSub160', 'priceSub180', 'normDtf', 'normSubPrint', 'normPress'].forEach(function (k) { o[k] = s[k] ? Number(s[k]) : null; });
+  Object.keys(PLAN_DEFAULT).forEach(function (k) { o[k] = s[k] ? Number(s[k]) : PLAN_DEFAULT[k]; });
+  return o;
+}
+function overtimeOf_(s) {
+  try { var list = JSON.parse(s.overtime || '[]'); return Array.isArray(list) ? list : []; } catch (e) { return []; }
+}
+function blocksOf_(day, c) {
+  if (c.days && c.days[day]) return c.days[day];
+  return c.closedWeekdays.indexOf((day + 4) % 7) >= 0 ? [] : c.blocks;
+}
+// Gabungkan jam lembur ke jam biasa tanpa menghitung dobel.
+function withOvertime_(c, overtime) {
+  var days = {};
+  var min = function (t) { return Number(t.slice(0, 2)) * 60 + Number(t.slice(3)); };
+  overtime.forEach(function (o) {
+    var index = Date.parse(o.day + 'T00:00:00Z') / 864e5;
+    var base = days[index] || blocksOf_(index, c);
+    var merged = [];
+    base.concat([[min(o.start), min(o.end)]]).map(function (b) { return b.slice(); }).sort(function (x, y) { return x[0] - y[0]; }).forEach(function (b) {
+      var tail = merged[merged.length - 1];
+      if (tail && b[0] <= tail[1]) tail[1] = Math.max(tail[1], b[1]); else merged.push(b);
+    });
+    days[index] = merged;
+  });
+  c.days = days;
+  return c;
+}
 function calendar_(s) {
-  var blocks = (s.prod_blocks || '09:00-12:00,13:00-16:00').split(',').map(function (b) {
+  var blocks = (s.work_blocks || WORK_BLOCKS_DEFAULT).split(',').map(function (b) {
     return b.split('-').map(function (t) { var p = t.trim().split(':'); return Number(p[0]) * 60 + Number(p[1]); });
   });
   var closed = (s.closed_weekdays === undefined ? '0' : s.closed_weekdays).split(',').filter(String).map(Number);
-  return { offsetMin: Number(s.tz_offset_min || 480), blocks: blocks, closedWeekdays: closed };
+  return withOvertime_({ offsetMin: Number(s.tz_offset_min || 480), blocks: blocks, closedWeekdays: closed }, overtimeOf_(s));
 }
 function localDay_(ms, cal) { return new Date(ms + cal.offsetMin * 60000).toISOString().slice(0, 10); }
 function addWork_(start, sec, c) {
   var M = 60000, D = 864e5, off = c.offsetMin * M, left = sec * 1000, day = Math.floor((start + off) / D), min = ((start + off) - day * D) / M;
   for (var g = 0; g < 3650; g++, day++, min = 0) {
-    if (c.closedWeekdays.indexOf((day + 4) % 7) >= 0) continue;
-    for (var i = 0; i < c.blocks.length; i++) {
-      var f = Math.max(min, c.blocks[i][0]), b = c.blocks[i][1];
+    var blocks = blocksOf_(day, c);
+    for (var i = 0; i < blocks.length; i++) {
+      var f = Math.max(min, blocks[i][0]), b = blocks[i][1];
       if (f >= b) continue;
       var av = (b - f) * M;
       if (left <= av) return Math.round(day * D + f * M + left - off);
@@ -261,6 +293,15 @@ function addWork_(start, sec, c) {
     }
   }
   return null;
+}
+function validBlocks_(v) {
+  var previous = '';
+  return v.split(',').every(function (block) {
+    var m = /^(([01]\d|2[0-3]):[0-5]\d)-(([01]\d|2[0-3]):[0-5]\d)$/.exec(block.trim());
+    if (!m || m[1] >= m[3] || m[1] < previous) return false;
+    previous = m[3];
+    return true;
+  });
 }
 function pages_(db, role) {
   var row = db.find('role_access', function (r) { return r.role === role; });
@@ -274,6 +315,153 @@ function allow_(ctx, roles, page) {
 }
 function audit_(ctx, action, entity, id, detail) {
   ctx.db.insert('audit_log', { at: Date.now(), user_id: ctx.user ? ctx.user.id : null, action: action, entity: entity || null, entity_id: id == null ? null : String(id), detail: detail ? JSON.stringify(detail).slice(0, 2000) : null });
+}
+
+// ---------- Kapasitas produksi (sama dengan src/lib/capacity.ts) ----------
+var MACHINE_LIST = ['dtf', 'subp', 'cal'];
+var CONFIRMED_ = ['antrian', 'produksi', 'curing'], PENDING_ = ['cek', 'revisi', 'bayar'];
+function planConfig_(raw) {
+  var s = numeric_(raw);
+  return { cal: calendar_(raw), norms: { dtf: s.normDtf, subp: s.normSubPrint, cal: s.normPress }, pct: s.capPct, holdMin: s.holdMin, finDtf: s.finDtf, finSub: s.finSub };
+}
+function activeJobs_(db) {
+  var since = Date.now() - 864e5, paid = {};
+  db.all('payments').forEach(function (p) { paid[p.order_id] = (paid[p.order_id] || 0) + p.amount; });
+  return db.filter('orders', function (o) { return CONFIRMED_.indexOf(o.status) >= 0 || PENDING_.indexOf(o.status) >= 0 || (o.finished_at || 0) >= since; }).map(function (o) {
+    return { id: o.id, order_no: o.order_no, service: o.service, status: o.status, stage: o.stage, meter: o.meter, rework_m: o.rework_m, priority: o.priority || 0, approved_at: o.approved_at, started_at: o.started_at, created_at: o.created_at, finished_at: o.finished_at, paid: (paid[o.id] || 0) >= o.total };
+  }).sort(function (a, b) { return a.id - b.id; });
+}
+function effective_(start, end, c) {
+  if (end <= start) return 0;
+  var M = 60000, D = 864e5, off = c.offsetMin * M, total = 0;
+  for (var day = Math.floor((start + off) / D), last = Math.floor((end + off) / D); day <= last; day++) {
+    blocksOf_(day, c).forEach(function (b) {
+      var s = Math.max(day * D + b[0] * M - off, start), e = Math.min(day * D + b[1] * M - off, end);
+      if (e > s) total += e - s;
+    });
+  }
+  return Math.round(total / 1000);
+}
+function chainOf_(service, stage) { return service === 'dtf' ? ['dtf'] : stage === 'cal' ? ['cal'] : ['subp', 'cal']; }
+function plan_(jobs, now, cfg) {
+  var confirmed = jobs.filter(function (j) { return CONFIRMED_.indexOf(j.status) >= 0; }).sort(function (a, b) {
+    return (b.status !== 'antrian') - (a.status !== 'antrian') || b.priority - a.priority || (a.approved_at || 0) - (b.approved_at || 0) || a.id - b.id;
+  });
+  var pending = jobs.filter(function (j) { return PENDING_.indexOf(j.status) >= 0 && (j.paid || now - j.created_at < cfg.holdMin * 60000); })
+    .sort(function (a, b) { return a.created_at - b.created_at || a.id - b.id; });
+  var cursor = { dtf: now, subp: now, cal: now }, slots = [], last = {};
+  confirmed.concat(pending).forEach(function (j) {
+    var meter = j.rework_m == null ? j.meter : j.rework_m, previous = now;
+    chainOf_(j.service, j.stage).forEach(function (m) {
+      var norm = cfg.norms[m];
+      if (!norm) return;
+      var running = (j.status === 'produksi' || j.status === 'curing') && m === j.stage;
+      var start = running ? j.started_at : addWork_(Math.max(cursor[m], previous), 0, cfg.cal);
+      var end = running ? Math.max(now, addWork_(start, meter * norm, cfg.cal)) : addWork_(start, (meter * norm * 100) / cfg.pct, cfg.cal);
+      cursor[m] = Math.max(cursor[m], end);
+      previous = end;
+      slots.push({ id: j.id, order_no: j.order_no, machine: m, start: start, end: end, meter: meter, hold: !j.paid && PENDING_.indexOf(j.status) >= 0 });
+    });
+    last[j.id] = previous;
+  });
+  return { slots: slots, last: last };
+}
+function readyFor_(jobs, now, cfg, service, meter) {
+  var stage = service === 'dtf' ? 'dtf' : 'subp';
+  if (!chainOf_(service, stage).some(function (m) { return cfg.norms[m]; })) return null;
+  var probe = { id: -1, order_no: '', service: service, status: 'cek', stage: stage, meter: meter, rework_m: null, priority: 0, approved_at: null, started_at: null, created_at: now, finished_at: null, paid: true };
+  var printed = plan_(jobs.concat([probe]), now, cfg).last[-1];
+  return addWork_(printed, (service === 'dtf' ? cfg.finDtf : cfg.finSub) * 60, cfg.cal);
+}
+function dayStart_(day, cal) { return Date.parse(day + 'T00:00:00Z') - cal.offsetMin * 60000; }
+// Batas SLA standar: lunas sebelum 12.00 selesai hari itu, selebihnya hari kerja berikutnya.
+function slaDue_(now, cal) {
+  var D = 864e5, today = dayStart_(localDay_(now, cal), cal), from = now - today < 12 * 3600000 ? today : today + D;
+  for (var i = 0; i < 60; i++, from += D) {
+    if (effective_(from, from + D, cal)) {
+      var blocks = blocksOf_(Math.floor((from + cal.offsetMin * 60000) / D), cal);
+      return from + Math.max.apply(null, blocks.map(function (b) { return b[1]; })) * 60000;
+    }
+  }
+  return from;
+}
+function days_(jobs, now, cfg) {
+  var slots = plan_(jobs, now, cfg).slots, out = [], D = 864e5;
+  var round = function (n) { return Math.round(n * 10) / 10; };
+  MACHINE_LIST.forEach(function (m) {
+    var norm = cfg.norms[m];
+    if (!norm) return;
+    var perMeter = (norm * 100) / cfg.pct, start = dayStart_(localDay_(now, cfg.cal), cfg.cal);
+    for (var n = 0, guard = 0; n < 7 && guard < 60; guard++, start += D) {
+      var seconds = effective_(start, start + D, cfg.cal);
+      if (!seconds) continue;
+      n++;
+      var capacity = seconds / perMeter;
+      var booked = slots.filter(function (x) { return x.machine === m; }).reduce(function (a, x) { return a + effective_(Math.max(x.start, start), Math.min(x.end, start + D), cfg.cal); }, 0) / perMeter;
+      var isToday = start <= now;
+      var done = isToday ? jobs.filter(function (j) { return m !== 'subp' && (j.finished_at || 0) >= start && (j.service === 'dtf' ? m === 'dtf' : m === 'cal'); }).reduce(function (a, j) { return a + j.meter; }, 0) : 0;
+      var free = capacity - booked - done;
+      if (isToday) free = Math.min(free, effective_(now, start + D, cfg.cal) / perMeter - booked);
+      out.push({ day: localDay_(start + 1, cfg.cal), machine: m, capacity: round(capacity), booked: round(booked), done: round(done), free: round(Math.max(0, free)) });
+    }
+  });
+  return out;
+}
+function suggestDeadline_(ready, cal) {
+  var step = 30 * 60000, t = Math.ceil((ready + 15 * 60000) / step) * step + cal.offsetMin * 60000;
+  return new Date(t).toISOString().slice(0, 16).replace('T', ' ');
+}
+function deadlineTime_(d, cal) { return Date.parse(d.slice(0, 10) + 'T' + (d.slice(11) || '23:59') + ':00Z') - cal.offsetMin * 60000; }
+function showTime_(ms, cal) { var s = new Date(ms + cal.offsetMin * 60000).toISOString(); return s.slice(8, 10) + '/' + s.slice(5, 7) + ' ' + s.slice(11, 16).replace(':', '.'); }
+function evaluate_(db, raw, service, meter, deadline) {
+  var cfg = planConfig_(raw), t = Date.now();
+  var ready = readyFor_(activeJobs_(db), t, cfg, service, meter);
+  var target = deadline ? deadlineTime_(deadline, cfg.cal) : slaDue_(t, cfg.cal);
+  var fits = ready === null || ready <= target;
+  return { ready: ready, target: target, fits: fits, byDeadline: !!deadline, suggest: ready === null ? null : suggestDeadline_(ready, cfg.cal),
+    message: fits ? '' : 'Kapasitas tidak cukup untuk ' + (deadline ? 'deadline' : 'SLA standar') + ' ' + showTime_(target, cfg.cal) + '. Paling cepat selesai ' + showTime_(ready, cfg.cal) + '.' };
+}
+function quote_(db, b) {
+  var service = one_(b, 'service', ['dtfr', 'dtfm', 'sub']), deadline = deadline_(b), raw = settings_(db);
+  var items = buildItems_(b, numeric_(raw));
+  var meter = round2_(items.reduce(function (a, i) { return a + i.meter; }, 0));
+  var total = Math.round(items.reduce(function (a, i) { return a + i.price * i.qty; }, 0));
+  return { raw: raw, meter: meter, total: total, result: evaluate_(db, raw, service === 'sub' ? 'sub' : 'dtf', meter, deadline) };
+}
+function capacityRoute_(ctx, action, b) {
+  var db = ctx.db, u = ctx.user;
+  if (action === 'check') {
+    allow_(ctx, ['cs', 'store'], 'input');
+    var q = quote_(db, b), data = { meter: q.meter, total: q.total };
+    Object.keys(q.result).forEach(function (k) { data[k] = q.result[k]; });
+    return { status: 200, data: data };
+  }
+  if (action === 'loss') {
+    allow_(ctx, ['cs', 'store'], 'input');
+    var name = str_(b, 'name', 150), x = quote_(db, b);
+    if (x.result.fits) throw err_(400, 'Kapasitas masih tersedia; loss sales kapasitas hanya dicatat bila penuh');
+    var cal = calendar_(x.raw);
+    db.insert('logs', { order_no: '-', type: 'Loss Sales', reason: 'Kapasitas penuh: ' + name + ', ' + x.meter + ' m, target ' + showTime_(x.result.target, cal) + ', tersedia ' + showTime_(x.result.ready, cal), value: x.total, counted: 1, by_user: u.code, at: Date.now() });
+    audit_(ctx, 'capacity_loss', 'log', null, { meter: x.meter, total: x.total });
+    return { status: 201, data: { ok: true } };
+  }
+  allow_(ctx, ['spv'], 'produksi');
+  var day = str_(b, 'day', 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || isNaN(Date.parse(day + 'T00:00:00Z'))) throw err_(400, 'Tanggal tidak valid');
+  var settings = settings_(db), today = localDay_(Date.now(), calendar_(settings));
+  var list = overtimeOf_(settings).filter(function (o) { return o.day >= today; });
+  if (b.remove === true) list = list.filter(function (o) { return o.day !== day; });
+  else {
+    var start = str_(b, 'start', 5), end = str_(b, 'end', 5), reason = str_(b, 'reason', 200), time = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!time.test(start) || !time.test(end) || start >= end) throw err_(400, 'Jam lembur tidak valid');
+    if (day < today) throw err_(400, 'Tanggal lembur sudah lewat');
+    list.push({ day: day, start: start, end: end, reason: reason, by: u.code });
+    if (list.length > 60) throw err_(400, 'Terlalu banyak jadwal lembur');
+  }
+  var row = db.find('settings', function (r) { return r.key === 'overtime'; });
+  if (row) db.update('settings', row, { value: JSON.stringify(list) }); else db.insert('settings', { key: 'overtime', value: JSON.stringify(list) });
+  audit_(ctx, b.remove === true ? 'overtime_removed' : 'overtime_added', 'settings', day, b);
+  return { status: 200, data: { ok: true } };
 }
 
 // ---------- Order ----------
@@ -308,10 +496,18 @@ function release_(db, o) {
   db.update('orders', o, { status: 'antrian', approved_at: Date.now() });
   return true;
 }
-function customerActive_(db, o) {
-  if (!o.customer_id) return true;
-  var c = db.find('customers', function (x) { return x.id === o.customer_id; });
-  return !!c && c.status === 'aktif';
+// Deadline: tanggal, boleh diikuti jam (WITA).
+var DEADLINE_RE = /^\d{4}-\d{2}-\d{2}( ([01]\d|2[0-3]):[0-5]\d)?$/;
+function deadline_(b) {
+  var d = opt_(b, 'deadline', 16);
+  if (d && !DEADLINE_RE.test(d)) throw err_(400, 'Format deadline tidak valid');
+  return d;
+}
+// Resi untuk customer: 10 karakter acak tanpa I, L, O, U.
+function newResi_() {
+  var chars = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  var s = sha256Bytes_(utf8_(Utilities.getUuid() + Utilities.getUuid())).slice(0, 10).map(function (x) { return chars.charAt(x & 31); }).join('');
+  return 'RS-' + s.slice(0, 5) + '-' + s.slice(5);
 }
 function checkFile_(ctx, key, kind) {
   var f = ctx.db.find('files', function (x) { return x.key === key && x.kind === kind && x.confirmed === 1 && x.uploaded_by === ctx.user.id; });
@@ -325,8 +521,7 @@ function createOrder_(ctx, b) {
   var type = one_(b, 'type', ['retail', 'maklon']);
   var service = one_(b, 'service', ['dtfr', 'dtfm', 'sub']);
   var source = u.role === 'store' ? 'Toko' : one_(b, 'source', ['WhatsApp', 'Datang langsung', 'Toko']);
-  var fileRef = str_(b, 'file_ref', 300), fileKey = opt_(b, 'file_key', 200), deadline = opt_(b, 'deadline', 10);
-  if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) throw err_(400, 'Format deadline tidak valid');
+  var fileRef = str_(b, 'file_ref', 300), fileKey = opt_(b, 'file_key', 200), deadline = deadline_(b);
   var method = b.paid_method == null ? null : one_(b, 'paid_method', ['Transfer', 'QRIS', 'Tunai']);
   var dup = db.find('orders', function (o) { return o.request_key === requestKey; });
   if (dup) return { status: 201, data: { id: dup.id, order_no: dup.order_no, track_code: dup.track_code, duplicate: true } };
@@ -335,20 +530,23 @@ function createOrder_(ctx, b) {
   var items = buildItems_(b, numeric_(raw));
   var total = Math.round(items.reduce(function (a, i) { return a + i.price * i.qty; }, 0));
   var meter = round2_(items.reduce(function (a, i) { return a + i.meter; }, 0));
+  // Order hanya diterima bila jadwal masih cukup (deadline, atau SLA standar bila kosong).
+  var capacity = evaluate_(db, raw, service === 'sub' ? 'sub' : 'dtf', meter, deadline);
+  if (!capacity.fits) throw err_(409, capacity.message);
   var customerId = null, name, wa;
   if (type === 'maklon' && b.customer_code) {
     var code = str_(b, 'customer_code', 40);
     var cu = db.find('customers', function (c) { return c.code === code; });
-    if (!cu || cu.status === 'ditolak') throw err_(400, 'Pelanggan tidak ditemukan atau ditolak CRM');
+    if (!cu || cu.status === 'ditolak') throw err_(400, 'Pelanggan tidak ditemukan atau dinonaktifkan');
     customerId = cu.id; name = cu.name; wa = cu.wa;
   } else {
     name = str_(b, 'name', 150); wa = str_(b, 'wa', 40);
     if (type === 'maklon') {
       var n = db.filter('customers', function (c) { return c.code.indexOf('BR-') === 0; }).length;
-      customerId = db.insert('customers', { code: 'BR-' + ('000' + (n + 1)).slice(-4), name: name, wa: wa, source: 'Customer baru', status: 'menunggu', created_at: Date.now() }).id;
+      customerId = db.insert('customers', { code: 'BR-' + ('000' + (n + 1)).slice(-4), name: name, wa: wa, source: 'Customer baru', status: 'aktif', created_at: Date.now() }).id;
     }
   }
-  var t = Date.now(), svc = service === 'sub' ? 'sub' : 'dtf', track = random_(16);
+  var t = Date.now(), svc = service === 'sub' ? 'sub' : 'dtf', track = newResi_();
   var id = db.all('orders').reduce(function (m, o) { return Math.max(m, o.id); }, 0) + 1;
   var orderNo = 'SDP-' + localDay_(t, calendar_(raw)).slice(2).replace(/-/g, '') + '-' + ('00' + id).slice(-Math.max(3, String(id).length));
   db.insert('orders', {
@@ -381,7 +579,6 @@ function orderAction_(ctx, id, action, b) {
     if (ok && !(Array.isArray(b.checks) && b.checks.length === FILE_CHECK_COUNT && b.checks.every(function (x) { return x === true; }))) throw err_(400, 'Centang semua butir, atau tandai tidak layak');
     var issue = ok ? null : str_(b, 'issue', 500);
     need(o.status === 'cek', 'Order tidak sedang menunggu cek file');
-    need(customerActive_(db, o), 'Customer belum diverifikasi CRM');
     db.update('orders', o, { status: ok ? 'bayar' : 'revisi', issue: issue });
     return done({ ok: true, released: ok ? release_(db, o) : false });
   }
@@ -508,7 +705,7 @@ function manage_(ctx, method, path, b) {
         wa: b.wa === undefined ? o.wa : str_(b, 'wa', 40),
         file_ref: b.file_ref === undefined ? o.file_ref : str_(b, 'file_ref', 300),
         note: b.note === undefined ? o.note : opt_(b, 'note', 500),
-        deadline: b.deadline === undefined ? o.deadline : opt_(b, 'deadline', 10),
+        deadline: b.deadline === undefined ? o.deadline : deadline_(b),
         status: status, stage: stage,
         approved_at: o.approved_at || (['antrian', 'produksi', 'curing'].indexOf(status) >= 0 ? t : null),
         started_at: o.started_at || (running.indexOf(status) >= 0 ? t : null)
@@ -576,7 +773,7 @@ function state_(ctx) {
   var pages = master ? GRANTABLE.concat(['atur', 'pengguna', 'akses', 'data', 'akun']) : pages_(db, u.role).concat(['akun']);
   function has() { return Array.prototype.slice.call(arguments).some(function (p) { return pages.indexOf(p) >= 0; }); }
   var raw = settings_(db), cal = calendar_(raw);
-  var out = { me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
+  var out = { api: 3, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
   if (ORDER_PAGES.some(function (p) { return pages.indexOf(p) >= 0; })) {
     var custCode = {};
     db.all('customers').forEach(function (c) { custCode[c.id] = c.code; });
@@ -597,6 +794,10 @@ function state_(ctx) {
   if (has('input', 'pelanggan', 'cs', 'cekfile')) out.customers = db.all('customers').map(function (c) { return { id: c.id, code: c.code, name: c.name, wa: c.wa, source: c.source, status: c.status }; }).sort(function (a, b) { return a.name < b.name ? -1 : 1; });
   if (has('stok', 'dashboard')) out.skus = db.all('skus').map(function (k) { return { code: k.code, name: k.name, svc: k.svc, unit: k.unit, stock: k.stock || 0, min: k.min_stock || 0, use: k.use_per_m, machine: k.machine }; }).sort(function (a, b) { return a.code < b.code ? -1 : 1; });
   if (has('stok')) out.ledger = db.all('stock_ledger').slice(-50).reverse().map(function (l) { return { at: l.at, code: l.sku_code, type: l.type, qty: l.qty, ref: l.ref }; });
+  if (has('input', 'dashboard', 'produksi')) {
+    var cfg = planConfig_(raw), jobs = activeJobs_(db), t = Date.now();
+    out.capacity = { days: days_(jobs, t, cfg), slots: plan_(jobs, t, cfg).slots, slaDue: slaDue_(t, cfg.cal), overtime: overtimeOf_(raw).filter(function (o) { return o.day >= out.today; }) };
+  }
   if (has('loss', 'dashboard', 'laporan')) out.loss = db.all('logs').slice(-300).reverse().map(function (l) { return { logId: l.id, id: l.order_no, type: l.type, reason: l.reason, value: l.value, count: l.counted, at: l.at }; });
   if (has('qc', 'produksi')) out.qcReports = db.all('qc_reports').slice(-60).map(function (r) { return { id: r.id, machine: r.machine, day: r.day, ng: JSON.parse(r.ng), note: r.note || '', action: r.action || '', photos: JSON.parse(r.photos), status: r.status, by: r.by_user, at: r.at, approvedBy: r.approved_by, leaderNote: r.leader_note || '' }; });
   if (master) {
@@ -621,8 +822,9 @@ function route_(req) {
     var s = numeric_(settings_(db));
     return { status: 200, data: { settings: { priceDtf: s.priceDtf, priceSub120: s.priceSub120, priceSub160: s.priceSub160, priceSub180: s.priceSub180 } } };
   }
-  if (method === 'GET' && (m = /^\/api\/public\/track\/([A-Za-z0-9_-]{20,64})$/.exec(path))) {
-    var o = db.find('orders', function (x) { return x.track_code === m[1]; });
+  if (method === 'GET' && (m = /^\/api\/public\/track\/([A-Za-z0-9_-]{20,64}|[Rr][Ss]-[0-9A-Za-z]{5}-[0-9A-Za-z]{5})$/.exec(path))) {
+    var resi = /^rs-/i.test(m[1]) ? m[1].toUpperCase() : m[1];
+    var o = db.find('orders', function (x) { return x.track_code === resi; });
     if (!o) throw err_(404, 'Resi tidak ditemukan');
     var estimate = null;
     if (['antrian', 'produksi', 'curing'].indexOf(o.status) >= 0) {
@@ -691,6 +893,8 @@ function route_(req) {
   if (path === '/api/state' && method === 'GET') return state_(ctx);
   if (path === '/api/orders' && method === 'POST') return createOrder_(ctx, b);
   if (method === 'POST' && (m = /^\/api\/orders\/(\d+)\/([a-z-]+)$/.exec(path))) return orderAction_(ctx, Number(m[1]), m[2], b);
+
+  if (method === 'POST' && (m = /^\/api\/capacity\/(check|loss|overtime)$/.exec(path))) return capacityRoute_(ctx, m[1], b);
 
   if (path === '/api/files/upload' && method === 'POST') {
     var kind = one_(b, 'kind', ['artwork', 'qc_photo']);
@@ -763,16 +967,6 @@ function route_(req) {
     audit_(ctx, 'customers_imported', 'customer', null, { added: added });
     return { status: 201, data: { ok: true, added: added, skipped: rows.length - added } };
   }
-  if (method === 'POST' && (m = /^\/api\/customers\/(\d+)\/decide$/.exec(path))) {
-    allow_(ctx, ['crm'], 'pelanggan');
-    var st = one_(b, 'status', ['aktif', 'ditolak']);
-    var c = db.find('customers', function (x) { return x.id === Number(m[1]) && x.status === 'menunggu'; });
-    if (!c) throw err_(409, 'Customer tidak sedang menunggu verifikasi');
-    db.update('customers', c, { status: st, verified_by: me.code, verified_at: Date.now() });
-    audit_(ctx, 'customer_' + st, 'customer', c.id);
-    return { status: 200, data: { ok: true } };
-  }
-
   if (path === '/api/stock/move' && method === 'POST') {
     allow_(ctx, ['gudang', 'op', 'spv'], 'stok');
     var skuCode = str_(b, 'sku', 60), kindMove = one_(b, 'type', ['Stok masuk', 'Waste', 'Cleaning', 'Koreksi kurang']), qty = num_(b, 'qty');
@@ -849,7 +1043,9 @@ function route_(req) {
     if (!keys.length) throw err_(400, 'Tidak ada perubahan');
     keys.forEach(function (key2) {
       var v = b[key2];
-      if (['priceDtf', 'priceSub120', 'priceSub160', 'priceSub180', 'normDtf', 'normSubPrint', 'normPress'].indexOf(key2) < 0) throw err_(400, 'Pengaturan "' + key2 + '" tidak dikenal');
+      if (['priceDtf', 'priceSub120', 'priceSub160', 'priceSub180', 'normDtf', 'normSubPrint', 'normPress', 'capPct', 'holdMin', 'finDtf', 'finSub', 'work_blocks'].indexOf(key2) < 0) throw err_(400, 'Pengaturan "' + key2 + '" tidak dikenal');
+      if (key2 === 'work_blocks') { if (typeof v !== 'string' || !validBlocks_(v)) throw err_(400, 'Jam produksi ditulis seperti 09:00-12:00,13:00-21:30'); return; }
+      if (key2 === 'capPct' && v !== null && v > 100) throw err_(400, 'Persen kapasitas maksimal 100');
       if (v !== null && !(typeof v === 'number' && isFinite(v) && v > 0 && v < 1e9)) throw err_(400, 'Nilai "' + key2 + '" harus angka lebih dari 0, atau kosong');
       if (key2 === 'priceDtf' && v === null) throw err_(400, 'Harga DTF tidak boleh kosong');
       if (key2.indexOf('price') === 0 && v !== null && v % 1 !== 0) throw err_(400, 'Harga rupiah harus bilangan bulat');
