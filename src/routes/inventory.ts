@@ -11,7 +11,7 @@ import { loadSettings } from '../core.ts';
 export const RECEIVERS: Role[] = ['gudang', 'op', 'cs', 'spv', 'manager']; // GR dan put away: seluruh tim SDP
 export const USERS_OF_STOCK: Role[] = ['gudang', 'op', 'spv'];
 const KEEPERS: Role[] = ['gudang', 'spv'];
-export const USAGE = { produksi: 'Produksi', test: 'Test print', reject: 'Reject', waste: 'Waste' } as const;
+export const USAGE = { produksi: 'Produksi', test: 'Test print', reject: 'Reject', refund: 'Refund', waste: 'Waste' } as const;
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 const CODE = /^[A-Z0-9][A-Z0-9._-]{1,29}$/;
@@ -62,7 +62,7 @@ function partsOf(b: Record<string, any>) {
   const parts = Object.entries(USAGE).map(([k, label]) => ({ label, qty: amount(b[k] ?? 0, label) })).filter((p) => p.qty > 0);
   if (!parts.length) throw bad('Isi minimal satu jumlah pemakaian');
   const note = optStr(b, 'note', 300);
-  if (!note && parts.some((p) => p.label === 'Reject' || p.label === 'Waste')) throw bad('Isi keterangan untuk reject atau waste');
+  if (!note && parts.some((p) => ['Reject', 'Refund', 'Waste'].includes(p.label))) throw bad('Isi keterangan untuk reject, refund, atau waste');
   return { parts, note };
 }
 
@@ -94,6 +94,24 @@ export async function consumeForOrder(db: Db, o: any, input: unknown, by: string
     await consume(db, lot, parts, o.order_no, note, by, null);
   }
   return list.length;
+}
+
+/**
+ * Hasil cetak yang ternyata reject atau di-refund: pindahkan dari Produksi (print bagus) ke kategori itu.
+ * Stok roll tidak berubah karena filmnya sudah terpotong. Mengembalikan meter yang dipindahkan.
+ */
+export async function reclassify(db: Db, orderNo: string, type: 'Reject' | 'Refund', meter: number, reason: string, by: string) {
+  const used = (await db.prepare("SELECT lot_code, sku_code, SUM(-qty) AS q, MAX(id) AS last FROM stock_ledger WHERE ref = ? AND type = 'Produksi' GROUP BY lot_code, sku_code ORDER BY MAX(id) DESC").bind(orderNo).all<any>()).results;
+  let rest = meter;
+  for (const u of used) {
+    const take = round3(Math.min(rest, Number(u.q)));
+    if (take <= 0) continue;
+    await entry(db, u.sku_code, u.lot_code, 'Produksi', take, orderNo, 'Dipindahkan ke ' + type, by);
+    await entry(db, u.sku_code, u.lot_code, type, -take, orderNo, reason, by);
+    rest = round3(rest - take);
+    if (rest <= 0) break;
+  }
+  return round3(meter - rest);
 }
 
 export const inventoryRoutes = new Hono<AppEnv>();
@@ -211,6 +229,24 @@ inventoryRoutes.post('/use', async (c) => {
     return { ok: true, left };
   });
   return c.json(result, 201);
+});
+
+// Reject atau refund yang diketahui belakangan, dari hasil produksi sebuah order.
+inventoryRoutes.post('/reclass', async (c) => {
+  await allow(c, USERS_OF_STOCK, 'stok');
+  const b = await readJson(c);
+  const orderNo = reqStr(b, 'order_no', 40);
+  const type = oneOf(b, 'type', ['Reject', 'Refund'] as const);
+  const meter = amount(b.meter, 'Meter');
+  const reason = reqStr(b, 'reason', 300);
+  if (!meter) throw bad('Isi meter lebih dari 0');
+  const moved = await c.env.DB.tx(async (db) => {
+    const n = await reclassify(db, orderNo, type, meter, reason, c.get('user').code);
+    if (n < meter - 1e-9) throw conflict(`Pemakaian produksi order ini hanya ${n} m`);
+    await audit(db, c.get('user').id, 'stock_reclass', 'order', orderNo, { type, meter });
+    return n;
+  });
+  return c.json({ ok: true, moved }, 201);
 });
 
 // Kemasan (tinta, powder, kertas pelindung) atau sisa ujung roll dinyatakan habis.

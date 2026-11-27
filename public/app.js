@@ -3,7 +3,7 @@
 // pemeriksaan di sini hanya untuk tampilan. Data dinamis dirender lewat textContent.
 const ROLES={master:'Master Akun',manager:'Manager',spv:'SPV SDP',cs:'CS (DTF + Sublim)',crm:'CRM',store:'Store Head',op:'Operator Produksi',qc:'QC',gudang:'Gudang',fat:'FAT / Finance'};
 const PAGES={masuk:'Masuk',dashboard:'Dashboard',input:'Input Order',cs:'Meja CS',cekfile:'Cek File',toko:'Order Toko Saya',produksi:'Antrian Produksi',qc:'QC',serah:'Serah Terima',bayar:'Pembayaran',
-pelanggan:'Pelanggan B2B',stok:'SKU & Inventory',loss:'Loss Sales & Log QC',harian:'Laporan Harian',laporan:'Report',analysis:'Analysis',layanan:'Layanan & Harga',lacak:'Lacak Order',atur:'Pengaturan',pengguna:'Pengguna',akses:'Hak Akses',data:'Kelola Data',akun:'Akun Saya'};
+pelanggan:'Database Customer',stok:'SKU & Inventory',loss:'Loss Sales & Log QC',harian:'Laporan Harian',laporan:'Report',analysis:'Analysis',layanan:'Layanan & Harga',lacak:'Lacak Order',atur:'Pengaturan',pengguna:'Pengguna',akses:'Hak Akses',data:'Kelola Data',akun:'Akun Saya'};
 const GROUPS=[['Ringkasan',['dashboard','harian','laporan','analysis']],['Order',['input','cs','toko','pelanggan','lacak']],['Produksi',['cekfile','produksi','qc','serah']],['Keuangan dan data',['bayar','stok','loss']],['Referensi',['layanan']],['Admin',['atur','pengguna','akses','data']],['Akun',['masuk','akun']]];
 const GRANTABLE=['dashboard','harian','laporan','analysis','input','cs','toko','pelanggan','cekfile','produksi','qc','serah','bayar','stok','loss','layanan','lacak'];
 const STAFF_ROLES=Object.keys(ROLES).filter(r=>r!=='master');
@@ -197,13 +197,13 @@ function openFinish(o){const n=needOf(o,o.stage);
 function finishCard(o){const f=finishForm,stage=o.stage,codes=rollCodes(o,stage),rolls=(S.rolls||[]).filter(r=>codes.includes(r.sku)),recommended=needOf(o,stage)?.picks.map(p=>p.lot)||[];
  const field=(obj,k,aria,extra={})=>h('input',{'aria-label':aria,value:obj[k],oninput:e=>obj[k]=e.target.value,...extra}),number=(obj,k,aria)=>field(obj,k,aria,{type:'number',min:0,step:'0.001',inputmode:'decimal',placeholder:'0'});
  const rows=f.rows.map((r,i)=>h('div',{class:'material'},h('div',{class:'f'},lab('Roll '+(i+1),sel('Roll '+(i+1),rolls.map(x=>[x.lot,x.lot+' · '+x.sku+' · bin '+x.bin+' · sisa '+num3(x.left)+(recommended.includes(x.lot)?' · disarankan':'')]),{value:r.lot,onchange:e=>r.lot=e.target.value})),
-   lab('Produksi (m)',number(r,'produksi','Produksi roll '+(i+1))),lab('Test print (m)',number(r,'test','Test print roll '+(i+1))),lab('Reject (m)',number(r,'reject','Reject roll '+(i+1))),lab('Waste (m)',number(r,'waste','Waste roll '+(i+1))),lab('Keterangan',field(r,'note','Keterangan roll '+(i+1),{placeholder:'wajib untuk reject, waste, atau ganti roll'}))),
+   lab('Produksi (m)',number(r,'produksi','Produksi roll '+(i+1))),lab('Test print (m)',number(r,'test','Test print roll '+(i+1))),lab('Reject (m)',number(r,'reject','Reject roll '+(i+1))),lab('Waste (m)',number(r,'waste','Waste roll '+(i+1))),lab('Keterangan',field(r,'note','Keterangan roll '+(i+1),{placeholder:'wajib untuk reject, waste, atau ganti roll',list:'alasan'}))),
    h('button',{type:'button',onclick:()=>{f.rows.splice(i,1);render();}},'Hapus baris')));
  const send=ev=>{if(stage!=='subp'&&!(Number(f.temp)>0&&Number(f.seconds)>0))return toast('Isi suhu dan lama proses.');
   const materials=f.rows.map(r=>({lot:r.lot,note:r.note.trim()||undefined,...Object.fromEntries(['produksi','test','reject','waste'].map(k=>[k,Math.round((Number(r[k])||0)*1000)/1000]))}));
   if(rolls.length&&!materials.length)return toast('Catat roll yang dipakai untuk order ini.');
   act(ev,async()=>{const res=await api('POST',`/api/orders/${o.dbId}/finish`,{materials,...(stage==='subp'?{}:{temp:Number(f.temp),seconds:Number(f.seconds)})});finishForm=null;return res;},r=>(r.next==='press'?'Print selesai, lanjut press.':'Selesai. Order menunggu QC.')+(r.rolls?' Stok roll sudah dipotong.':' Tanpa catatan bahan.'));};
- return h('div',{class:'card finish',id:'finish'},h('div',{class:'row'},h('h2',{},'Selesaikan '+o.id+' · '+o.customer),h('span',{class:'tag'},MACHINES[stage].n),h('button',{onclick:()=>{finishForm=null;render();}},'Batal')),
+ return h('div',{class:'card finish',id:'finish'},reasonList(),h('div',{class:'row'},h('h2',{},'Selesaikan '+o.id+' · '+o.customer),h('span',{class:'tag'},MACHINES[stage].n),h('button',{onclick:()=>{finishForm=null;render();}},'Batal')),
   stage==='subp'?null:h('div',{class:'f'},lab('Suhu (°C)',field(f,'temp','Suhu',{type:'number'})),lab('Lama (detik)',field(f,'seconds','Lama detik',{type:'number'}))),
   h('h3',{class:'mt'},'Bahan dipakai: '+MATERIAL[stage]+', kebutuhan '+num3(meterOf(o))+' m'),
   rolls.length?[rows,f.rows.length<5?h('button',{type:'button',onclick:()=>{f.rows.push({lot:rolls[0].lot,produksi:'',test:'',reject:'',waste:'',note:''});render();}},icon('plus'),'Tambah roll'):null]:h('p',{class:'tag warn'},MATERIAL[stage]+' belum ada di rak. Selesai akan disimpan tanpa catatan bahan; lakukan GR dan put away.'),
@@ -295,10 +295,20 @@ V.layanan=()=>{const isDtf=tab==='dtf',pick=(k,t)=>h('button',{class:tab===k?'pr
 let newOrder=null;
 V.input=()=>{const mine=role()==='store',requestKey=uid();
  const type=h('select',{id:'type'},h('option',{value:'retail'},'Retail'),h('option',{value:'maklon'},'B2B Maklon')),svc=h('select',{id:'svc'},h('option',{value:'dtfr'},'DTF retail per ukuran'),h('option',{value:'dtfm'},'DTF maklon per meter'),h('option',{value:'sub'},'Sublim print + press'));
- const src=h('select',{id:'src'},(mine?['Toko']:['WhatsApp','Datang langsung','Toko']).map(x=>h('option',{},x))),detail=h('div'),sum=h('div',{class:'total'},'Rp 0'),who=h('div',{class:'f'});
- const custSel=h('select',{id:'custSel'},S.customers.filter(c=>c.status!=='ditolak').map(c=>h('option',{value:c.code},c.code+' · '+c.name)),h('option',{value:'new'},'+ Customer B2B baru'));
+ const src=h('select',{id:'src'},(mine?['Toko']:['WhatsApp','Datang langsung','Toko']).map(x=>h('option',{},x))),detail=h('div'),sum=h('div',{class:'total'},'Rp 0'),who=h('div');
+ let picked=null;
  const cust=h('input',{id:'cust'}),wa=h('input',{id:'wa',inputmode:'tel'}),file=h('input',{id:'file',placeholder:'nama file atau tautan Drive'}),up=h('input',{id:'upload',type:'file'}),dl=h('input',{id:'dl',type:'date'}),dlh=h('input',{id:'dlh',type:'time'}),eta=h('div',{class:'eta',role:'status'}),note=h('input',{id:'note'});
- const drawWho=()=>{const b2b=type.value==='maklon',isNew=!b2b||custSel.value==='new';who.replaceChildren(...[b2b?lab('Pelanggan B2B',custSel):null,isNew?lab(b2b?'Nama bisnis baru':'Nama customer',cust):null,isNew?lab('Nomor WhatsApp',wa):null,b2b&&isNew?h('p',{class:'small muted'},'Customer baru otomatis masuk daftar pelanggan.'):null].filter(Boolean));};
+ const find=h('input',{id:'find',placeholder:'Cari nama, ID customer, atau nomor'}),found=h('div',{class:'found'});
+ const canPick=()=>type.value==='maklon'||S.api>=11;
+ async function searchCustomer(ev){const q=find.value.trim();if(q.length<2)return toast('Ketik minimal 2 huruf atau angka.');const b=ev?.currentTarget;if(b){b.disabled=true;b.classList.add('wait');}
+  try{const rows=S.api>=11?(await api('POST','/api/customers/search',{q})).rows:(S.customers||[]).filter(c=>(c.name+' '+c.code).toLowerCase().includes(q.toLowerCase()));
+   const list=rows.filter(c=>c.status!=='ditolak').slice(0,10);
+   found.replaceChildren(...list.length?list.map(c=>h('button',{type:'button',onclick:()=>{picked=c;drawWho();}},c.code+' · '+c.name+(c.active===0?' (tidak aktif)':''))):[h('p',{class:'small muted'},'Tidak ditemukan. Isi nama dan nomor di bawah untuk customer baru.')]);
+  }catch(e){oops(e);}finally{if(b){b.disabled=false;b.classList.remove('wait');}}}
+ find.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();searchCustomer();}});
+ const drawWho=()=>{found.replaceChildren();if(!canPick())picked=null;
+  who.replaceChildren(...[picked?h('div',{class:'card notice ok'},h('b',{},picked.code+' · '+picked.name),h('div',{class:'small muted'},[picked.wa||'Nomor belum ada',picked.city].filter(Boolean).join(' · ')),h('button',{type:'button',onclick:()=>{picked=null;drawWho();}},'Ganti customer'))
+   :[canPick()?h('div',{class:'f'},lab('Customer terdaftar',find),h('div',{},h('button',{type:'button',onclick:searchCustomer},icon('search'),'Cari')))  :null,found,h('div',{class:'f'},lab(type.value==='maklon'?'Nama bisnis baru':'Nama customer',cust),lab('Nomor WhatsApp',wa)),type.value==='maklon'?h('p',{class:'small muted'},'Customer baru otomatis masuk database.'):null]].flat().filter(Boolean));};
  const qtyInputs={};let meterInput,widthSel;
  const fabricSel=sel('Bahan kain',[['','Pilih kain'],...(S.fabrics||[]).map(k=>[k.code,k.code+' · '+k.name+' · bebas '+num(k.free)+' m'])],{id:'fabric',onchange:()=>stale()});
  // Pratinjau saja; harga resmi dihitung server.
@@ -309,7 +319,7 @@ V.input=()=>{const mine=role()==='store',requestKey=uid();
   const m=Number(meterInput.value)||0,p=svc.value==='dtfm'?S.settings.priceDtf:S.settings[widthSel.value];sum.textContent=p?money(m*p):'Harga belum diatur';};
  dl.addEventListener('change',stale);dlh.addEventListener('change',stale);
  const sizeBody=()=>svc.value==='dtfr'?{qty:Object.fromEntries(Object.entries(qtyInputs).map(([k,i])=>[k,Number(i.value)||0]))}:{meter:Number(meterInput.value),width:svc.value==='sub'?widthSel.value:undefined,fabric_sku:svc.value==='sub'?fabricSel.value||undefined:undefined};
- const custName=()=>type.value==='maklon'&&custSel.value!=='new'?S.customers.find(c=>c.code===custSel.value)?.name||'':cust.value.trim();
+ const custName=()=>picked?picked.name:cust.value.trim();
  async function check(ev){const b=ev?.currentTarget;if(b){b.disabled=true;b.classList.add('wait');}const no=++checkNo,payload={service:svc.value,...sizeBody(),deadline:deadlineValue()||undefined};
   try{const r=await api('POST','/api/capacity/check',payload);if(no!==checkNo)return;
    const short=(r.materials||[]).filter(m=>m.free<m.need).map(m=>h('div',{class:'card notice'},h('b',{},'Stok '+MATERIAL[m.stage]+' kurang: '),'bebas '+num3(m.free)+' m, perlu '+num3(m.need)+' m.'));
@@ -322,14 +332,14 @@ V.input=()=>{const mine=role()==='store',requestKey=uid();
   }catch(e){oops(e);}finally{if(b){b.disabled=false;b.classList.remove('wait');}}}
  const draw=()=>{if(svc.value==='dtfr')detail.replaceChildren(h('div',{class:'f'},Object.entries(RETAIL).map(([k,d])=>{qtyInputs[k]=h('input',{id:'q-'+k.replace(' ',''),type:'number',min:0,step:1,placeholder:'0',oninput:preview});return lab(k+', '+d.s+' (pcs)',qtyInputs[k]);})));
   else{meterInput=h('input',{id:'meter',type:'number',min:0,step:'0.01',oninput:preview});widthSel=h('select',{id:'width',onchange:preview},WIDTHS.map(([k,t])=>h('option',{value:k},t)));detail.replaceChildren(h('div',{class:'f'},lab('Panjang (meter)',meterInput),svc.value==='sub'?lab('Lebar kain',widthSel):null,svc.value==='sub'&&S.api>=6&&S.fabrics?.length?lab('Bahan kain',fabricSel):null));}sum.textContent='Rp 0';stale();};
- custSel.addEventListener('change',drawWho);svc.addEventListener('change',draw);type.addEventListener('change',()=>{svc.value=type.value==='retail'?'dtfr':'dtfm';draw();drawWho();});draw();drawWho();
+ svc.addEventListener('change',draw);type.addEventListener('change',()=>{svc.value=type.value==='retail'?'dtfr':'dtfm';draw();drawWho();});draw();drawWho();
  const paid=h('input',{type:'checkbox',id:'paid'}),method=sel('Metode bayar',['Transfer','QRIS','Tunai'].map(x=>[x,x]),{id:'method',style:'width:auto'});
- const send=ev=>act(ev,async()=>{const b2b=type.value==='maklon',isNew=!b2b||custSel.value==='new';
+ const send=ev=>act(ev,async()=>{
   if(!file.value.trim()&&!up.files.length)throw new Error('Isi nama file / tautan, atau unggah berkas.');
   if(dlh.value&&!dl.value)throw new Error('Isi tanggal deadline untuk jam tersebut.');
   if(svc.value==='sub'&&S.api>=6&&S.fabrics?.length&&!fabricSel.value)throw new Error('Pilih bahan kain.');
   const body={request_key:requestKey,type:type.value,service:svc.value,source:src.value,deadline:deadlineValue()||undefined,note:note.value||undefined,
-   ...(isNew?{name:cust.value,wa:wa.value}:{customer_code:custSel.value}),
+   ...(picked?{customer_code:picked.code}:{name:cust.value,wa:wa.value}),
    ...sizeBody(),
    paid_method:paid.checked?method.value:undefined};
   if(up.files.length)body.file_key=await upload('artwork',up.files[0]);
@@ -344,11 +354,55 @@ V.input=()=>{const mine=role()==='store',requestKey=uid();
 V.toko=()=>{const list=S.orders.filter(o=>role()==='store'?o.createdBy===me.code:o.source==='Toko').slice().reverse();
  return[h('h1',{},'Order toko saya'),h('p',{class:'muted'},'Status order yang dimasukkan dari toko.'),card(table([['Order',o=>h('span',{},o.id,h('br'),h('span',{class:'small muted'},o.customer))],['Rincian',itemsText],['Total',o=>money(o.total)],['Status',stTag],['Bayar',payTag],['Resi',resiBox]],list,'Belum ada order dari toko.'))];};
 
-V.pelanggan=()=>{const add=is('crm'),paste=h('textarea',{rows:5,'aria-label':'Daftar pelanggan',placeholder:'kode;nama bisnis;nomor whatsapp\nTK-0001;Nama Konveksi;0812xxxx'});
- const imp=ev=>act(ev,()=>{const rows=paste.value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const[code,name,wa]=l.split(/[;\t]/).map(x=>(x||'').trim());return{code,name,wa};});return api('POST','/api/customers/import',{rows});},r=>r.added+' pelanggan ditambahkan, '+r.skipped+' sudah ada.');
- return[h('h1',{},'Pelanggan B2B'),h('p',{class:'muted'},'Pelanggan B2B Tigalapan Kaos yang sudah terdaftar dapat langsung diimpor. Customer baru dari input order otomatis tersimpan di sini.'),
- add?card(h('h2',{},'Impor pelanggan terdaftar'),h('p',{class:'small muted'},'Satu pelanggan per baris. Bisa ditempel langsung dari Excel (kolom kode, nama, WhatsApp). Kode yang sudah ada dilewati.'),paste,h('div',{class:'mt'},h('button',{class:'pri',onclick:imp},'Impor'))):null,
- card(h('h2',{},'Daftar pelanggan'),table([['Kode',c=>c.code],['Nama',c=>c.name],['WhatsApp',c=>c.wa],['Asal',c=>c.source],['Status',c=>h('span',{class:'tag '+(c.status==='ditolak'?'bad':'ok')},c.status==='ditolak'?'nonaktif':'aktif')],['Order',c=>S.orders.filter(o=>o.custCode===c.code).length]],S.customers))];};
+let cdb={q:'',status:'all',kind:'all',category:'',page:0,data:null,error:'',loading:false,key:'',picked:new Set(),edit:null},imp=null;
+const cdbKey=()=>[cdb.q,cdb.status,cdb.kind,cdb.category,cdb.page].join('|');
+async function loadCustomers(){const key=cdbKey();cdb={...cdb,loading:true,error:'',key};
+ try{const data=await api('POST','/api/customers/search',{q:cdb.q||undefined,status:cdb.status,kind:cdb.kind,category:cdb.category||undefined,page:cdb.page});if(cdb.key!==key)return;cdb={...cdb,data,loading:false};}
+ catch(e){if(cdb.key!==key)return;cdb={...cdb,data:null,loading:false,error:e.message};}
+ if(location.hash==='#pelanggan')render();}
+const reloadCustomers=()=>{cdb.key='';cdb.picked.clear();};
+/** CSV dengan tanda kutip; pemisah koma atau titik koma mengikuti baris judul. */
+function parseCsv(text){text=text.replace(/^\ufeff/,'');const first=text.slice(0,text.indexOf('\n')),sep=first.split(';').length>first.split(',').length?';':',';const rows=[];let row=[],cell='',q=false;
+ for(let i=0;i<text.length;i++){const c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){cell+='"';i++;}else q=false;}else cell+=c;}else if(c==='"')q=true;else if(c===sep){row.push(cell);cell='';}else if(c==='\n'){row.push(cell.replace(/\r$/,''));rows.push(row);row=[];cell='';}else cell+=c;}
+ if(cell||row.length){row.push(cell);rows.push(row);}return rows;}
+const isoDate=v=>{let m=/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/.exec(v||''),y,mo,d;if(m){d=+m[1];mo=+m[2];y=+m[3];}else{m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||'');if(!m)return;y=+m[1];mo=+m[2];d=+m[3];}if(y<1990||y>2100||mo<1||mo>12||d<1||d>31)return;return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');};
+function readCustomers(text){const[head,...body]=parseCsv(text);if(!head)throw new Error('File kosong.');const names=head.map(x=>x.trim().toLowerCase());
+ const col=(...a)=>names.findIndex(n=>a.includes(n)),c={name:col('name','nama'),email:col('email'),wa:col('phone','telepon','whatsapp','no hp'),city:col('city','kota'),address:col('address','alamat'),since:col('customer since','terdaftar'),last_visit:col('last visit','kunjungan terakhir'),visits:col('total # of orders','jumlah order'),spending:col('member spending','total belanja'),kind:col('tipe','type'),category:col('kategori','category')};
+ if(c.name<0)throw new Error('Kolom "Name" atau "Nama" tidak ditemukan.');
+ let broken=0;const rows=[];
+ for(const r of body){const get=k=>c[k]<0?'':(r[c[k]]||'').trim(),name=get('name').replace(/\s+/g,' ');if(!name)continue;
+  let phone=get('wa').replace(/[\s().-]/g,'').replace(/^\+/,'');if(phone&&!/^\d{8,16}$/.test(phone)){broken++;phone='';}
+  const num_=k=>{const v=get(k).replace(/[^\d]/g,'');return v?Number(v):undefined;},kind=get('kind').toUpperCase();
+  rows.push({name:name.slice(0,150),wa:phone||undefined,email:get('email')||undefined,city:get('city')||undefined,address:get('address')||undefined,since:isoDate(get('since')),last_visit:isoDate(get('last_visit')),visits:num_('visits'),spending:num_('spending'),kind:kind==='B2B'||kind==='B2C'?kind:undefined,category:get('category')||undefined});}
+ return{rows,broken};}
+async function runImport(){const job=imp;job.busy=true;job.error='';render();
+ try{while(job.done<job.rows.length){const r=await api('POST','/api/customers/bulk',{rows:job.rows.slice(job.done,job.done+400)});job.done+=Math.min(400,job.rows.length-job.done);job.added+=r.added;job.updated+=r.updated;if(location.hash==='#pelanggan')render();}reloadCustomers();toast('Impor selesai.');await load();}
+ catch(e){job.error=e.message;}job.busy=false;if(location.hash==='#pelanggan')render();}
+function importCard(){const file=h('input',{type:'file',accept:'.csv,text/csv','aria-label':'File customer CSV',onchange:async e=>{const f=e.target.files[0];if(!f)return;try{imp={...readCustomers(await f.text()),file:f.name,done:0,added:0,updated:0,busy:false,error:''};}catch(x){imp=null;toast(x.message);}render();}});
+ return card(h('h2',{},'Impor database (CSV)'),h('p',{class:'small muted'},'Nama yang sama diperbarui, tidak digandakan. Kolom: Name, Email, Phone, Address, City, Customer Since, Last Visit, Total # of orders, Member Spending (opsional: Tipe, Kategori).'),file,
+  imp?[h('p',{class:'mt'},h('b',{},imp.file+': '+imp.rows.length+' customer terbaca.')),imp.broken?h('div',{class:'card notice bad'},h('b',{},imp.broken+' nomor telepon rusak'),' (tertulis seperti 6,29E+12 karena file disimpan ulang dari Excel). Nomor itu dikosongkan. Ekspor ulang dengan kolom Phone berformat Teks, lalu impor lagi untuk melengkapinya.'):null,
+   imp.done||imp.busy?h('p',{role:'status'},imp.busy?h('span',{class:'spin'}):'',' '+imp.done+' dari '+imp.rows.length+' diproses · '+imp.added+' baru, '+imp.updated+' diperbarui'):null,imp.error?h('p',{class:'err',role:'alert'},imp.error):null,
+   imp.done<imp.rows.length?h('button',{class:'pri mt',disabled:imp.busy,onclick:runImport},imp.done?'Lanjutkan impor':'Mulai impor'):h('span',{class:'tag ok'},'Selesai')]:null);}
+const ageTag=c=>h('span',{class:'tag '+(c.active?'ok':'bad')},c.active?'Aktif':'Tidak aktif');
+function editCustomer(c){const name=h('input',{value:c.name}),wa_=h('input',{value:c.wa||''}),city=h('input',{value:c.city||''}),kind=sel('Tipe',[['','Belum diisi'],['B2B','B2B'],['B2C','B2C']],{value:c.kind||''}),cat=h('input',{value:c.category||'',list:'kategori'});
+ return card(h('h2',{},'Ubah '+c.code),h('div',{class:'f'},lab('Nama',name),lab('Nomor WhatsApp',wa_),lab('Kota',city),lab('Tipe',kind),lab('Kategori',cat)),h('p',{class:'small muted mt'},[c.email,c.address,c.since?'Terdaftar '+c.since:'',c.visits!=null?c.visits+' order di sistem lama':'',c.spending?'Belanja '+money(c.spending):''].filter(Boolean).join(' · ')),
+  h('div',{class:'row'},h('button',{class:'pri',onclick:ev=>act(ev,async()=>{await api('POST','/api/customers/update',{ids:[c.id],name:name.value,wa:wa_.value,city:city.value,kind:kind.value,category:cat.value});cdb.edit=null;reloadCustomers();},'Customer disimpan.')},'Simpan'),h('button',{onclick:()=>{cdb.edit=null;render();}},'Batal'),is()?h('button',{class:'d',onclick:ev=>{if(confirm('Hapus '+c.name+'?'))act(ev,async()=>{await api('DELETE','/api/manage/customers/'+c.id);cdb.edit=null;reloadCustomers();},'Customer dihapus.');}},'Hapus'):null));}
+V.pelanggan=()=>{const head=h('div',{},h('h1',{},'Database Customer'),h('p',{class:'muted'},'Customer B2B dan B2C. Aktif bila ada kunjungan atau order dalam 1 tahun terakhir.'));
+ if(!(S.api>=11))return[head,card(h('p',{},'Database customer aktif setelah Code.gs diperbarui.'))];
+ if(cdb.key!==cdbKey())loadCustomers();
+ const d=cdb.data,edit=is('crm','cs','spv'),go=()=>{cdb.q=q.value.trim();cdb.page=0;cdb.picked.clear();render();};
+ const q=h('input',{value:cdb.q,placeholder:'Nama, ID, atau nomor','aria-label':'Cari customer',style:'max-width:260px',onkeydown:e=>{if(e.key==='Enter')go();}});
+ const pick=(key,label,options)=>sel(label,options,{value:cdb[key],onchange:e=>{cdb[key]=e.target.value;cdb.page=0;cdb.picked.clear();render();}});
+ const bulkKind=sel('Tipe massal',[['keep','Tipe: tidak diubah'],['B2B','B2B'],['B2C','B2C']]),bulkCat=h('input',{placeholder:'Kategori untuk yang dipilih',list:'kategori','aria-label':'Kategori massal',style:'max-width:240px'});
+ const count=h('b',{},cdb.picked.size+' dipilih');
+ return[head,d?h('div',{class:'metrics mt'},metric('Total customer',num(d.summary.total)),metric('Aktif',num(d.summary.active)),metric('Tidak aktif',num(d.summary.total-d.summary.active)),metric('B2B',num(d.summary.b2b)),metric('B2C',num(d.summary.b2c)),metric('Tanpa nomor',num(d.summary.nophone))):null,
+  is('crm','spv')?importCard():null,h('datalist',{id:'kategori'},(d?.categories||[]).map(x=>h('option',{value:x}))),
+  cdb.edit?editCustomer(cdb.edit):null,
+  card(h('div',{class:'row'},q,h('button',{class:'pri',onclick:go},icon('search'),'Cari'),pick('status','Status',[['all','Semua status'],['active','Aktif'],['inactive','Tidak aktif']]),pick('kind','Tipe',[['all','Semua tipe'],['B2B','B2B'],['B2C','B2C'],['none','Belum diisi']]),pick('category','Kategori',[['','Semua kategori'],...(d?.categories||[]).map(x=>[x,x])])),
+   cdb.loading?spinner('Mencari…'):cdb.error?h('div',{},h('p',{class:'err',role:'alert'},cdb.error),h('button',{onclick:()=>{cdb.key='';render();}},'Coba Lagi')):d?[
+    edit?h('div',{class:'row mt'},h('button',{onclick:()=>{const all=d.rows.every(c=>cdb.picked.has(c.id));d.rows.forEach(c=>all?cdb.picked.delete(c.id):cdb.picked.add(c.id));render();}},'Pilih semua di halaman ini'),count,bulkKind,bulkCat,h('button',{onclick:ev=>{if(!cdb.picked.size)return toast('Pilih customer dahulu.');const body={ids:[...cdb.picked]};if(bulkKind.value!=='keep')body.kind=bulkKind.value;if(bulkCat.value.trim())body.category=bulkCat.value.trim();if(Object.keys(body).length===1)return toast('Isi tipe atau kategori.');act(ev,async()=>{await api('POST','/api/customers/update',body);reloadCustomers();},body.ids.length+' customer diperbarui.');}},'Terapkan')):null,
+    table([...(edit?[['Pilih',c=>h('input',{type:'checkbox','aria-label':'Pilih '+c.name,checked:cdb.picked.has(c.id),onchange:e=>{e.target.checked?cdb.picked.add(c.id):cdb.picked.delete(c.id);count.textContent=cdb.picked.size+' dipilih';}})]]:[]),['ID',c=>c.code],['Nama',c=>h('b',{},c.name)],['Tipe',c=>c.kind||'-'],['Kategori',c=>c.category||'-'],['WhatsApp',c=>c.wa||h('span',{class:'tag warn'},'Belum ada')],['Kota',c=>c.city||'-'],['Kunjungan terakhir',c=>c.last_visit||c.since||'-'],['Status',ageTag],...(edit?[['Aksi',c=>h('button',{onclick:()=>{cdb.edit=c;render();scrollTo(0,0);}},'Ubah')]]:[])],d.rows,'Tidak ada customer.'),
+    h('div',{class:'row mt'},h('button',{disabled:d.page===0,onclick:()=>{cdb.page--;cdb.picked.clear();render();}},'Sebelumnya'),h('span',{},'Halaman '+(d.page+1)+' dari '+Math.max(1,Math.ceil(d.total/d.size))+' · '+num(d.total)+' customer'),h('button',{disabled:(d.page+1)*d.size>=d.total,onclick:()=>{cdb.page++;cdb.picked.clear();render();}},'Berikutnya'))]:null)];};
 
 // ---------- Kelola Data (master) ----------
 const del=(path,question,msg)=>ev=>{if(confirm(question+' Tindakan ini tidak dapat dibatalkan.'))act(ev,()=>api('DELETE',path),msg);};
@@ -362,7 +416,7 @@ V.data=()=>{const tabs=[['order','Order'],['bayar','Pembayaran'],['pelanggan','P
  const body={
   order:()=>{const o=S.orders.find(x=>x.dbId===editId);return[o?editOrder(o):null,card(table([['Order',x=>x.id],['Customer',x=>x.customer],['Total',x=>money(x.total)],['Status',stTag],['Aksi',x=>h('div',{class:'row'},h('button',{onclick:()=>{editId=x.dbId;render();scrollTo(0,0);}},'Ubah'),h('button',{class:'d',onclick:del('/api/manage/orders/'+x.dbId,'Hapus order '+x.id+' beserta pembayaran, log, dan pemakaian bahannya?','Order dihapus.')},'Hapus'))]],S.orders.slice().reverse()))];},
   bayar:()=>card(h('p',{class:'small muted'},'Menghapus pembayaran tidak mengubah status order. Sesuaikan status lewat tab Order bila perlu.'),table([['Waktu',x=>dt(x.p.at)],['Order',x=>x.o.id],['Nominal',x=>money(x.p.amount)],['Metode',x=>x.p.method],['Aksi',x=>h('button',{class:'d',onclick:del('/api/manage/payments/'+x.p.id,'Hapus pembayaran '+money(x.p.amount)+' pada '+x.o.id+'?','Pembayaran dihapus.')},'Hapus')]],S.orders.flatMap(o=>o.pay.map(p=>({o,p}))).sort((a,b)=>b.p.at-a.p.at))),
-  pelanggan:()=>card(table([['Kode',c=>c.code],['Nama, WhatsApp, status',c=>{const n=h('input',{value:c.name,'aria-label':'Nama '+c.code}),w=h('input',{value:c.wa,'aria-label':'WhatsApp '+c.code}),s=sel('Status '+c.code,[['aktif','aktif'],['ditolak','nonaktif']],{value:c.status==='ditolak'?'ditolak':'aktif'});return h('div',{class:'row'},n,w,s,h('button',{onclick:ev=>act(ev,()=>api('PATCH','/api/manage/customers/'+c.id,{name:n.value,wa:w.value,status:s.value}),c.code+' disimpan.')},'Simpan'),h('button',{class:'d',onclick:del('/api/manage/customers/'+c.id,'Hapus pelanggan '+c.name+'?','Pelanggan dihapus.')},'Hapus'));}]],S.customers)),
+  pelanggan:()=>card(h('p',{},'Ubah dan hapus customer dilakukan di menu Database Customer.'),h('a',{class:'btn pri',href:'#pelanggan'},'Buka Database Customer')),
   qc:()=>card(table([['Waktu',r=>dt(r.at)],['Mesin',r=>MACHINES[r.machine].n],['Status',r=>QC_STATE[r.status][0]],['Aksi',r=>h('button',{class:'d',onclick:del('/api/manage/qc/'+r.id,'Hapus laporan QC ini?','Laporan QC dihapus.')},'Hapus')]],S.qcReports.slice().reverse())),
   log:()=>card(table([['Waktu',l=>dt(l.at)],['Order',l=>l.id],['Jenis',l=>l.type],['Alasan',l=>l.reason],['Aksi',l=>h('button',{class:'d',onclick:del('/api/manage/logs/'+l.logId,'Hapus catatan ini?','Catatan dihapus.')},'Hapus')]],S.loss)),
   stok:()=>card(h('p',{class:'small muted'},'Hapus roll yang salah input saat simulasi, beserta riwayatnya. Untuk pemakaian dan opname harian gunakan SKU & Inventory.'),table([['ID roll',l=>l.lot],['SKU',l=>l.sku],['Sisa',l=>num(l.left)],['Status',l=>l.status],['Aksi',l=>h('button',{class:'d',onclick:del('/api/manage/lots/'+l.lot,'Hapus roll '+l.lot+' beserta riwayatnya?','Roll dihapus.')},'Hapus')]],S.lots||[],'Belum ada roll.')),
@@ -472,6 +526,14 @@ function trendCards(r){if(!r.trend)return card(h('p',{class:'muted'},'Grafik tre
  return[card(h('h2',{},'Nilai order dan pembayaran'),h('p',{class:'small muted'},'Tren '+scope+'.'),columnChart(r.trend,[{key:'value',name:'Nilai order',cls:'c-value'},{key:'paid',name:'Pembayaran diterima',cls:'c-paid'}],{format:money,label:'Grafik nilai order dan pembayaran, '+scope}),numbers([when,['Order',x=>x.orders],['Nilai order',x=>money(x.value)],['Pembayaran',x=>money(x.paid)]],r.trend)),
   card(h('h2',{},'Meter selesai produksi'),h('p',{class:'small muted'},'Tren '+scope+', dalam meter.'),columnChart(r.trend,[{key:'dtf',name:'DTF',cls:'c-dtf'},{key:'sub',name:'Sublim',cls:'c-sub'}],{stacked:true,format:v=>num(v)+' m',label:'Grafik meter selesai DTF dan Sublim, '+scope}),numbers([when,['DTF (m)',x=>num(x.dtf)],['Sublim (m)',x=>num(x.sub)]],r.trend))];}
 
+const FILM_PARTS=[['good','Print bagus (good issue)'],['reject','Reject'],['refund','Refund'],['test','Test print'],['waste','Waste'],['other','Habis / selisih opname']];
+const share=(v,total)=>total>0?num(Math.round(v/total*1000)/10)+'%':'-';
+function filmCards(r){const f=r.current.film,p=r.previous.film;if(!f)return null;
+ return[h('h2',{class:'mt'},'Yield PET film DTF'),h('div',{class:'metrics'},metric('Total film terpakai',num(f.total)+' m',delta(f.total,p.total,false)),metric('Print bagus',num(f.good)+' m',delta(f.good,p.good)),metric('Yield',f.yield==null?'Belum ada data':num(f.yield)+'%',delta(f.yield,p.yield),h('span',{class:'small muted'},'print bagus dibagi total terpakai')),metric('Di luar print bagus',num(Math.round((f.total-f.good)*10)/10)+' m',h('span',{class:'small muted'},share(f.total-f.good,f.total)+' dari total'))),
+  r.trend?card(h('h2',{},'Head to head per waktu'),columnChart(r.trend,[{key:'filmGood',name:'Print bagus',cls:'c-paid'},{key:'filmLoss',name:'Reject, refund, test, waste, lainnya',cls:'c-value'}],{stacked:true,format:v=>num(v)+' m',label:'Grafik pemakaian PET film: print bagus dibanding lainnya'}),numbers([['Waktu',x=>bucketName(x.key,true)],['Print bagus (m)',x=>num(x.filmGood)],['Lainnya (m)',x=>num(x.filmLoss)]],r.trend)):null,
+  card(h('h2',{},'Rekap pemakaian'),barList(FILM_PARTS.map(([k,name])=>({name,value:f[k],note:share(f[k],f.total)})),{format:v=>num(v)+' m',empty:'Belum ada pemakaian PET film pada periode ini'}),table([['Kategori',x=>x[1]],['Periode ini',x=>num(f[x[0]])+' m'],['Porsi',x=>share(f[x[0]],f.total)],['Periode lalu',x=>num(p[x[0]])+' m'],['Porsi lalu',x=>share(p[x[0]],p.total)]],FILM_PARTS)),
+  card(h('h2',{},'Rincian alasan di luar print bagus'),table([['Jenis',x=>x.type],['Keterangan',x=>x.reason],['Meter',x=>num(x.meter)+' m']],f.reasons,'Belum ada catatan.'))];}
+
 /** Baris rekap yang sama dipakai untuk layar dan unduhan Excel. */
 function anaSheets(r){const c=r.current,p=r.previous,t=r.targets,u=v=>v??'';
  return[['Ringkasan',['Ukuran','Periode ini','Periode lalu'],[['Order',c.summary.orders,p.summary.orders],['Meter',c.summary.meter,p.summary.meter],['Nilai order (Rp)',c.summary.value,p.summary.value],['Pembayaran diterima (Rp)',c.summary.paid,p.summary.paid],['Rata-rata per order (Rp)',c.summary.aov,p.summary.aov]]],
@@ -479,12 +541,13 @@ function anaSheets(r){const c=r.current,p=r.previous,t=r.targets,u=v=>v??'';
   ['Mutu dan waktu',['Ukuran','Periode ini','Periode lalu','Target'],[['Order siap',c.ready.count,p.ready.count,''],['Tepat waktu (%)',u(c.ready.pct),u(p.ready.pct),'minimal '+t.ontimeMin],['Lead time lunas ke siap (jam)',u(c.ready.leadHours),u(p.ready.leadHours),''],['Reject (m)',c.quality.rejectM,p.quality.rejectM,''],['Reject (%)',u(c.quality.rejectPct),u(p.quality.rejectPct),'maksimal '+t.rejectMax],['Test print (m)',c.quality.testM,p.quality.testM,''],['Waste (m)',c.quality.wasteM,p.quality.wasteM,''],['Waste (%)',u(c.quality.wastePct),u(p.quality.wastePct),'maksimal '+t.wasteMax]]],
   ...[['Per layanan',c.sales.service],['Per jenis customer',c.sales.type],['Per sumber order',c.sales.source],['10 customer terbesar',c.sales.top]].map(([n,list])=>[n,['Nama','Order','Meter','Nilai (Rp)'],list.map(x=>[SALES_NAME[x.key]||x.key,x.orders,x.meter,x.value])]),
   ['Loss sales',['Alasan','Kejadian','Nilai (Rp)'],c.loss.reasons.map(x=>[x.reason,x.count,x.value])],
-  ['Tren',['Waktu','Order','Nilai order (Rp)','Pembayaran (Rp)','DTF (m)','Sublim (m)'],(r.trend||[]).map(x=>[x.key,x.orders,x.value,x.paid,x.dtf,x.sub])]];}
+  ['Tren',['Waktu','Order','Nilai order (Rp)','Pembayaran (Rp)','DTF (m)','Sublim (m)'],(r.trend||[]).map(x=>[x.key,x.orders,x.value,x.paid,x.dtf,x.sub])],
+  ...(c.film?[['Yield PET film',['Kategori','Periode ini (m)','Periode lalu (m)'],[...FILM_PARTS.map(([k,n])=>[n,c.film[k],p.film[k]]),['Total terpakai',c.film.total,p.film.total],['Yield (%)',u(c.film.yield),u(p.film.yield)]]],['Alasan pemakaian PET film',['Jenis','Keterangan','Meter'],c.film.reasons.map(x=>[x.type,x.reason,x.meter])]]:[])];}
 // CSV dengan pemisah titik koma (pengaturan Excel Indonesia). Teks yang bisa dibaca sebagai rumus diberi apostrof.
-function downloadAnalysis(r){const cell=v=>{let s=typeof v==='number'?String(v).replace('.',','):String(v);if(typeof v!=='number'&&/^[=+\-@\t\r]/.test(s))s="'"+s;return'"'+s.replace(/"/g,'""')+'"';};
- const lines=['sep=;',cell('SDP Print Hub - Analysis '+ANA_PERIODS.find(x=>x[0]===r.period)[1]),cell('Periode '+r.from+' s/d '+r.to+'; pembanding '+r.previousFrom+' s/d '+r.previousTo),''];
- for(const[name,head,rows]of anaSheets(r))lines.push(cell(name),head.map(cell).join(';'),...rows.map(x=>x.map(cell).join(';')),'');
- const url=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'})),link=h('a',{href:url,download:'SDP-analysis-'+r.period+'-'+r.from+'.csv'});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
+function downloadSheets(file,titles,sheets){const cell=v=>{let s=typeof v==='number'?String(v).replace('.',','):String(v??'');if(typeof v!=='number'&&/^[=+\-@\t\r]/.test(s))s="'"+s;return'"'+s.replace(/"/g,'""')+'"';};
+ const lines=['sep=;',...titles.map(cell),''];for(const[name,head,rows]of sheets)lines.push(cell(name),head.map(cell).join(';'),...rows.map(x=>x.map(cell).join(';')),'');
+ const url=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'})),link=h('a',{href:url,download:file});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
+const downloadAnalysis=r=>downloadSheets('SDP-analysis-'+r.period+'-'+r.from+'.csv',['SDP Print Hub - Analysis '+ANA_PERIODS.find(x=>x[0]===r.period)[1],'Periode '+r.from+' s/d '+r.to+'; pembanding '+r.previousFrom+' s/d '+r.previousTo],anaSheets(r));
 function anaBody(r){const c=r.current,p=r.previous,t=r.targets,q=c.quality;
  const bars=list=>barList(list.map(x=>({name:SALES_NAME[x.key]||x.key,value:x.value,note:x.orders+' order · '+num(x.meter)+' m'})),{format:money,empty:'Belum ada order pada periode ini'});
  const sales=(title,list)=>card(h('h2',{},title),bars(list),numbers([['Nama',x=>SALES_NAME[x.key]||x.key],['Order',x=>x.orders],['Meter',x=>num(x.meter)],['Nilai order',x=>money(x.value)]],list));
@@ -496,6 +559,7 @@ function anaBody(r){const c=r.current,p=r.previous,t=r.targets,q=c.quality;
    metric('Reject',pctText(q.rejectPct),targetTag(q.rejectPct,q.rejectPct<=t.rejectMax,'target maksimal '+t.rejectMax+'%'),h('span',{class:'small muted'},num(q.rejectM)+' m dari '+num(q.produced)+' m')),
    metric('Waste bahan',pctText(q.wastePct),targetTag(q.wastePct,q.wastePct<=t.wasteMax,'target maksimal '+t.wasteMax+'%'),h('span',{class:'small muted'},'waste '+num(q.wasteM)+' m · test print '+num(q.testM)+' m'))),
   card(h('h2',{},'Utilisasi mesin'),table([['Mesin',m=>MACHINES[m.machine].n],['Meter selesai',m=>num(m.meter)],['Kapasitas periode',m=>m.capacity!=null?num(m.capacity)+' m':S.settings[MACHINES[m.machine].norm]?'Belum beroperasi':'Norma belum diatur'],['Utilisasi',m=>m.util==null?'-':h('div',{class:'capcell'},h('span',{},num(m.util)+'%'),h('span',{class:'bar'+(m.util>t.utilMax?' full':m.util<t.utilMin?' high':''),role:'img','aria-label':num(m.util)+'% utilisasi'},h('i',{style:'width:'+Math.min(100,m.util)+'%'})))],['Penilaian',m=>m.util==null?'-':h('span',{class:'tag '+(m.util>t.utilMax?'bad':m.util<t.utilMin?'warn':'ok')},m.util>t.utilMax?'Terlalu padat':m.util<t.utilMin?'Di bawah target':'Sesuai target')]],c.machines),h('p',{class:'small muted'},'Target utilisasi '+t.utilMin+' sampai '+t.utilMax+'%. Kapasitas dihitung dari jam efektif sejak order pertama sampai sekarang. Meter dihitung saat tahap akhir selesai; print sublim mengikuti press.')),
+  filmCards(r),
   h('h2',{class:'mt'},'Penjualan'),h('p',{class:'small muted'},'Panjang batang menunjukkan nilai order.'),h('div',{class:'grid'},sales('Per layanan',c.sales.service),sales('Per jenis customer',c.sales.type),sales('Per sumber order',c.sales.source)),
   sales('10 customer terbesar',c.sales.top),
   card(h('h2',{},'Loss sales per alasan'),h('div',{class:'row'},h('span',{class:'total'},money(c.loss.value)),h('span',{class:'muted'},c.loss.count+' kejadian'),delta(c.loss.value,p.loss.value,false)),barList(c.loss.reasons.map(x=>({name:x.reason,value:x.value,note:x.count+' kejadian'})),{format:money,empty:'Tidak ada loss sales pada periode ini'}),numbers([['Alasan',x=>x.reason],['Kejadian',x=>x.count],['Nilai',x=>money(x.value)]],c.loss.reasons,'Tidak ada loss sales pada periode ini'))];}
@@ -509,9 +573,10 @@ V.analysis=()=>{const head=h('div',{},h('h1',{},'Analysis'),h('p',{class:'muted'
   ana.loading?spinner('Menghitung rekap…'):ana.error?card(h('p',{class:'err',role:'alert'},ana.error),h('button',{class:'pri',onclick:()=>{ana.key='';render();}},'Coba Lagi')):ana.data?anaBody(ana.data):null];};
 
 // ---------- Laporan Harian: pengganti laporan di grup WhatsApp ----------
-let daily={date:'',data:null,error:'',loading:false,key:''};const shiftNotes={};
-async function loadDaily(){const key=daily.date;daily={...daily,loading:true,error:'',key};
- try{const data=await api('POST','/api/daily',{date:key});if(daily.key!==key)return;daily={...daily,data,loading:false};}
+let daily={from:'',to:'',data:null,error:'',loading:false,key:''};const shiftNotes={};
+const dailyKey=()=>daily.from+'_'+daily.to;
+async function loadDaily(){const key=dailyKey();daily={...daily,loading:true,error:'',key};
+ try{const data=await api('POST','/api/daily',S.api>=11?{from:daily.from,to:daily.to}:{date:daily.from});if(daily.key!==key)return;daily={...daily,data,loading:false};}
  catch(e){if(daily.key!==key)return;daily={...daily,data:null,loading:false,error:e.message};}
  if(location.hash==='#harian')render();}
 const clock=t=>new Date(t).toLocaleTimeString('id-ID',{timeZone:'Asia/Makassar',hour:'2-digit',minute:'2-digit'});
@@ -519,26 +584,52 @@ const longDate=d=>new Date(d+'T12:00:00+08:00').toLocaleDateString('id-ID',{week
 const greet=()=>{const j=Number(new Date().toLocaleTimeString('en-GB',{timeZone:'Asia/Makassar'}).slice(0,2));return'Selamat '+(j<11?'pagi':j<15?'siang':j<18?'sore':'malam')+' Pak';};
 const unique=list=>[...new Set(list)];
 function morningText(r,date){return['QC pagi '+MACHINES[r.machine].n+' · '+longDate(date),'Operator '+r.by+' pukul '+clock(r.at)+' · '+QC_STATE[r.status][0].replace('QC pagi: ',''),r.ng.length?'Tidak sesuai: '+r.ng.join('; ')+'. Tindakan: '+r.action:'Semua butir OK',...r.photos.map(p=>'• '+p.label+': '+(p.drive?driveView(p.drive):'lihat di aplikasi'))].join('\n');}
-function shiftText(svc,shift,passed,rejected,sent,date){return[greet(),'Berikut list orderan '+(svc==='dtf'?'DTF':'Sublim')+' shift '+shift+' ('+longDate(date)+') yang telah kami cek dan hasilnya sudah sesuai:',...unique(passed.map(x=>x.customer)).map(n=>'• '+n),...(rejected.length?['','Dicetak ulang:',...rejected.map(x=>'• '+x.customer+' ('+num(x.rejectM||0)+' m)')]:[]),...(sent?.note?['','Catatan: '+sent.note]:[])].join('\n');}
+/** Rekap per customer: jumlah order, nomor order, dan total meter. */
+function byCustomer(list){const map=new Map();for(const x of list){const c=map.get(x.customer)||map.set(x.customer,{customer:x.customer,orders:[],meter:0}).get(x.customer);c.orders.push(x.order_no);c.meter=Math.round((c.meter+x.meter)*100)/100;}return[...map.values()].sort((a,b)=>b.meter-a.meter||a.customer.localeCompare(b.customer));}
+// Server lama hanya mengirim hasil QC; rekap tetap bisa disusun dari situ.
+const recapOf=d=>d.items||[...new Map(d.checks.map(x=>[x.order_no,{...x,finishedAt:null,done:x.at}])).values()];
+const RESULT={lolos:['Sesuai','ok'],menunggu:['Menunggu QC','warn'],reject:['Cetak ulang','bad']};
+const customerLines=list=>byCustomer(list).map(c=>'• '+c.customer+': '+num(c.meter)+' m ('+c.orders.join(', ')+')');
+function shiftText(svc,shift,mine,sent,date){const ok=mine.filter(x=>x.result==='lolos'),wait=mine.filter(x=>x.result==='menunggu'),bad=mine.filter(x=>x.result==='reject'),total=list=>num(list.reduce((a,x)=>a+x.meter,0));
+ return[greet(),'Berikut list orderan '+(svc==='dtf'?'DTF':'Sublim')+' shift '+shift+' ('+longDate(date)+') yang telah kami cek dan hasilnya sudah sesuai:',...(ok.length?[...customerLines(ok),'Total: '+ok.length+' order, '+total(ok)+' m']:['(belum ada)']),...(wait.length?['','Selesai cetak, menunggu QC:',...customerLines(wait)]:[]),...(bad.length?['','Dicetak ulang:',...bad.map(x=>'• '+x.customer+' ('+num(x.rejectM||0)+' m)')]:[]),...(sent?.note?['','Catatan: '+sent.note]:[])].join('\n');}
 function morningCard(r,date){return card(h('div',{class:'row'},h('h3',{},'QC pagi · '+MACHINES[r.machine].n),h('span',{class:'tag '+QC_STATE[r.status][1]},QC_STATE[r.status][0].replace('QC pagi: ','')),h('button',{class:'noprint',onclick:()=>copy(morningText(r,date),'Laporan QC pagi disalin.')},'Salin untuk WA')),
  h('p',{},'Operator '+r.by+' pukul '+clock(r.at)+(r.approvedBy?' · diputuskan '+r.approvedBy+(r.leaderNote?': '+r.leaderNote:''):'')),r.ng.length?h('p',{},h('span',{class:'tag bad'},r.ng.length+' tidak sesuai'),' '+r.ng.join('; '),h('br'),r.note+'. Tindakan: '+r.action):h('p',{},h('span',{class:'tag ok'},'Semua butir OK')),
  h('div',{class:'thumbs'},r.photos.map(photoView)));}
-function shiftCard(d,svc,shift){const mine=d.checks.filter(x=>x.service===svc&&x.shift===shift),passed=mine.filter(x=>x.result==='lolos'),rejected=mine.filter(x=>x.result==='reject'),sent=d.submissions.find(x=>x.shift===shift&&x.service===svc);
- const when=shift===1?'sampai '+d.shift2Start.replace(':','.'):'mulai '+d.shift2Start.replace(':','.'),id=d.date+svc+shift,note=h('input',{placeholder:'Catatan shift (opsional): kendala, sisa pekerjaan','aria-label':'Catatan '+svc+' shift '+shift,value:shiftNotes[id]??sent?.note??'',oninput:e=>shiftNotes[id]=e.target.value,style:'max-width:460px'});
- return card(h('div',{class:'row'},h('h3',{},(svc==='dtf'?'DTF':'Sublim')+' · Shift '+shift),h('span',{class:'tag'},when),h('span',{class:'tag '+(sent?'ok':'warn')},sent?'Dikirim '+sent.by+' pukul '+clock(sent.at):'Belum dikirim'),passed.length?h('button',{class:'noprint',onclick:()=>copy(shiftText(svc,shift,passed,rejected,sent,d.date),'Laporan shift disalin.')},'Salin untuk WA'):null),
-  h('p',{class:'small muted'},passed.length+' order sudah dicek dan sesuai · '+num(passed.reduce((a,x)=>a+x.meter,0))+' m'+(rejected.length?' · '+rejected.length+' reject':'')),
-  table([['No',x=>mine.indexOf(x)+1],['Customer',x=>h('b',{},x.customer)],['Order',x=>x.order_no],['Meter',x=>num(x.meter)],['Hasil',x=>h('span',{class:'tag '+(x.result==='lolos'?'ok':'bad')},x.result==='lolos'?'Sesuai':'Reject '+num(x.rejectM||0)+' m')],['Dicek',x=>clock(x.at)+' · '+(x.by||'-')]],mine,'Belum ada order yang dicek pada shift ini.'),
-  sent?.note?h('p',{class:'mt'},h('b',{},'Catatan: '),sent.note):null,
-  is('op','qc','spv')&&d.date<=S.today?h('div',{class:'row mt noprint'},note,h('button',{class:'pri',onclick:ev=>act(ev,async()=>{await api('POST','/api/daily/submit',{date:d.date,shift:String(shift),service:svc,note:note.value||undefined});delete shiftNotes[id];daily.key='';},'Laporan shift '+shift+' terkirim.')},sent?'Kirim ulang laporan':'Kirim laporan shift')):null);}
-V.harian=()=>{const head=h('div',{},h('h1',{},'Laporan Harian'),h('p',{class:'muted'},'QC pagi dan daftar order yang sudah dicek per shift. Terisi otomatis dari menu QC.'));
+/** Shift dianggap tutup bila tanggalnya sudah lewat, atau shift 1 sudah melewati jam mulai shift 2, atau hari ini sudah lewat jam produksi. */
+function shiftClosed(date,shift,start){if(date!==S.today)return date<S.today;const now=Date.now(),day=Date.parse(date+'T00:00:00+08:00');if(shift===1)return now>=day+(Number(start.slice(0,2))*60+Number(start.slice(3)))*60000;const blocks=blocksOn(Math.floor((day+288e5)/864e5));return blocks.length>0&&now>=day+Math.max(...blocks.map(b=>b[1]))*60000;}
+const customerTable=list=>table([['Customer',c=>h('b',{},c.customer)],['Jumlah order',c=>c.orders.length],['No. order',c=>c.orders.join(', ')],['Total meter',c=>h('b',{},num(c.meter)+' m')]],byCustomer(list),'Belum ada order selesai.');
+function shiftCard(d,svc,shift){const mine=recapOf(d).filter(x=>x.service===svc&&x.shift===shift),sent=d.submissions.find(x=>x.shift===shift&&x.service===svc),closed=shiftClosed(d.date,shift,d.shift2Start);
+ const count=r=>mine.filter(x=>x.result===r).length,meter=num(mine.reduce((a,x)=>a+x.meter,0));
+ const when=shift===1?'sampai '+d.shift2Start.replace(':','.'):'mulai '+d.shift2Start.replace(':','.'),id=d.date+svc+shift,note=h('input',{placeholder:'Catatan closing (opsional)','aria-label':'Catatan '+svc+' shift '+shift,value:shiftNotes[id]??sent?.note??'',oninput:e=>shiftNotes[id]=e.target.value,style:'max-width:460px'});
+ return card(h('div',{class:'row'},h('h3',{},(svc==='dtf'?'DTF':'Sublim')+' · Shift '+shift),h('span',{class:'tag'},when),h('span',{class:'tag '+(sent||closed?'ok':'warn')},sent?'Dikonfirmasi '+sent.by+' pukul '+clock(sent.at):closed?'Closing: terekap otomatis':'Berjalan, terisi otomatis'),mine.length?h('button',{class:'noprint',onclick:()=>copy(shiftText(svc,shift,mine,sent,d.date),'Laporan shift disalin.')},'Salin untuk WA'):null),
+  h('p',{},h('b',{},mine.length+' order selesai · '+meter+' m'),h('span',{class:'muted'},' · '+count('lolos')+' sesuai, '+count('menunggu')+' menunggu QC, '+count('reject')+' cetak ulang')),
+  mine.length?[h('h3',{class:'mt'},'Rekap per customer'),customerTable(mine),h('h3',{class:'mt'},'Rincian per order'),table([['No',x=>mine.indexOf(x)+1],['Customer',x=>x.customer],['No. order',x=>x.order_no],['Meter',x=>num(x.meter)+' m'],['Selesai cetak',x=>x.finishedAt?clock(x.finishedAt):'-'],['Hasil QC',x=>{const[t,c]=RESULT[x.result];return h('span',{class:'tag '+c},t+(x.rejectM?' · reject '+num(x.rejectM)+' m':''));}],['Dicek',x=>x.at?clock(x.at)+' · '+(x.by||'-'):'-']],mine)]:h('p',{class:'muted'},'Belum ada order selesai pada shift ini. Daftar terisi sendiri saat operator menekan Selesai curing atau Selesai press.'),
+  sent?.note?h('p',{class:'mt'},h('b',{},'Catatan closing: '),sent.note):null,
+  is('op','qc','spv')&&d.date<=S.today?h('div',{class:'row mt noprint'},note,h('button',{onclick:ev=>act(ev,async()=>{await api('POST','/api/daily/submit',{date:d.date,shift:String(shift),service:svc,note:note.value||undefined});delete shiftNotes[id];daily.key='';},'Konfirmasi shift '+shift+' tersimpan.')},sent?'Perbarui konfirmasi':'Konfirmasi shift (opsional)')):null);}
+function dayTotal(d,title='Total hari ini'){const all=recapOf(d);if(!all.length)return null;const of=s=>all.filter(x=>x.service===s),m=list=>num(list.reduce((a,x)=>a+x.meter,0))+' m';
+ return card(h('h2',{},title),h('div',{class:'metrics'},metric('Order selesai',all.length),metric('Total cetak',m(all)),metric('DTF',m(of('dtf')),h('span',{class:'small muted'},of('dtf').length+' order')),metric('Sublim',m(of('sub')),h('span',{class:'small muted'},of('sub').length+' order')),metric('Customer',byCustomer(all).length)));}
+const sumM=list=>Math.round(list.reduce((a,x)=>a+x.meter,0)*100)/100;
+function rangeView(d){const all=recapOf(d),dates=[...new Set(all.map(x=>x.day))].sort(),of=day=>all.filter(x=>x.day===day);
+ return[dayTotal(d,'Total periode')||card(h('p',{class:'muted'},'Belum ada order selesai pada rentang ini.')),
+  card(h('h2',{},'Per hari'),table([['Tanggal',x=>h('button',{onclick:()=>{daily.from=daily.to=x;render();}},longDate(x))],['Order',x=>of(x).length],['DTF (m)',x=>num(sumM(of(x).filter(i=>i.service==='dtf')))],['Sublim (m)',x=>num(sumM(of(x).filter(i=>i.service==='sub')))],['Sesuai',x=>of(x).filter(i=>i.result==='lolos').length],['Menunggu QC',x=>of(x).filter(i=>i.result==='menunggu').length],['Cetak ulang',x=>of(x).filter(i=>i.result==='reject').length]],dates,'Belum ada data.')),
+  card(h('h2',{},'Rekap per customer'),customerTable(all)),
+  card(h('h2',{},'Rincian per order'),table([['Tanggal',x=>x.day],['Shift',x=>x.shift],['Customer',x=>x.customer],['No. order',x=>x.order_no],['Layanan',x=>svcTag(x.service)],['Meter',x=>num(x.meter)+' m'],['Hasil QC',x=>{const[t,c]=RESULT[x.result];return h('span',{class:'tag '+c},t);}]],all,'Belum ada order selesai.')),
+  card(h('h2',{},'QC pagi'),table([['Tanggal',r=>r.day],['Mesin',r=>MACHINES[r.machine].n],['Operator',r=>r.by],['Status',r=>h('span',{class:'tag '+QC_STATE[r.status][1]},QC_STATE[r.status][0].replace('QC pagi: ',''))],['Foto',r=>h('div',{class:'thumbs'},r.photos.map(photoView))]],d.morning,'Belum ada laporan QC pagi.'))];}
+function downloadDaily(d){const all=recapOf(d);downloadSheets('SDP-laporan-harian-'+daily.from+'_'+daily.to+'.csv',['SDP Print Hub - Laporan Harian','Periode '+daily.from+' s/d '+daily.to],[
+ ['Rekap per customer',['Customer','Jumlah order','Total meter','No. order'],byCustomer(all).map(c=>[c.customer,c.orders.length,c.meter,c.orders.join(', ')])],
+ ['Rincian per order',['Tanggal','Shift','Layanan','No. order','Customer','Meter','Hasil QC','Reject (m)'],all.map(x=>[x.day||daily.from,x.shift,x.service==='dtf'?'DTF':'Sublim',x.order_no,x.customer,x.meter,RESULT[x.result][0],x.rejectM||0])]]);}
+V.harian=()=>{const head=h('div',{},h('h1',{},'Laporan Harian'),h('p',{class:'muted'},'Terisi otomatis dari produksi dan QC: order selesai, customer, dan meter per shift. Pilih satu hari atau rentang tanggal (maksimal 31 hari).'));
  if(!(S.api>=9))return[head,card(h('p',{},'Laporan Harian aktif setelah Code.gs diperbarui.'))];
- if(!daily.date)daily.date=S.today;
- if(daily.key!==daily.date)loadDaily();
- const date=h('input',{type:'date',value:daily.date,'aria-label':'Tanggal laporan harian',style:'width:auto',onchange:e=>{if(e.target.value){daily.date=e.target.value;render();}}}),d=daily.data;
- const body=daily.loading?spinner('Mengambil laporan…'):daily.error?card(h('p',{class:'err',role:'alert'},daily.error),h('button',{class:'pri',onclick:()=>{daily.key='';render();}},'Coba Lagi')):!d?null:[h('h2',{class:'mt'},longDate(d.date)),
+ const range=S.api>=11;if(!daily.from)daily.from=daily.to=S.today;
+ if(daily.key!==dailyKey())loadDaily();
+ const pickDate=(key,label)=>h('input',{type:'date',value:daily[key],'aria-label':label,style:'width:auto',onchange:e=>{if(!e.target.value)return;daily[key]=e.target.value;if(!range||daily.to<daily.from)daily[key==='from'?'to':'from']=e.target.value;render();}});
+ const back=n=>{const t=new Date(Date.parse(S.today+'T00:00:00Z')-(n-1)*864e5).toISOString().slice(0,10);daily.from=t;daily.to=S.today;render();};
+ const d=daily.data,single=daily.from===daily.to;
+ const body=daily.loading?spinner('Mengambil laporan…'):daily.error?card(h('p',{class:'err',role:'alert'},daily.error),h('button',{class:'pri',onclick:()=>{daily.key='';render();}},'Coba Lagi')):!d?null:!single?[h('h2',{class:'mt'},longDate(daily.from)+' sampai '+longDate(daily.to)),rangeView(d)]:[h('h2',{class:'mt'},longDate(d.date)),
+  dayTotal(d),
   d.morning.length?d.morning.map(r=>morningCard(r,d.date)):card(h('p',{class:'muted'},'Belum ada laporan QC pagi pada tanggal ini.')),
-  ['dtf','sub'].filter(svc=>svc==='dtf'||d.checks.some(x=>x.service===svc)||d.submissions.some(x=>x.service===svc)).map(svc=>[1,2].map(shift=>shiftCard(d,svc,shift)))];
- return[head,h('div',{class:'row noprint'},date,h('button',{onclick:()=>{daily.key='';render();}},icon('refresh'),'Muat ulang laporan'),h('button',{onclick:()=>print()},'Cetak / PDF')),body];};
+  ['dtf','sub'].filter(svc=>svc==='dtf'||recapOf(d).some(x=>x.service===svc)||d.submissions.some(x=>x.service===svc)).map(svc=>[1,2].map(shift=>shiftCard(d,svc,shift)))];
+ return[head,h('div',{class:'row noprint'},range?[h('span',{},'Dari'),pickDate('from','Dari tanggal'),h('span',{},'sampai'),pickDate('to','Sampai tanggal'),h('button',{onclick:()=>back(1)},'Hari ini'),h('button',{onclick:()=>back(7)},'7 hari')]:pickDate('from','Tanggal laporan harian'),h('button',{onclick:()=>{daily.key='';render();}},icon('refresh'),'Muat ulang laporan'),d&&!daily.loading?h('button',{onclick:()=>downloadDaily(d)},'Unduh Excel (CSV)'):null,h('button',{onclick:()=>print()},'Cetak / PDF')),body];};
 
 V.cs=()=>{const list=S.orders.filter(o=>['cek','revisi','bayar'].includes(o.status)),acting=is('cs','spv');
  return[h('h1',{},'Meja CS'),h('p',{class:'muted'},'Satu CS menangani DTF dan Sublim: terima file, teruskan permintaan revisi dari Operator, dan pastikan order lunas sebelum antrian.'),list.length?list.map(o=>{
@@ -661,22 +752,27 @@ function stockPutaway(){const wait=S.lots.filter(l=>l.status==='menunggu'),place
   card(h('h2',{},'Menunggu put away'),table([['ID roll',l=>h('b',{},l.lot)],['SKU',l=>l.sku+' · '+skuOf(l.sku).name],['Isi',l=>qtyText(l.left,skuOf(l.sku).unit)],['Diterima',l=>dt(l.at)],['Simpan ke bin',l=>place(l,'Put away')]],wait,'Semua barang sudah di rak.')),
   card(h('h2',{},'Pindah bin'),h('div',{class:'row'},move,to,h('button',{onclick:ev=>{if(!move.value||!to.value)return toast('Pilih roll dan bin tujuan.');act(ev,()=>api('POST','/api/stock/putaway',{lot:move.value,bin:to.value}),'Roll dipindahkan.');}},'Pindahkan')))];}
 let useLot='';
-function stockUse(){const list=S.lots.filter(l=>l.status==='tersedia');if(!list.length)return[card(h('p',{},'Belum ada roll tersedia. Lakukan GR dan put away dahulu.'))];
+const REASONS=['Test nozzle','Test print','Sisa PET film habis print dalam 1 roll 45 cm','Gulungan pertama PET film baru terdapat perekat','Test print jam istirahat agar head tidak kering (tiap 15 menit)','Kalibrasi mesin bergeser','Tinta meleleh','Tidak lolos QC','Permintaan cetak ulang store karena baju reject','Refund customer'];
+const reasonList=()=>h('datalist',{id:'alasan'},REASONS.map(x=>h('option',{value:x})));
+function reclassCard(){if(!(S.api>=11))return null;const list=(S.orders||[]).filter(o=>['qc','packing','siap','selesai'].includes(o.status)).slice().reverse();
+ const order=sel('Order hasil produksi',[['','Pilih order'],...list.map(o=>[o.id,o.id+' · '+o.customer+' · '+num(o.meter)+' m'])]),type=sel('Jenis',[['Reject','Reject'],['Refund','Refund']]),meter=numInput('Meter dipindahkan'),why=h('input',{list:'alasan',placeholder:'Alasan','aria-label':'Alasan reject atau refund'});
+ return card(h('h2',{},'Reject atau refund dari hasil produksi'),h('p',{class:'small muted'},'Memindahkan meter dari Produksi ke Reject atau Refund agar yield benar. Stok roll tidak berubah.'),reasonList(),h('div',{class:'f'},lab('Order',order),lab('Jenis',type),lab('Meter',meter),lab('Alasan',why)),h('button',{class:'mt',onclick:ev=>{if(!order.value||!(Number(meter.value)>0)||!why.value.trim())return toast('Pilih order, isi meter dan alasan.');act(ev,()=>api('POST','/api/stock/reclass',{order_no:order.value,type:type.value,meter:Number(meter.value),reason:why.value}),'Tercatat sebagai '+type.value+'.');}},'Pindahkan'));}
+function stockUse(){const list=S.lots.filter(l=>l.status==='tersedia');if(!list.length)return[card(h('p',{},'Belum ada roll tersedia. Lakukan GR dan put away dahulu.')),reclassCard()];
  if(!list.some(l=>l.lot===useLot))useLot=list[0].lot;
  const lot=list.find(l=>l.lot===useLot),k=skuOf(lot.sku),requestKey=uid(),unit=k.unit==='meter'?'m':k.unit,rest=h('div',{class:'total',role:'status'});
  const pick=sel('Roll',list.map(l=>[l.lot,l.lot+' · '+l.sku+' '+skuOf(l.sku).name+' · bin '+l.bin+' · sisa '+qtyText(l.left,skuOf(l.sku).unit)]),{value:useLot,onchange:e=>{useLot=e.target.value;render();}});
- const parts=[['produksi','Produksi'],['test','Test print'],['reject','Reject'],['waste','Waste']].map(([key,t])=>({key,t,el:numInput(t)}));
- const order=sel('Order',[['','Tanpa order'],...(S.orders||[]).filter(o=>!['selesai','ditolak'].includes(o.status)).map(o=>[o.id,o.id+' · '+o.customer])]),note=h('input',{placeholder:'mis. 10 cm untuk test print'});
+ const parts=[['produksi','Produksi'],['test','Test print'],['reject','Reject'],['waste','Waste'],...(S.api>=11?[['refund','Refund']]:[])].map(([key,t])=>({key,t,el:numInput(t)}));
+ const order=sel('Order',[['','Tanpa order'],...(S.orders||[]).filter(o=>!['selesai','ditolak'].includes(o.status)).map(o=>[o.id,o.id+' · '+o.customer])]),note=h('input',{placeholder:'mis. 10 cm untuk test print',list:'alasan'});
  const total=()=>parts.reduce((a,p)=>a+(Number(p.el.value)||0),0),calc=()=>{const left=Math.round((lot.left-total())*1000)/1000;rest.textContent='Sisa setelah dicatat: '+qtyText(left,k.unit);rest.style.color=left<0?'var(--bad)':'';};
  parts.forEach(p=>p.el.addEventListener('input',calc));calc();
  const send=ev=>{if(!(total()>0))return toast('Isi minimal satu jumlah pemakaian.');if(total()>lot.left+1e-9)return toast('Pemakaian melebihi sisa roll.');
-  if((Number(parts[2].el.value)>0||Number(parts[3].el.value)>0)&&!note.value.trim())return toast('Isi keterangan untuk reject atau waste.');
+  if(parts.slice(2).some(p=>Number(p.el.value)>0)&&!note.value.trim())return toast('Isi keterangan untuk reject, refund, atau waste.');
   act(ev,()=>api('POST','/api/stock/use',{request_key:requestKey,lot:lot.lot,order_no:order.value||undefined,note:note.value||undefined,...Object.fromEntries(parts.map(p=>[p.key,Math.round((Number(p.el.value)||0)*1000)/1000]))}),r=>'Tercatat. Sisa '+lot.lot+': '+qtyText(r.left,k.unit)+'.');};
  const why=h('input',{placeholder:'Keterangan (opsional)','aria-label':'Keterangan habis'}),actual=numInput('Sisa aktual',{style:'width:130px'}),reason=h('input',{placeholder:'Alasan opname','aria-label':'Alasan opname'});
- return[card(h('h2',{},'Catat pemakaian'),h('div',{class:'f'},lab('Roll / kemasan yang dipakai',pick)),h('p',{class:'mt'},h('b',{},lot.lot),' · '+k.name+' · batch '+lot.batch+' · bin '+lot.bin+' · sisa '+qtyText(lot.left,k.unit)),
+ return[reasonList(),card(h('h2',{},'Catat pemakaian'),h('div',{class:'f'},lab('Roll / kemasan yang dipakai',pick)),h('p',{class:'mt'},h('b',{},lot.lot),' · '+k.name+' · batch '+lot.batch+' · bin '+lot.bin+' · sisa '+qtyText(lot.left,k.unit)),
    h('div',{class:'f'},parts.map(p=>lab(p.t+' ('+unit+')',p.el)),lab('Order (opsional)',order),lab('Keterangan',note)),h('div',{class:'mt'},rest),h('button',{class:'pri mt',onclick:send},'Catat pemakaian')),
   card(h('h2',{},'Tandai habis'),h('p',{class:'small muted'},'Untuk tinta, powder, kertas pelindung, atau sisa ujung roll. Seluruh sisa '+qtyText(lot.left,k.unit)+' dikeluarkan dari stok.'),h('div',{class:'row'},why,h('button',{class:'d',onclick:ev=>{if(confirm('Tandai '+lot.lot+' habis?'))act(ev,()=>api('POST','/api/stock/empty',{lot:lot.lot,note:why.value||undefined}),lot.lot+' ditandai habis.');}},'Tandai habis'))),
-  is('spv')?card(h('h2',{},'Stock opname roll ini (SPV)'),h('div',{class:'row'},actual,h('span',{},unit),reason,h('button',{onclick:ev=>{if(actual.value===''||!reason.value.trim())return toast('Isi sisa aktual dan alasan.');act(ev,()=>api('POST','/api/stock/adjust',{lot:lot.lot,qty:Number(actual.value),note:reason.value}),'Stok disesuaikan.');}},'Sesuaikan'))):null];}
+  is('spv')?card(h('h2',{},'Stock opname roll ini (SPV)'),h('div',{class:'row'},actual,h('span',{},unit),reason,h('button',{onclick:ev=>{if(actual.value===''||!reason.value.trim())return toast('Isi sisa aktual dan alasan.');act(ev,()=>api('POST','/api/stock/adjust',{lot:lot.lot,qty:Number(actual.value),note:reason.value}),'Stok disesuaikan.');}},'Sesuaikan'))):null,reclassCard()];}
 let ledgerFind='';
 function stockLedger(){const body=h('div'),find=h('input',{value:ledgerFind,placeholder:'Cari ID roll, SKU, atau order','aria-label':'Cari kartu stok',style:'max-width:320px'});
  const draw=()=>{const q=ledgerFind.trim().toLowerCase(),rows=S.ledger.filter(l=>!q||[l.lot,l.code,l.ref].some(v=>String(v||'').toLowerCase().includes(q)));
@@ -734,7 +830,7 @@ function render(){
  document.getElementById('menu').replaceChildren(...GROUPS.flatMap(([title,keys])=>{const ks=keys.filter(k=>ok.includes(k));return ks.length?[h('span',{class:'grp'},title),...ks.map(k=>h('a',{href:'#'+k,'aria-current':k===p?'page':null},icon(PAGE_ICON[k]),PAGES[k]))]:[];}));
  if(p!==shownPage){shownPage=p;const nav=document.getElementById('menu'),on=nav.querySelector('[aria-current]');if(on){const n=nav.getBoundingClientRect(),r=on.getBoundingClientRect();if(r.top<n.top||r.bottom>n.bottom)nav.scrollTop+=r.top-n.top-n.height/2;if(r.left<n.left||r.right>n.right)nav.scrollLeft+=r.left-n.left-12;}}
  try{const made=S&&(p==='cs'||p==='toko')&&S.orders.find(o=>o.dbId===newOrder);
-  const top=[S&&!(S.api>=9)?h('div',{class:'card notice',role:'alert'},h('b',{},'Server spreadsheet belum diperbarui. '),'Tempel Code.gs terbaru di Apps Script lalu deploy versi baru. Sebelum itu fitur terbaru (misalnya Laporan Harian) belum aktif.'):null,
+  const top=[S&&!(S.api>=11)?h('div',{class:'card notice',role:'alert'},h('b',{},'Server spreadsheet belum diperbarui. '),'Tempel Code.gs terbaru di Apps Script lalu deploy versi baru. Sebelum itu fitur terbaru (misalnya database customer) belum aktif.'):null,
    made?h('div',{class:'card notice ok'},h('div',{class:'row'},h('h2',{},'Order '+made.id+' tersimpan'),h('button',{onclick:()=>{newOrder=null;render();}},'Tutup')),h('p',{},'Kirim nomor resi ini ke customer untuk melacak order.'),resiBox(made)):null];
   document.getElementById('view').replaceChildren(...[top,V[p]()].flat(Infinity).filter(Boolean));}
  catch(e){console.error(e);document.getElementById('view').replaceChildren(card(h('p',{},'Halaman gagal ditampilkan: '+e.message)));}

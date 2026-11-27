@@ -32392,10 +32392,10 @@ function allocate(jobs, lots, skus, now2, holdMin) {
   for (const j of [...confirmed, ...pending]) {
     for (const stage of stagesOf(j.service, j.stage)) {
       const codes = candidates(skus, stage, j.fabric_sku ?? null);
-      const need = j.rework_m ?? j.meter;
+      const need2 = j.rework_m ?? j.meter;
       const open = usable.filter((l) => codes.includes(l.sku_code) && left.get(l.lot_code) > 0).sort((a, b) => Number(left.get(b.lot_code) < b.qty_initial) - Number(left.get(a.lot_code) < a.qty_initial));
-      const single = open.find((l) => left.get(l.lot_code) >= need);
-      let rest = need;
+      const single = open.find((l) => left.get(l.lot_code) >= need2);
+      let rest = need2;
       const picks = [];
       for (const l of single ? [single] : open) {
         if (rest <= 0) break;
@@ -32405,7 +32405,7 @@ function allocate(jobs, lots, skus, now2, holdMin) {
         picks.push({ lot: l.lot_code, sku: l.sku_code, bin: l.bin, take });
         booked[l.sku_code] = round3((booked[l.sku_code] ?? 0) + take);
       }
-      needs.push({ id: j.id, stage, need, short: Math.max(0, rest), picks });
+      needs.push({ id: j.id, stage, need: need2, short: Math.max(0, rest), picks });
     }
   }
   return { needs, booked };
@@ -32419,7 +32419,7 @@ function freeOf(codes, lots, booked) {
 var RECEIVERS = ["gudang", "op", "cs", "spv", "manager"];
 var USERS_OF_STOCK = ["gudang", "op", "spv"];
 var KEEPERS = ["gudang", "spv"];
-var USAGE = { produksi: "Produksi", test: "Test print", reject: "Reject", waste: "Waste" };
+var USAGE = { produksi: "Produksi", test: "Test print", reject: "Reject", refund: "Refund", waste: "Waste" };
 var round32 = (n) => Math.round(n * 1e3) / 1e3;
 var CODE = /^[A-Z0-9][A-Z0-9._-]{1,29}$/;
 var codeOf = (b, k, label) => {
@@ -32463,7 +32463,7 @@ function partsOf(b) {
   const parts = Object.entries(USAGE).map(([k, label]) => ({ label, qty: amount(b[k] ?? 0, label) })).filter((p) => p.qty > 0);
   if (!parts.length) throw bad("Isi minimal satu jumlah pemakaian");
   const note = optStr(b, "note", 300);
-  if (!note && parts.some((p) => p.label === "Reject" || p.label === "Waste")) throw bad("Isi keterangan untuk reject atau waste");
+  if (!note && parts.some((p) => ["Reject", "Refund", "Waste"].includes(p.label))) throw bad("Isi keterangan untuk reject, refund, atau waste");
   return { parts, note };
 }
 async function consumeForOrder(db, o, input, by) {
@@ -32490,6 +32490,19 @@ async function consumeForOrder(db, o, input, by) {
     await consume(db, lot, parts, o.order_no, note, by, null);
   }
   return list.length;
+}
+async function reclassify(db, orderNo, type, meter, reason, by) {
+  const used = (await db.prepare("SELECT lot_code, sku_code, SUM(-qty) AS q, MAX(id) AS last FROM stock_ledger WHERE ref = ? AND type = 'Produksi' GROUP BY lot_code, sku_code ORDER BY MAX(id) DESC").bind(orderNo).all()).results;
+  let rest = meter;
+  for (const u of used) {
+    const take = round32(Math.min(rest, Number(u.q)));
+    if (take <= 0) continue;
+    await entry(db, u.sku_code, u.lot_code, "Produksi", take, orderNo, "Dipindahkan ke " + type, by);
+    await entry(db, u.sku_code, u.lot_code, type, -take, orderNo, reason, by);
+    rest = round32(rest - take);
+    if (rest <= 0) break;
+  }
+  return round32(meter - rest);
 }
 var inventoryRoutes = new Hono3();
 inventoryRoutes.use("*", authn);
@@ -32597,6 +32610,22 @@ inventoryRoutes.post("/use", async (c) => {
   });
   return c.json(result, 201);
 });
+inventoryRoutes.post("/reclass", async (c) => {
+  await allow(c, USERS_OF_STOCK, "stok");
+  const b = await readJson(c);
+  const orderNo = reqStr(b, "order_no", 40);
+  const type = oneOf(b, "type", ["Reject", "Refund"]);
+  const meter = amount(b.meter, "Meter");
+  const reason = reqStr(b, "reason", 300);
+  if (!meter) throw bad("Isi meter lebih dari 0");
+  const moved = await c.env.DB.tx(async (db) => {
+    const n = await reclassify(db, orderNo, type, meter, reason, c.get("user").code);
+    if (n < meter - 1e-9) throw conflict(`Pemakaian produksi order ini hanya ${n} m`);
+    await audit(db, c.get("user").id, "stock_reclass", "order", orderNo, { type, meter });
+    return n;
+  });
+  return c.json({ ok: true, moved }, 201);
+});
 inventoryRoutes.post("/empty", async (c) => {
   await allow(c, USERS_OF_STOCK, "stok");
   const b = await readJson(c);
@@ -32669,8 +32698,8 @@ function readyFor(jobs, now2, cfg, service, meter) {
 }
 var dayStart = (day, cal) => Date.parse(day + "T00:00:00Z") - cal.offsetMin * 6e4;
 function slaDue(now2, cal) {
-  const today = dayStart(localDay(now2, cal), cal);
-  let from = now2 - today < 12 * 36e5 ? today : today + DAY2;
+  const today2 = dayStart(localDay(now2, cal), cal);
+  let from = now2 - today2 < 12 * 36e5 ? today2 : today2 + DAY2;
   for (let i = 0; i < 60; i++, from += DAY2) if (effectiveSeconds(from, from + DAY2, cal)) return closing(from, cal);
   return from;
 }
@@ -32796,14 +32825,14 @@ capacityRoutes.post("/overtime", async (c) => {
   const u = c.get("user");
   await c.env.DB.tx(async (db) => {
     const raw2 = await loadSettings(db);
-    const today = localDay(now(), calendarOf(raw2));
-    let list = overtimeOf(raw2).filter((o) => o.day >= today);
+    const today2 = localDay(now(), calendarOf(raw2));
+    let list = overtimeOf(raw2).filter((o) => o.day >= today2);
     if (b.remove === true) list = list.filter((o) => o.day !== day);
     else {
       const start = reqStr(b, "start", 5), end = reqStr(b, "end", 5), reason = reqStr(b, "reason", 200);
       const time = /^([01]\d|2[0-3]):[0-5]\d$/;
       if (!time.test(start) || !time.test(end) || start >= end) throw bad("Jam lembur tidak valid");
-      if (day < today) throw bad("Tanggal lembur sudah lewat");
+      if (day < today2) throw bad("Tanggal lembur sudah lewat");
       list.push({ day, start, end, reason, by: u.code });
       if (list.length > 60) throw bad("Terlalu banyak jadwal lembur");
     }
@@ -32870,7 +32899,7 @@ orderRoutes.post("/", async (c) => {
     let customerId = null;
     let name;
     let wa;
-    if (type === "maklon") {
+    if (b.customer_code || type === "maklon") {
       if (b.customer_code) {
         const cu = await db.prepare("SELECT * FROM customers WHERE code = ?").bind(reqStr(b, "customer_code", 40)).first();
         if (!cu || cu.status === "ditolak") throw bad("Pelanggan tidak ditemukan atau dinonaktifkan");
@@ -32890,6 +32919,7 @@ orderRoutes.post("/", async (c) => {
       wa = reqStr(b, "wa", 40);
     }
     const t = now();
+    if (customerId) await db.prepare("UPDATE customers SET last_visit = ? WHERE id = ?").bind(localDay(t), customerId).run();
     const svc = service === "sub" ? "sub" : "dtf";
     const track = newResi();
     const r = await db.prepare(
@@ -33052,13 +33082,14 @@ orderRoutes.post("/:id/qc", async (c) => {
     if (o.status !== "qc") throw conflict("Order tidak sedang menunggu QC");
     const u = c.get("user");
     if (pass) {
-      const need = QC_CHECKS[o.service].length;
-      if (!(Array.isArray(b.checks) && b.checks.length === need && b.checks.every((x) => x === true))) throw bad("Centang semua butir, atau catat reject");
+      const need2 = QC_CHECKS[o.service].length;
+      if (!(Array.isArray(b.checks) && b.checks.length === need2 && b.checks.every((x) => x === true))) throw bad("Centang semua butir, atau catat reject");
       await db.prepare("UPDATE orders SET status = 'packing', rework_m = NULL, qc_by = ? WHERE id = ?").bind(u.code, o.id).run();
     } else {
       const reject = reqNum(b, "reject_m", 0);
       const max = o.rework_m ?? o.meter;
       if (reject > max) throw bad(`Meter reject tidak boleh melebihi ${max}`);
+      await reclassify(db, o.order_no, "Reject", reject, "Tidak lolos QC", u.code);
       await db.prepare("INSERT INTO logs (order_no, type, reason, value, counted, by_user, at) VALUES (?, 'Reject', ?, NULL, 0, ?, ?)").bind(o.order_no, `Tidak lolos QC, ${reject} m dicetak ulang`, u.code, now()).run();
       await db.prepare("UPDATE orders SET status = 'antrian', approved_at = ?, stage = ?, rework_m = ?, qc_by = ? WHERE id = ?").bind(now(), o.service === "dtf" ? "dtf" : "subp", reject, u.code, o.id).run();
     }
@@ -33274,8 +33305,8 @@ opsRoutes.put("/admin/settings", async (c) => {
 // src/routes/daily.ts
 var VIEWERS = ["manager", "spv", "op", "qc", "cs", "store", "fat"];
 var SHIFT2_DEFAULT = "16:30";
-function dayOf(b) {
-  const date = reqStr(b, "date", 10);
+function dayOf(b, key = "date") {
+  const date = reqStr(b, key, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date + "T00:00:00Z"))) throw bad("Tanggal tidak valid");
   return date;
 }
@@ -33283,23 +33314,30 @@ var dailyRoutes = new Hono3();
 dailyRoutes.use("*", authn);
 dailyRoutes.post("/", async (c) => {
   await allow(c, VIEWERS, "harian");
-  const date = dayOf(await readJson(c));
+  const b = await readJson(c);
+  const date = b.from ? dayOf(b, "from") : dayOf(b);
+  const last = b.to ? dayOf(b, "to") : date;
+  const length = (Date.parse(last + "T00:00:00Z") - Date.parse(date + "T00:00:00Z")) / 864e5 + 1;
+  if (length < 1 || length > 31) throw bad("Rentang tanggal 1 sampai 31 hari, tanggal akhir tidak boleh sebelum tanggal awal");
   const db = c.env.DB;
   const raw2 = await loadSettings(db);
   const cal = calendarOf(raw2);
   const shift2Start = raw2.shift2_start || SHIFT2_DEFAULT;
   const from = Date.parse(date + "T00:00:00Z") - cal.offsetMin * 6e4;
-  const split = from + (Number(shift2Start.slice(0, 2)) * 60 + Number(shift2Start.slice(3))) * 6e4;
+  const to = from + length * 864e5;
+  const split = (Number(shift2Start.slice(0, 2)) * 60 + Number(shift2Start.slice(3))) * 6e4;
+  const shiftOf = (t) => (t - from) % 864e5 < split ? 1 : 2;
+  const dayName = (t) => localDay(t, cal);
   const all = async (sql, ...args) => (await db.prepare(sql).bind(...args).all()).results;
-  const morning = await all("SELECT * FROM qc_reports WHERE day = ? ORDER BY id", date);
+  const morning = await all("SELECT * FROM qc_reports WHERE day >= ? AND day <= ? ORDER BY day, id", date, last);
   const rows = await all(
     `SELECT a.action, a.at, u.code AS by, o.order_no, o.track_code, o.customer_name, o.service, o.meter
      FROM audit_log a JOIN orders o ON o.id = a.entity_id::bigint LEFT JOIN users u ON u.id = a.user_id
      WHERE a.action IN ('qc_pass','qc_reject') AND a.at >= o.created_at AND a.at >= ? AND a.at < ? ORDER BY a.at, a.id`,
     from,
-    from + 864e5
+    to
   );
-  const rejects = await all("SELECT order_no, reason, at FROM logs WHERE type = 'Reject' AND at >= ? AND at < ?", from, from + 864e5);
+  const rejects = await all("SELECT order_no, reason, at FROM logs WHERE type = 'Reject' AND at >= ? AND at < ?", from, to);
   const checks = rows.map((r) => {
     const reject = r.action === "qc_reject" ? rejects.find((x) => x.order_no === r.order_no && Math.abs(x.at - r.at) < 5e3) : null;
     return {
@@ -33312,18 +33350,45 @@ dailyRoutes.post("/", async (c) => {
       rejectM: reject ? Number(/([0-9]+(?:\.[0-9]+)?) m /.exec(reject.reason)?.[1] ?? 0) : null,
       by: r.by,
       at: r.at,
-      shift: r.at < split ? 1 : 2
+      shift: shiftOf(r.at),
+      day: dayName(r.at)
     };
   });
-  const sent = await all("SELECT shift, service, note, by_user AS by, at FROM shift_reports WHERE day = ? ORDER BY id", date);
+  const finished = await all("SELECT order_no, track_code, customer_name, service, meter, finished_at FROM orders WHERE finished_at >= ? AND finished_at < ? ORDER BY finished_at, id", from, to);
+  const items = new Map(finished.map((o) => [o.order_no, {
+    order_no: o.order_no,
+    resi: o.track_code,
+    customer: o.customer_name,
+    service: o.service,
+    meter: o.meter,
+    finishedAt: o.finished_at,
+    result: "menunggu",
+    rejectM: null,
+    by: null,
+    at: null
+  }]));
+  for (const x of checks) {
+    const item = items.get(x.order_no) ?? items.set(x.order_no, { order_no: x.order_no, resi: x.resi, customer: x.customer, service: x.service, meter: x.meter, finishedAt: null, result: "menunggu", rejectM: null, by: null, at: null }).get(x.order_no);
+    Object.assign(item, { result: x.result, by: x.by, at: x.at });
+    if (x.rejectM !== null) item.rejectM = (item.rejectM ?? 0) + x.rejectM;
+  }
+  const recap = [...items.values()].map((i) => {
+    const done = i.finishedAt ?? i.at;
+    return { ...i, result: i.at !== null && i.finishedAt !== null && i.finishedAt > i.at ? "menunggu" : i.result, done, shift: shiftOf(done), day: dayName(done) };
+  }).sort((a, b2) => a.done - b2.done || (a.order_no < b2.order_no ? -1 : 1));
+  const sent = await all("SELECT day, shift, service, note, by_user AS by, at FROM shift_reports WHERE day >= ? AND day <= ? ORDER BY id", date, last);
   c.header("Cache-Control", "private, no-store");
   return c.json({
     date,
+    from: date,
+    to: last,
     shift2Start,
     checks,
-    submissions: sent.filter((s, i) => !sent.slice(i + 1).some((x) => x.shift === s.shift && x.service === s.service)),
+    items: recap,
+    submissions: sent.filter((s, i) => !sent.slice(i + 1).some((x) => x.day === s.day && x.shift === s.shift && x.service === s.service)),
     morning: morning.map((r) => ({
       id: r.id,
+      day: r.day,
       machine: r.machine,
       status: r.status,
       by: r.by_user,
@@ -33365,7 +33430,7 @@ stateRoutes.get("/", async (c) => {
   const has = (...p) => p.some((x) => pages.includes(x));
   const raw2 = await loadSettings(db);
   const out = {
-    api: 9,
+    api: 11,
     // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
@@ -33437,9 +33502,7 @@ stateRoutes.get("/", async (c) => {
   }
   out.workBlocks = raw2.work_blocks || WORK_BLOCKS_DEFAULT;
   out.shift2Start = raw2.shift2_start || SHIFT2_DEFAULT;
-  if (has("input", "pelanggan", "cs", "cekfile")) {
-    out.customers = (await db.prepare("SELECT id, code, name, wa, source, status FROM customers ORDER BY name LIMIT 5000").all()).results;
-  }
+  if (has("input", "pelanggan")) out.customerCount = (await db.prepare("SELECT COUNT(*) n FROM customers").first()).n;
   if (has("stok", "dashboard")) {
     out.skus = (await db.prepare(`SELECT code, name, svc, unit, ROUND((SELECT COALESCE(SUM(l.qty_left), 0) FROM lots l WHERE l.sku_code = skus.code AND l.status = 'tersedia')::numeric, 3)::float8 AS stock, min_stock AS min, machine FROM skus ORDER BY code`).all()).results;
   }
@@ -33775,6 +33838,19 @@ function ranges(period, date, cal) {
   const prev = period === "day" ? { from: dayStart2(previous, cal), to: dayStart2(previous, cal) + DAY3 } : { from: dayStart2(previous, cal), to: current.from };
   return { current, previous: prev };
 }
+function film(data, range) {
+  const rows = data.ledger.filter((l) => l.at >= range.from && l.at < range.to && data.filmSkus.includes(l.sku_code) && ["Produksi", "Test print", "Reject", "Refund", "Waste", "Habis", "Opname"].includes(l.type) && (l.qty < 0 || l.type === "Produksi"));
+  const of = (...types2) => round1(rows.filter((l) => types2.includes(l.type)).reduce((a, l) => a - l.qty, 0));
+  const good = of("Produksi"), test = of("Test print"), reject = of("Reject"), refund = of("Refund"), waste = of("Waste"), other = of("Habis", "Opname");
+  const total = round1(good + test + reject + refund + waste + other);
+  const keys = [...new Set(rows.filter((l) => l.type !== "Produksi").map((l) => l.type + "|" + (l.note || "Tanpa keterangan")))];
+  const reasons = keys.map((k) => {
+    const [type, reason] = [k.slice(0, k.indexOf("|")), k.slice(k.indexOf("|") + 1)];
+    return { type, reason, meter: of2(rows.filter((l) => l.type === type && (l.note || "Tanpa keterangan") === reason)) };
+  }).sort((a, b) => b.meter - a.meter || (a.type + a.reason < b.type + b.reason ? -1 : 1)).slice(0, 20);
+  return { total, good, test, reject, refund, waste, other, yield: pct(good, total), reasons };
+}
+var of2 = (list) => round1(list.reduce((a, l) => a - l.qty, 0));
 function summarize(data, range, now2, cfg) {
   const inside = (t) => t != null && t >= range.from && t < range.to;
   const sum = (list, f) => list.reduce((a, x) => a + f(x), 0);
@@ -33804,7 +33880,7 @@ function summarize(data, range, now2, cfg) {
   const ready = { count: done.length, ontime: onTime, pct: pct(onTime, done.length), leadHours: leads.length ? round1(sum(leads, (x) => x) / leads.length) : null };
   const produced = round1(sum(finished, (o) => o.meter));
   const rejectM = round1(sum(data.logs.filter((l) => l.type === "Reject" && inside(l.at)), (l) => Number(/([0-9]+(?:\.[0-9]+)?) m /.exec(l.reason)?.[1] ?? 0)));
-  const used = data.ledger.filter((l) => inside(l.at) && l.qty < 0 && data.meterSkus.includes(l.sku_code) && ["Produksi", "Test print", "Reject", "Waste"].includes(l.type));
+  const used = data.ledger.filter((l) => inside(l.at) && (l.qty < 0 || l.type === "Produksi") && data.meterSkus.includes(l.sku_code) && ["Produksi", "Test print", "Reject", "Refund", "Waste"].includes(l.type));
   const usedOf = (type) => round1(sum(used.filter((l) => !type || l.type === type), (l) => -l.qty));
   const quality = { produced, rejectM, rejectPct: pct(rejectM, produced), usedM: usedOf(), testM: usedOf("Test print"), wasteM: usedOf("Waste"), wastePct: pct(usedOf("Waste"), usedOf()) };
   const group = (keys, of) => keys.map((key) => {
@@ -33825,7 +33901,7 @@ function summarize(data, range, now2, cfg) {
     return { reason, count: list.length, value: sum(list, (l) => l.value ?? 0) };
   }).sort((a, b) => b.value - a.value || (a.reason < b.reason ? -1 : 1));
   const loss = { count: lost.length, value: sum(lost, (l) => l.value ?? 0), reasons };
-  return { summary, machines, ready, quality, sales, loss };
+  return { summary, machines, ready, quality, sales, loss, film: film(data, range) };
 }
 function buckets(period, date, cal) {
   const { from, to } = ranges(period, date, cal).current;
@@ -33848,7 +33924,10 @@ function trend(data, list) {
     const created = data.orders.filter((o) => inside(o.created_at) && o.status !== "ditolak");
     const finished = data.orders.filter((o) => inside(o.finished_at));
     const meter = (service) => round1(sum(finished.filter((o) => o.service === service), (o) => o.meter));
+    const f = film(data, b);
     return {
+      filmGood: f.good,
+      filmLoss: round1(f.total - f.good),
       key: b.key,
       orders: created.length,
       value: sum(created, (o) => o.total),
@@ -33898,13 +33977,131 @@ analyticsRoutes.post("/", async (c) => {
     ),
     payments: await all("SELECT amount, at FROM payments WHERE at >= ?", since),
     logs: await all("SELECT type, reason, value, counted, at FROM logs WHERE at >= ? ORDER BY id", since),
-    ledger: await all("SELECT sku_code, type, qty, at FROM stock_ledger WHERE at >= ?", since),
+    ledger: await all("SELECT sku_code, type, qty, at, note FROM stock_ledger WHERE at >= ? ORDER BY id", since),
+    filmSkus: (await all("SELECT code FROM skus WHERE machine = 'dtf' AND unit = 'meter' ORDER BY code")).map((k) => k.code),
     meterSkus: (await all("SELECT code FROM skus WHERE unit = 'meter' ORDER BY code")).map((k) => k.code).filter((k) => !PACKAGE_SKUS.includes(k)),
     ready,
     firstOrderAt: (await all("SELECT MIN(created_at) AS t FROM orders"))[0].t
   };
   c.header("Cache-Control", "private, no-store");
   return c.json(report(data, period, date, now(), cfg));
+});
+
+// src/routes/customers.ts
+var PAGE_SIZE = 50;
+var activeSince = (today2) => `${Number(today2.slice(0, 4)) - 1}${today2.slice(4)}`;
+var today = async (c) => localDay(now(), calendarOf(await loadSettings(c.env.DB)));
+async function need(c, roles, pages) {
+  const u = c.get("user");
+  if (u.role === "master") return;
+  const own = await pagesOf(c.env.DB, u.role);
+  if (!roles.includes(u.role) || !pages.some((p) => own.includes(p))) throw forbidden();
+}
+var dateOf = (v) => typeof v === "string" && /^(19|20)\d\d-\d\d-\d\d$/.test(v) ? v : null;
+var intOf = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 1e13 ? v : null;
+var customerRoutes = new Hono3();
+customerRoutes.use("*", authn);
+customerRoutes.post("/search", async (c) => {
+  await need(c, ["crm", "cs", "store", "spv", "manager", "fat"], ["pelanggan", "input"]);
+  const b = await readJson(c);
+  const q = (optStr(b, "q", 100) ?? "").toLowerCase();
+  const status = oneOf({ status: b.status ?? "all" }, "status", ["all", "active", "inactive"]);
+  const kind = oneOf({ kind: b.kind ?? "all" }, "kind", ["all", "B2B", "B2C", "none"]);
+  const category = optStr(b, "category", 60);
+  const page = Number.isInteger(b.page) && b.page >= 0 ? b.page : 0;
+  const limit = activeSince(await today(c));
+  const where = [];
+  const args = [];
+  if (q) {
+    where.push("(lower(name) LIKE ? OR lower(code) LIKE ? OR wa LIKE ?)");
+    args.push(`%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  if (status !== "all") {
+    where.push(status === "active" ? "COALESCE(last_visit, since) >= ?" : "(COALESCE(last_visit, since) IS NULL OR COALESCE(last_visit, since) < ?)");
+    args.push(limit);
+  }
+  if (kind !== "all") where.push(kind === "none" ? "(kind IS NULL OR kind = '')" : `kind = '${kind}'`);
+  if (category) {
+    where.push("category = ?");
+    args.push(category);
+  }
+  const filter = where.length ? "WHERE " + where.join(" AND ") : "";
+  const db = c.env.DB;
+  const total = (await db.prepare(`SELECT COUNT(*) n FROM customers ${filter}`).bind(...args).first()).n;
+  const rows = (await db.prepare(
+    `SELECT id, code, name, wa, source, status, kind, category, email, city, address, since, last_visit, visits, spending,
+       CASE WHEN COALESCE(last_visit, since) >= ? THEN 1 ELSE 0 END AS active
+     FROM customers ${filter} ORDER BY lower(name), id LIMIT ${PAGE_SIZE} OFFSET ${page * PAGE_SIZE}`
+  ).bind(limit, ...args).all()).results;
+  const summary = await db.prepare(
+    `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE COALESCE(last_visit, since) >= ?) AS active, COUNT(*) FILTER (WHERE kind = 'B2B') AS b2b,
+       COUNT(*) FILTER (WHERE kind = 'B2C') AS b2c, COUNT(*) FILTER (WHERE wa = '') AS nophone FROM customers`
+  ).bind(limit).first();
+  const categories = (await db.prepare("SELECT DISTINCT category FROM customers WHERE category IS NOT NULL AND category <> '' ORDER BY category").all()).results.map((x) => x.category);
+  c.header("Cache-Control", "private, no-store");
+  return c.json({ total, page, size: PAGE_SIZE, rows, summary, categories });
+});
+customerRoutes.post("/bulk", async (c) => {
+  await need(c, ["crm", "spv"], ["pelanggan"]);
+  const b = await readJson(c);
+  if (!Array.isArray(b.rows) || !b.rows.length || b.rows.length > 500) throw bad("Kirim 1 sampai 500 baris");
+  const u = c.get("user");
+  let added = 0, updated = 0;
+  await c.env.DB.tx(async (db) => {
+    const max = await db.prepare("SELECT COALESCE(MAX(substring(code from 5)::bigint), 0) AS n FROM customers WHERE code ~ '^CUS-[0-9]+$'").first();
+    let next = Number(max.n);
+    for (const raw2 of b.rows) {
+      const name = reqStr(raw2, "name", 150).replace(/\s+/g, " ");
+      const text = (k, size) => (typeof raw2[k] === "string" ? raw2[k].trim().slice(0, size) : "") || null;
+      const v = [text("wa", 40), text("email", 150), text("city", 80), text("address", 250), dateOf(raw2.since), dateOf(raw2.last_visit), intOf(raw2.visits), intOf(raw2.spending), text("kind", 3), text("category", 60)];
+      const found = await db.prepare("SELECT id FROM customers WHERE lower(name) = lower(?) ORDER BY id LIMIT 1").bind(name).first();
+      if (found) {
+        await db.prepare(`UPDATE customers SET wa = COALESCE(?, wa), email = COALESCE(?, email), city = COALESCE(?, city), address = COALESCE(?, address), since = COALESCE(?, since),
+          last_visit = GREATEST(?, last_visit), visits = COALESCE(?, visits), spending = COALESCE(?, spending), kind = COALESCE(?, kind), category = COALESCE(?, category) WHERE id = ?`).bind(...v, found.id).run();
+        updated++;
+      } else {
+        await db.prepare(`INSERT INTO customers (code, name, wa, source, status, created_at, email, city, address, since, last_visit, visits, spending, kind, category)
+          VALUES (?,?,?, 'Database DTF', 'aktif', ?,?,?,?,?,?,?,?,?,?)`).bind(`CUS-${String(++next).padStart(5, "0")}`, name, v[0] ?? "", now(), ...v.slice(1)).run();
+        added++;
+      }
+    }
+    await audit(db, u.id, "customers_bulk", "customer", void 0, { added, updated });
+  });
+  return c.json({ ok: true, added, updated }, 201);
+});
+customerRoutes.post("/update", async (c) => {
+  await need(c, ["crm", "cs", "spv"], ["pelanggan"]);
+  const b = await readJson(c);
+  if (!Array.isArray(b.ids) || !b.ids.length || b.ids.length > PAGE_SIZE || !b.ids.every((x) => Number.isInteger(x))) throw bad("Pilih 1 sampai 50 customer");
+  const sets = [], vals = [];
+  if (b.kind !== void 0) {
+    sets.push("kind = ?");
+    vals.push(b.kind ? oneOf(b, "kind", ["B2B", "B2C"]) : null);
+  }
+  if (b.category !== void 0) {
+    sets.push("category = ?");
+    vals.push(optStr(b, "category", 60));
+  }
+  if (b.ids.length === 1) {
+    if (b.name !== void 0) {
+      sets.push("name = ?");
+      vals.push(reqStr(b, "name", 150));
+    }
+    if (b.wa !== void 0) {
+      sets.push("wa = ?");
+      vals.push(optStr(b, "wa", 40) ?? "");
+    }
+    if (b.city !== void 0) {
+      sets.push("city = ?");
+      vals.push(optStr(b, "city", 80));
+    }
+  }
+  if (!sets.length) throw bad("Tidak ada perubahan");
+  await c.env.DB.tx(async (db) => {
+    for (const id of b.ids) if (!(await db.prepare(`UPDATE customers SET ${sets.join(", ")} WHERE id = ?`).bind(...vals, id).run()).meta.changes) throw notFound("Customer tidak ditemukan");
+    await audit(db, c.get("user").id, "customers_updated", "customer", void 0, { ids: b.ids });
+  });
+  return c.json({ ok: true });
 });
 
 // src/index.ts
@@ -33931,6 +34128,7 @@ function createApp(getEnv) {
   app2.route("/api/stock", inventoryRoutes);
   app2.route("/api/analytics", analyticsRoutes);
   app2.route("/api/daily", dailyRoutes);
+  app2.route("/api/customers", customerRoutes);
   app2.route("/api/files", fileRoutes);
   app2.route("/api/manage", manageRoutes);
   app2.route("/api", opsRoutes);

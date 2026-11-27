@@ -6,7 +6,7 @@ import {
   rule, type AppEnv, type Ctx,
 } from '../core.ts';
 import { evaluate } from './capacity.ts';
-import { consumeForOrder, materialData } from './inventory.ts';
+import { consumeForOrder, materialData, reclassify } from './inventory.ts';
 import { candidates } from '../lib/materials.ts';
 import { CURING, DEADLINE_RE, FILE_CHECKS, QC_CHECKS, buildItems, meterOf, newResi, totalOf, type Item } from '../domain.ts';
 
@@ -79,7 +79,7 @@ orderRoutes.post('/', async (c) => {
     let customerId: number | null = null;
     let name: string;
     let wa: string;
-    if (type === 'maklon') {
+    if (b.customer_code || type === 'maklon') {
       if (b.customer_code) {
         const cu = await db.prepare('SELECT * FROM customers WHERE code = ?').bind(reqStr(b, 'customer_code', 40)).first<any>();
         if (!cu || cu.status === 'ditolak') throw bad('Pelanggan tidak ditemukan atau dinonaktifkan');
@@ -95,6 +95,8 @@ orderRoutes.post('/', async (c) => {
       name = reqStr(b, 'name', 150); wa = reqStr(b, 'wa', 40);
     }
     const t = now();
+    // Order baru dihitung sebagai kunjungan, sehingga customer tetap aktif.
+    if (customerId) await db.prepare('UPDATE customers SET last_visit = ? WHERE id = ?').bind(localDay(t), customerId).run();
     const svc = service === 'sub' ? 'sub' : 'dtf';
     const track = newResi();
     const r = await db.prepare(
@@ -257,6 +259,7 @@ orderRoutes.post('/:id/qc', async (c) => {
       const reject = reqNum(b, 'reject_m', 0);
       const max = o.rework_m ?? o.meter;
       if (reject > max) throw bad(`Meter reject tidak boleh melebihi ${max}`);
+      await reclassify(db, o.order_no, 'Reject', reject, 'Tidak lolos QC', u.code);
       await db.prepare("INSERT INTO logs (order_no, type, reason, value, counted, by_user, at) VALUES (?, 'Reject', ?, NULL, 0, ?, ?)")
         .bind(o.order_no, `Tidak lolos QC, ${reject} m dicetak ulang`, u.code, now()).run();
       await db.prepare("UPDATE orders SET status = 'antrian', approved_at = ?, stage = ?, rework_m = ?, qc_by = ? WHERE id = ?")

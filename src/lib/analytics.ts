@@ -14,7 +14,8 @@ export interface Data {
   orders: AOrder[];
   payments: { amount: number; at: number }[];
   logs: { type: string; reason: string; value: number | null; counted: number; at: number }[];
-  ledger: { sku_code: string; type: string; qty: number; at: number }[];
+  ledger: { sku_code: string; type: string; qty: number; at: number; note?: string | null }[];
+  filmSkus: string[]; // PET film DTF
   meterSkus: string[];
   firstOrderAt: number | null; // awal operasional: kapasitas sebelum itu tidak dihitung
   ready: { id: number; at: number }[]; // waktu dikemas (siap kirim)
@@ -50,6 +51,21 @@ export function ranges(period: Period, date: string, cal: CalendarConfig) {
   return { current, previous: prev };
 }
 
+/** Head to head PET film: print bagus (Produksi) dibanding semua pemakaian lain. Pindahan Produksi bernilai positif ikut mengurangi. */
+export function film(data: Data, range: { from: number; to: number }) {
+  const rows = data.ledger.filter((l) => l.at >= range.from && l.at < range.to && data.filmSkus.includes(l.sku_code) && ['Produksi', 'Test print', 'Reject', 'Refund', 'Waste', 'Habis', 'Opname'].includes(l.type) && (l.qty < 0 || l.type === 'Produksi'));
+  const of = (...types: string[]) => round1(rows.filter((l) => types.includes(l.type)).reduce((a, l) => a - l.qty, 0));
+  const good = of('Produksi'), test = of('Test print'), reject = of('Reject'), refund = of('Refund'), waste = of('Waste'), other = of('Habis', 'Opname');
+  const total = round1(good + test + reject + refund + waste + other);
+  const keys = [...new Set(rows.filter((l) => l.type !== 'Produksi').map((l) => l.type + '|' + (l.note || 'Tanpa keterangan')))];
+  const reasons = keys.map((k) => {
+    const [type, reason] = [k.slice(0, k.indexOf('|')), k.slice(k.indexOf('|') + 1)];
+    return { type, reason, meter: of2(rows.filter((l) => l.type === type && (l.note || 'Tanpa keterangan') === reason)) };
+  }).sort((a, b) => b.meter - a.meter || (a.type + a.reason < b.type + b.reason ? -1 : 1)).slice(0, 20);
+  return { total, good, test, reject, refund, waste, other, yield: pct(good, total), reasons };
+}
+const of2 = (list: { qty: number }[]) => round1(list.reduce((a, l) => a - l.qty, 0));
+
 export function summarize(data: Data, range: { from: number; to: number }, now: number, cfg: Cfg) {
   const inside = (t: number | null | undefined) => t != null && t >= range.from && t < range.to;
   const sum = <T>(list: T[], f: (x: T) => number) => list.reduce((a, x) => a + f(x), 0);
@@ -81,7 +97,7 @@ export function summarize(data: Data, range: { from: number; to: number }, now: 
 
   const produced = round1(sum(finished, (o) => o.meter));
   const rejectM = round1(sum(data.logs.filter((l) => l.type === 'Reject' && inside(l.at)), (l) => Number(/([0-9]+(?:\.[0-9]+)?) m /.exec(l.reason)?.[1] ?? 0)));
-  const used = data.ledger.filter((l) => inside(l.at) && l.qty < 0 && data.meterSkus.includes(l.sku_code) && ['Produksi', 'Test print', 'Reject', 'Waste'].includes(l.type));
+  const used = data.ledger.filter((l) => inside(l.at) && (l.qty < 0 || l.type === 'Produksi') && data.meterSkus.includes(l.sku_code) && ['Produksi', 'Test print', 'Reject', 'Refund', 'Waste'].includes(l.type));
   const usedOf = (type?: string) => round1(sum(used.filter((l) => !type || l.type === type), (l) => -l.qty));
   const quality = { produced, rejectM, rejectPct: pct(rejectM, produced), usedM: usedOf(), testM: usedOf('Test print'), wasteM: usedOf('Waste'), wastePct: pct(usedOf('Waste'), usedOf()) };
 
@@ -105,7 +121,7 @@ export function summarize(data: Data, range: { from: number; to: number }, now: 
   }).sort((a, b) => b.value - a.value || (a.reason < b.reason ? -1 : 1));
   const loss = { count: lost.length, value: sum(lost, (l) => l.value ?? 0), reasons };
 
-  return { summary, machines, ready, quality, sales, loss };
+  return { summary, machines, ready, quality, sales, loss, film: film(data, range) };
 }
 
 /** Kelompok waktu untuk grafik tren: harian = 14 hari sampai tanggal itu; mingguan dan bulanan = per hari; tahunan = per bulan. */
@@ -131,7 +147,9 @@ export function trend(data: Data, list: ReturnType<typeof buckets>) {
     const created = data.orders.filter((o) => inside(o.created_at) && o.status !== 'ditolak');
     const finished = data.orders.filter((o) => inside(o.finished_at));
     const meter = (service: string) => round1(sum(finished.filter((o) => o.service === service), (o) => o.meter));
+    const f = film(data, b);
     return {
+      filmGood: f.good, filmLoss: round1(f.total - f.good),
       key: b.key, orders: created.length, value: sum(created, (o) => o.total), paid: sum(data.payments.filter((p) => inside(p.at)), (p) => p.amount),
       dtf: meter('dtf'), sub: meter('sub'),
     };

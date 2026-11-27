@@ -20,7 +20,7 @@ stateRoutes.get('/', async (c) => {
   const has = (...p: Page[]) => p.some((x) => pages.includes(x));
   const raw = await loadSettings(db);
   const out: Record<string, unknown> = {
-    api: 9, // versi kontrak; layar memberi peringatan bila server belum diperbarui
+    api: 11, // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
     today: localDay(now(), calendarOf(raw)),
@@ -62,9 +62,8 @@ stateRoutes.get('/', async (c) => {
   }
   out.workBlocks = raw.work_blocks || WORK_BLOCKS_DEFAULT;
   out.shift2Start = raw.shift2_start || SHIFT2_DEFAULT;
-  if (has('input', 'pelanggan', 'cs', 'cekfile')) {
-    out.customers = (await db.prepare('SELECT id, code, name, wa, source, status FROM customers ORDER BY name LIMIT 5000').all()).results;
-  }
+  // Daftar customer tidak dikirim seluruhnya; layar mencarinya lewat /api/customers/search.
+  if (has('input', 'pelanggan')) out.customerCount = (await db.prepare('SELECT COUNT(*) n FROM customers').first<{ n: number }>())!.n;
   if (has('stok', 'dashboard')) {
     out.skus = (await db.prepare(`SELECT code, name, svc, unit, ROUND((SELECT COALESCE(SUM(l.qty_left), 0) FROM lots l WHERE l.sku_code = skus.code AND l.status = 'tersedia')::numeric, 3)::float8 AS stock, min_stock AS min, machine FROM skus ORDER BY code`).all()).results;
   }

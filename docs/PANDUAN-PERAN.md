@@ -46,9 +46,17 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 
 ## Laporan Harian
 
-- Terisi otomatis: **QC pagi** (checklist, foto, tautan Drive) dan daftar customer yang lolos **QC hasil**, dipisah per layanan dan shift (shift 2 mulai 16.30, dapat diubah di Pengaturan).
-- Operator, QC, atau SPV menekan **Kirim laporan shift** di akhir shift, boleh dengan catatan.
-- **Salin untuk WA** tersedia bila masih perlu dikirim ke grup. QC pagi boleh ditambah sampai tiga foto bukti.
+- **Terisi otomatis, tidak ada input ulang.** Order masuk rekap saat operator menekan **Selesai curing** atau **Selesai press**; hasil **Lolos QC** atau cetak ulang mengikuti.
+- Tiap shift menampilkan rekap per customer (jumlah order, nomor order, total meter) dan rincian per order. Shift 2 mulai 16.30 (dapat diubah di Pengaturan).
+- Setelah jam shift lewat, laporan berstatus **terekap otomatis**. **Konfirmasi shift** dan catatan closing bersifat opsional.
+- **Salin untuk WA** dan **Cetak / PDF** tersedia. QC pagi boleh ditambah sampai tiga foto bukti.
+
+## Database Customer
+
+- Impor file CSV di menu **Database Customer** (CRM, SPV, Master). Setiap customer baru mendapat ID `CUS-00001`; nama yang sama diperbarui.
+- **Aktif** bila ada kunjungan atau order dalam 1 tahun terakhir. Tipe (B2B/B2C) dan kategori dapat diubah satu per satu atau massal.
+- Nomor telepon yang tertulis seperti 6,29E+12 sudah rusak di file; ekspor ulang dengan kolom Phone berformat Teks.
+- Yield PET film dan rinciannya ada di **Analysis**; reject atau refund yang diketahui belakangan dipindahkan di **SKU & Inventory > Pemakaian**.
 
 ## Analysis
 

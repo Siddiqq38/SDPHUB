@@ -15,7 +15,7 @@ import { MORNING, RETAIL, ACCESS_DEFAULT, GRANTABLE, ROLES, FILE_CHECKS, QC_CHEC
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8788';
 const sql = await (await fetch(BASE + '/__export')).text();
 const db = new PGlite({ extensions: { citext }, parsers: { 20: Number, 1700: Number } });
-for (const f of ['0001_schema.sql', '0002_seed_config.sql', '0003_inventory.sql', '0004_materials.sql', '0005_daily.sql']) await db.exec(readFileSync(new URL('../migrations/' + f, import.meta.url), 'utf8'));
+for (const f of ['0001_schema.sql', '0002_seed_config.sql', '0003_inventory.sql', '0004_materials.sql', '0005_daily.sql', '0006_customers.sql']) await db.exec(readFileSync(new URL('../migrations/' + f, import.meta.url), 'utf8'));
 await db.exec(sql);
 for (const t of ['users', 'customers', 'orders', 'payments', 'skus', 'bins', 'lots', 'stock_ledger', 'shift_reports', 'qc_reports', 'logs', 'files', 'audit_log']) {
   const n = (await db.query(`SELECT COUNT(*) n FROM ${t}`)).rows[0].n;
@@ -75,7 +75,7 @@ console.log('  ok   aturan Code.gs sama dengan server');
     payments: [{ amount: 500, at: now - H }, { amount: 900, at: now - 8 * D }],
     logs: [{ type: 'Reject', reason: 'Tidak lolos QC, 2.5 m dicetak ulang', value: null, counted: 0, at: now - H }, { type: 'Loss Sales', reason: 'Kapasitas penuh: X, 9 m', value: 700, counted: 1, at: now - H }, { type: 'Loss Sales', reason: 'Double input', value: 700, counted: 0, at: now - H }],
     ledger: [{ sku_code: 'F', type: 'Produksi', qty: -40, at: now - H }, { sku_code: 'F', type: 'Waste', qty: -2, at: now - H }, { sku_code: 'TINTA', type: 'Habis', qty: -500, at: now - H }],
-    meterSkus: ['F'], firstOrderAt: now - 40 * D, ready: [{ id: 1, at: now - 2 * H }, { id: 2, at: now - H }, { id: 200, at: now - 38 * D }],
+    meterSkus: ['F'], filmSkus: ['F'], firstOrderAt: now - 40 * D, ready: [{ id: 1, at: now - 2 * H }, { id: 2, at: now - H }, { id: 200, at: now - 38 * D }],
   };
   const norms = { dtf: 240, subp: null, cal: 90 };
   for (const period of ['day', 'week', 'month', 'year']) {

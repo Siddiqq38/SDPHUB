@@ -260,11 +260,11 @@ async function main() {
     check('deadline tidak valid ditolak: ' + bad, (await call(C.CS, 'POST', '/api/orders', order({ customer_code: 'TK-0001', deadline: bad }))).status === 400);
   }
   check('langsung bisa dicek Operator tanpa CRM', (await post(C.OPR, N, 'file-check', { ok: true, checks: [true, true, true, true] })).status === 200);
-  check('customer baru berstatus aktif', (await state(C.CRM)).customers.find((x) => x.name === 'Brand Baru').status === 'aktif');
+  check('customer baru berstatus aktif', (await call(C.CRM, 'POST', '/api/customers/search', { q: 'brand baru' })).data.rows[0].active === 1);
   r = await call(anon, 'GET', '/api/public/track/' + resi.toLowerCase());
   check('lacak dengan resi, huruf kecil diterima', r.status === 200 && r.data.status === 'antrian', r);
   check('resi acak lain 404', (await call(anon, 'GET', '/api/public/track/RS-00000-00000')).status === 404);
-  check('versi server dikirim', (await state(C.CS)).api === 9);
+  check('versi server dikirim', (await state(C.CS)).api === 11);
 
   console.log('# Kapasitas produksi');
   let cap = (await state(C.CS)).capacity;
@@ -374,6 +374,40 @@ async function main() {
   check('CS tidak boleh melihat Analysis', (await ana(C.CS, 'day')).status === 403);
   check('tanggal tidak valid ditolak', (await ana(C.MGR, 'day', '2026-13-45')).status === 400);
 
+  console.log('# Database customer');
+  const find = async (cl, body = {}) => (await call(cl, 'POST', '/api/customers/search', body)).data;
+  const old = '2024-01-05', recent = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const rows = Array.from({ length: 120 }, (_, i) => ({ name: 'MK01 Toko ' + String(i).padStart(3, '0'), wa: i % 2 ? '6281100000' + String(i).padStart(3, '0') : undefined, city: 'Makassar', since: '2022-03-01', last_visit: i < 100 ? recent : old, visits: i, spending: 1000 * i }));
+  r = await call(C.CRM, 'POST', '/api/customers/bulk', { rows });
+  check('impor massal 120 customer', r.status === 201 && r.data.added === 120 && r.data.updated === 0, r);
+  r = await call(C.CRM, 'POST', '/api/customers/bulk', { rows: [{ name: 'mk01  toko 000', wa: '628999000111', last_visit: old }, { name: 'MK02 Baru', category: 'Konveksi', kind: 'B2B' }] });
+  check('impor ulang memperbarui tanpa menggandakan', r.data.added === 1 && r.data.updated === 1, r);
+  let list = await find(C.CRM, { q: 'toko 000' });
+  check('ID CUS, nomor terisi, kunjungan terbaru dipertahankan', list.total === 1 && /^CUS-\d{5}$/.test(list.rows[0].code) && list.rows[0].wa === '628999000111' && list.rows[0].last_visit === recent && list.rows[0].city === 'Makassar', list.rows[0]);
+  list = await find(C.CRM, { status: 'inactive', q: 'mk01' });
+  check('tidak aktif bila kunjungan lebih dari 1 tahun', list.total === 20 && list.rows.every((x) => x.active === 0), list.total);
+  list = await find(C.CRM, { q: 'mk01', page: 2 });
+  check('halaman 50 baris', list.total === 120 && list.rows.length === 20 && list.size === 50, list.rows.length);
+  const two = (await find(C.CRM, { q: 'toko 00' })).rows.slice(0, 2).map((x) => x.id);
+  check('ubah tipe dan kategori massal', (await call(C.CRM, 'POST', '/api/customers/update', { ids: two, kind: 'B2B', category: 'Sablon' })).status === 200 && (await find(C.CRM, { category: 'Sablon', kind: 'B2B' })).total === 2);
+  check('operator tidak membuka database customer', (await call(C.QC1, 'POST', '/api/customers/search', {})).status === 403);
+  check('Store Head tidak mengimpor', (await call(C.STH, 'POST', '/api/customers/bulk', { rows: [{ name: 'x' }] })).status === 403);
+  check('daftar customer tidak lagi dikirim di state', (await state(C.CS)).customers.length === 0 && (await state(C.CS)).customerCount > 120);
+  const vip = (await find(C.CS, { q: 'toko 119' })).rows[0];
+  r = await call(C.CS, 'POST', '/api/orders', order({ type: 'retail', customer_code: vip.code }));
+  check('order retail memakai customer terdaftar dan membuatnya aktif', r.status === 201 && (await find(C.CS, { q: 'toko 119' })).rows[0].active === 1, r);
+
+  console.log('# Yield PET film');
+  const filmAt = async () => (await call(C.MGR, 'POST', '/api/analytics', { period: 'day', date: today })).data.current.film;
+  const filmBefore = await filmAt();
+  check('film: print bagus, test print, dan yield dihitung', filmBefore.good > 0 && filmBefore.test >= 0.5 && filmBefore.total >= filmBefore.good && filmBefore.yield > 0 && filmBefore.yield <= 100, filmBefore);
+  const stockBefore = (await state(master)).skus.find((x) => x.code === 'SDP-DTF-FLM-60').stock;
+  r = await call(C.SPV, 'POST', '/api/stock/reclass', { order_no: orderA, type: 'Refund', meter: 2, reason: 'Refund customer' });
+  const filmAfter = await filmAt();
+  check('refund memindahkan produksi tanpa mengubah stok', r.status === 201 && filmAfter.refund === 2 && filmAfter.good === Math.round((filmBefore.good - 2) * 10) / 10 && filmAfter.total === filmBefore.total && (await state(master)).skus.find((x) => x.code === 'SDP-DTF-FLM-60').stock === stockBefore, { r: r.data, filmAfter });
+  check('pindahan melebihi produksi ditolak', (await call(C.SPV, 'POST', '/api/stock/reclass', { order_no: orderA, type: 'Reject', meter: 500, reason: 'x' })).status === 409);
+  check('alasan tercatat', filmAfter.reasons.some((x) => x.type === 'Refund' && x.reason === 'Refund customer' && x.meter === 2), filmAfter.reasons);
+
   console.log('# Laporan Harian');
   const daily = (cl, date = today) => call(cl, 'POST', '/api/daily', { date });
   r = await daily(C.STH);
@@ -382,11 +416,21 @@ async function main() {
   check('reject tercatat dengan meternya', r.data.checks.some((x) => x.result === 'reject' && x.service === 'sub' && x.rejectM === 3), r.data.checks);
   check('QC pagi hari ini masuk laporan', r.data.morning.length >= 3 && r.data.morning.every((q) => q.photos.length >= 1 && (!SHEETS || q.photos.every((p) => p.drive))), r.data.morning.length);
   check('tanpa nomor telepon dan harga', !/0811|230000|"wa"|total/.test(JSON.stringify(r.data)));
+  const items = r.data.items;
+  const done = items.find((x) => x.order_no === orderA);
+  check('order selesai produksi terekap otomatis dengan meter', done && done.meter === 10 && done.finishedAt > 0 && done.result === 'lolos' && done.customer === 'Konveksi Uji', done);
+  check('cetak ulang yang lolos tercatat sekali beserta meter reject', items.filter((x) => x.rejectM === 3).length === 1 && items.find((x) => x.rejectM === 3).result === 'lolos', items);
+  check('tiap order muncul satu kali', new Set(items.map((x) => x.order_no)).size === items.length);
   check('CS tidak mengirim laporan shift', (await call(C.CS, 'POST', '/api/daily/submit', { date: today, shift: '1', service: 'dtf' })).status === 403);
   check('petugas QC mengirim laporan shift', (await call(C.QC1, 'POST', '/api/daily/submit', { date: today, shift: '1', service: 'dtf', note: 'awal' })).status === 201);
   await call(C.SPV, 'POST', '/api/daily/submit', { date: today, shift: '1', service: 'dtf', note: 'sudah sesuai' });
   r = await daily(C.MGR);
   check('kirim ulang memakai laporan terbaru', r.data.submissions.length === 1 && r.data.submissions[0].note === 'sudah sesuai' && r.data.submissions[0].by === 'SPV', r.data.submissions);
+  const ymd = (n) => new Date(Date.parse(today + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+  r = await call(C.MGR, 'POST', '/api/daily', { from: ymd(-6), to: today });
+  check('rentang 7 hari memuat order hari ini beserta tanggalnya', r.status === 200 && r.data.items.length > 0 && r.data.items.every((x) => x.day === today) && r.data.morning.every((q) => q.day), r.data?.items?.[0]);
+  check('rentang terbalik ditolak', (await call(C.MGR, 'POST', '/api/daily', { from: today, to: ymd(-1) })).status === 400);
+  check('rentang lebih dari 31 hari ditolak', (await call(C.MGR, 'POST', '/api/daily', { from: ymd(-40), to: today })).status === 400);
   check('tanggal depan ditolak', (await call(C.QC1, 'POST', '/api/daily/submit', { date: '2099-01-01', shift: '1', service: 'dtf' })).status === 400);
   check('gudang tidak melihat laporan harian', (await daily(C.GDG)).status === 403);
   check('jam shift tidak valid ditolak', (await call(master, 'PUT', '/api/admin/settings', { shift2_start: '25:00' })).status === 400);
@@ -434,7 +478,7 @@ async function main() {
   check('reset butuh kata konfirmasi', (await call(master, 'POST', '/api/manage/reset', { confirm: 'ya' })).status === 400);
   check('master membersihkan data simulasi', (await call(master, 'POST', '/api/manage/reset', { confirm: 'HAPUS SEMUA', customers: true })).status === 200);
   st2 = await state(master);
-  check('data kosong, akun dan harga tetap', st2.orders.length === 0 && st2.customers.length === 0 && st2.qcReports.length === 0 && st2.skus.length === 15 && st2.lots.length === 0 && st2.bins.length === 1 && st2.skus.every((s) => s.stock === 0) && st2.users.length > 5 && st2.settings.priceDtf === 23000, st2);
+  check('data kosong, akun dan harga tetap', st2.orders.length === 0 && (await call(master, 'POST', '/api/customers/search', {})).data.total === 0 && st2.qcReports.length === 0 && st2.skus.length === 15 && st2.lots.length === 0 && st2.bins.length === 1 && st2.skus.every((s) => s.stock === 0) && st2.users.length > 5 && st2.settings.priceDtf === 23000, st2);
   r = await call(C.CS, 'POST', '/api/orders', order({ name: 'Setelah Reset', wa: '0800' }));
   check('input order setelah reset berjalan', r.status === 201, r);
   const fresh = (await call(master, 'POST', '/api/daily', { date: (await state(master)).today })).data;

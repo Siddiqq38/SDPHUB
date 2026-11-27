@@ -12,7 +12,7 @@ var SCHEMA = {
   sessions: 'id,user_id#,epoch#,created_at#,expires_at#',
   settings: 'key,value',
   role_access: 'role,pages',
-  customers: 'id#,code,name,wa,source,status,verified_by,verified_at#,created_at#',
+  customers: 'id#,code,name,wa,source,status,verified_by,verified_at#,created_at#,kind,category,email,city,address,since,last_visit,visits#,spending#',
   orders: 'id#,order_no,track_code,type,service,customer_id#,customer_name,wa,source,store,items,meter#,total#,file_ref,file_key,deadline,note,status,stage,priority#,issue,rework_m#,process,receiver,created_by,created_at#,approved_at#,started_at#,finished_at#,qc_by,handed_at#,request_key,fabric_sku',
   payments: 'id#,order_id#,amount#,method,by_user,at#,request_key',
   skus: 'code,name,svc,unit,stock#,min_stock#,use_per_m#,machine',
@@ -147,6 +147,18 @@ function makeStore_() {
       Object.keys(patch).forEach(function (k) { row[k] = patch[k]; });
       widen_(sheet(name), cols.length);
       sheet(name).getRange(row._row, 1, 1, cols.length).setNumberFormat('@').setValues([cols.map(function (c) { return cell_(row[c.n]); })]);
+    },
+    // Tulis ulang blok baris yang berubah dalam satu kali tulis.
+    flush: function (name, changed) {
+      if (!changed.length) return;
+      var cols = columns_(name), sh = sheet(name), byRow = {};
+      store.all(name).forEach(function (r) { byRow[r._row] = r; });
+      var nums = changed.map(function (r) { return r._row; }), first = Math.min.apply(null, nums), last = Math.max.apply(null, nums);
+      widen_(sh, cols.length);
+      if (last > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), last - sh.getMaxRows() + 100);
+      var values = [];
+      for (var n = first; n <= last; n++) values.push(cols.map(function (c) { return byRow[n] ? cell_(byRow[n][c.n]) : ''; }));
+      sh.getRange(first, 1, values.length, cols.length).setNumberFormat('@').setValues(values);
     },
     remove: function (name, fn) {
       var sh = sheet(name);
@@ -539,7 +551,7 @@ function partsOf_(b) {
   var parts = USAGE_.map(function (p) { return { label: p[1], qty: amount_(b[p[0]] === undefined || b[p[0]] === null ? 0 : b[p[0]], p[1]) }; }).filter(function (p) { return p.qty > 0; });
   if (!parts.length) throw err_(400, 'Isi minimal satu jumlah pemakaian');
   var note = opt_(b, 'note', 300);
-  if (!note && parts.some(function (p) { return p.label === 'Reject' || p.label === 'Waste'; })) throw err_(400, 'Isi keterangan untuk reject atau waste');
+  if (!note && parts.some(function (p) { return ['Reject', 'Refund', 'Waste'].indexOf(p.label) >= 0; })) throw err_(400, 'Isi keterangan untuk reject, refund, atau waste');
   return { parts: parts, note: note };
 }
 function lotByCode_(db, code) { var l = db.find('lots', function (x) { return x.lot_code === code; }); if (!l) throw err_(404, 'Roll / lot tidak ditemukan'); return l; }
@@ -555,6 +567,31 @@ function consume_(ctx, lot, parts, ref, note, key) {
   recount_(db, lot.sku_code);
   return left;
 }
+// Hasil cetak yang ternyata reject atau refund: pindahkan dari Produksi. Stok roll tidak berubah.
+function reclassPlan_(db, orderNo, meter) {
+  var groups = {}, list = [];
+  db.filter('stock_ledger', function (l) { return l.ref === orderNo && l.type === 'Produksi'; }).forEach(function (l) {
+    if (!groups[l.lot_code]) { groups[l.lot_code] = { lot: l.lot_code, sku: l.sku_code, q: 0, last: 0 }; list.push(groups[l.lot_code]); }
+    groups[l.lot_code].q += -l.qty; groups[l.lot_code].last = Math.max(groups[l.lot_code].last, l.id);
+  });
+  var rest = meter, plan = [];
+  list.sort(function (a, b) { return b.last - a.last; }).forEach(function (g) {
+    var take = round3_(Math.min(rest, g.q));
+    if (take <= 0 || rest <= 0) return;
+    plan.push({ lot: g.lot, sku: g.sku, take: take }); rest = round3_(rest - take);
+  });
+  return { plan: plan, moved: round3_(meter - rest) };
+}
+function reclassify_(ctx, orderNo, type, meter, reason) {
+  var db = ctx.db, p = reclassPlan_(db, orderNo, meter);
+  p.plan.forEach(function (x) {
+    [['Produksi', x.take, 'Dipindahkan ke ' + type], [type, -x.take, reason]].forEach(function (e) {
+      db.insert('stock_ledger', { sku_code: x.sku, lot_code: x.lot, type: e[0], qty: e[1], ref: orderNo, note: e[2], by_user: ctx.user.code, at: Date.now(), request_key: null });
+    });
+  });
+  return p.moved;
+}
+
 // Wajib diisi bila bahannya ada di rak. Semua baris diperiksa dulu, baru ditulis (spreadsheet tidak punya rollback).
 function consumeForOrder_(ctx, o, input) {
   var db = ctx.db, plan = materialPlan_(db), codes = candidates_(plan.skus, o.stage, o.fabric_sku);
@@ -606,6 +643,21 @@ function ranges_(period, date, cal) {
   var prev = period === 'day' ? { from: dayStart_(previous, cal), to: dayStart_(previous, cal) + D } : { from: dayStart_(previous, cal), to: current.from };
   return { current: current, previous: prev };
 }
+// Head to head PET film: print bagus dibanding semua pemakaian lain.
+function film_(data, range) {
+  var rows = data.ledger.filter(function (l) { return l.at >= range.from && l.at < range.to && data.filmSkus.indexOf(l.sku_code) >= 0 && ['Produksi', 'Test print', 'Reject', 'Refund', 'Waste', 'Habis', 'Opname'].indexOf(l.type) >= 0 && (l.qty < 0 || l.type === 'Produksi'); });
+  var total2 = function (list) { return round1_(list.reduce(function (a, l) { return a - l.qty; }, 0)); };
+  var of = function (types) { return total2(rows.filter(function (l) { return types.indexOf(l.type) >= 0; })); };
+  var good = of(['Produksi']), test = of(['Test print']), reject = of(['Reject']), refund = of(['Refund']), waste = of(['Waste']), other = of(['Habis', 'Opname']);
+  var total = round1_(good + test + reject + refund + waste + other);
+  var keys = [];
+  rows.forEach(function (l) { if (l.type === 'Produksi') return; var k = l.type + '|' + (l.note || 'Tanpa keterangan'); if (keys.indexOf(k) < 0) keys.push(k); });
+  var reasons = keys.map(function (k) {
+    var type = k.slice(0, k.indexOf('|')), reason = k.slice(k.indexOf('|') + 1);
+    return { type: type, reason: reason, meter: total2(rows.filter(function (l) { return l.type === type && (l.note || 'Tanpa keterangan') === reason; })) };
+  }).sort(function (a, b) { return b.meter - a.meter || (a.type + a.reason < b.type + b.reason ? -1 : 1); }).slice(0, 20);
+  return { total: total, good: good, test: test, reject: reject, refund: refund, waste: waste, other: other, yield: pct_(good, total), reasons: reasons };
+}
 function summarize_(data, range, now, cfg) {
   var inside = function (t) { return t !== null && t !== undefined && t >= range.from && t < range.to; };
   var sum = function (list, f) { return list.reduce(function (a, x) { return a + f(x); }, 0); };
@@ -630,7 +682,7 @@ function summarize_(data, range, now, cfg) {
   var ready = { count: done.length, ontime: onTime, pct: pct_(onTime, done.length), leadHours: leads.length ? round1_(sum(leads, function (x) { return x; }) / leads.length) : null };
   var produced = round1_(sum(finished, function (o) { return o.meter; }));
   var rejectM = round1_(sum(data.logs.filter(function (l) { return l.type === 'Reject' && inside(l.at); }), function (l) { var m = /([0-9]+(?:\.[0-9]+)?) m /.exec(l.reason); return m ? Number(m[1]) : 0; }));
-  var used = data.ledger.filter(function (l) { return inside(l.at) && l.qty < 0 && data.meterSkus.indexOf(l.sku_code) >= 0 && ['Produksi', 'Test print', 'Reject', 'Waste'].indexOf(l.type) >= 0; });
+  var used = data.ledger.filter(function (l) { return inside(l.at) && (l.qty < 0 || l.type === 'Produksi') && data.meterSkus.indexOf(l.sku_code) >= 0 && ['Produksi', 'Test print', 'Reject', 'Refund', 'Waste'].indexOf(l.type) >= 0; });
   var usedOf = function (type) { return round1_(sum(used.filter(function (l) { return !type || l.type === type; }), function (l) { return -l.qty; })); };
   var quality = { produced: produced, rejectM: rejectM, rejectPct: pct_(rejectM, produced), usedM: usedOf(), testM: usedOf('Test print'), wasteM: usedOf('Waste'), wastePct: pct_(usedOf('Waste'), usedOf()) };
   var group = function (keys, of) {
@@ -652,7 +704,7 @@ function summarize_(data, range, now, cfg) {
     var list = lost.filter(function (l) { return reasonOf(l.reason) === reason; });
     return { reason: reason, count: list.length, value: sum(list, function (l) { return l.value || 0; }) };
   }).sort(function (a, b) { return b.value - a.value || (a.reason < b.reason ? -1 : 1); });
-  return { summary: summary, machines: machines, ready: ready, quality: quality, sales: sales, loss: { count: lost.length, value: sum(lost, function (l) { return l.value || 0; }), reasons: reasons } };
+  return { summary: summary, machines: machines, ready: ready, quality: quality, sales: sales, loss: { count: lost.length, value: sum(lost, function (l) { return l.value || 0; }), reasons: reasons }, film: film_(data, range) };
 }
 // Kelompok waktu grafik: harian = 14 hari sampai tanggal itu; mingguan dan bulanan = per hari; tahunan = per bulan.
 function buckets_(period, date, cal) {
@@ -675,7 +727,8 @@ function trend_(data, list) {
     var created = data.orders.filter(function (o) { return inside(o.created_at) && o.status !== 'ditolak'; });
     var finished = data.orders.filter(function (o) { return inside(o.finished_at); });
     var meter = function (service) { return round1_(sum(finished.filter(function (o) { return o.service === service; }), function (o) { return o.meter; })); };
-    return { key: b.key, orders: created.length, value: sum(created, function (o) { return o.total; }), paid: sum(data.payments.filter(function (p) { return inside(p.at); }), function (p) { return p.amount; }), dtf: meter('dtf'), sub: meter('sub') };
+    var f = film_(data, b);
+    return { filmGood: f.good, filmLoss: round1_(f.total - f.good), key: b.key, orders: created.length, value: sum(created, function (o) { return o.total; }), paid: sum(data.payments.filter(function (p) { return inside(p.at); }), function (p) { return p.amount; }), dtf: meter('dtf'), sub: meter('sub') };
   });
 }
 function report_(data, period, date, now, cfg) {
@@ -692,7 +745,8 @@ function analytics_(ctx, b) {
   var data = {
     orders: db.all('orders').slice().sort(function (a, c) { return a.id - c.id; }),
     payments: db.all('payments'), logs: db.all('logs'),
-    ledger: db.all('stock_ledger').map(function (l) { return { sku_code: l.sku_code, type: l.type, qty: l.qty || 0, at: l.at }; }),
+    ledger: db.all('stock_ledger').map(function (l) { return { sku_code: l.sku_code, type: l.type, qty: l.qty || 0, at: l.at, note: l.note }; }),
+    filmSkus: db.filter('skus', function (k) { return k.machine === 'dtf' && k.unit === 'meter'; }).map(function (k) { return k.code; }),
     meterSkus: db.filter('skus', function (k) { return k.unit === 'meter' && PACKAGE_SKUS.indexOf(k.code) < 0; }).map(function (k) { return k.code; }),
     ready: db.filter('audit_log', function (a) { return a.action === 'pack' || a.action === 'packed'; }).map(function (a) { return { id: Number(a.entity_id), at: a.at }; })
   };
@@ -704,8 +758,11 @@ function analytics_(ctx, b) {
 var DAILY_VIEWERS_ = ['manager', 'spv', 'op', 'qc', 'cs', 'store', 'fat'];
 function daily_(ctx, submit, b) {
   allow_(ctx, submit ? ['op', 'qc', 'spv'] : DAILY_VIEWERS_, 'harian');
-  var db = ctx.db, date = str_(b, 'date', 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(Date.parse(date + 'T00:00:00Z'))) throw err_(400, 'Tanggal tidak valid');
+  var db = ctx.db;
+  function day_(key) { var d = str_(b, key, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || isNaN(Date.parse(d + 'T00:00:00Z'))) throw err_(400, 'Tanggal tidak valid'); return d; }
+  var date = !submit && b.from ? day_('from') : day_('date'), last = !submit && b.to ? day_('to') : date;
+  var length = (Date.parse(last + 'T00:00:00Z') - Date.parse(date + 'T00:00:00Z')) / 864e5 + 1;
+  if (length < 1 || length > 31) throw err_(400, 'Rentang tanggal 1 sampai 31 hari, tanggal akhir tidak boleh sebelum tanggal awal');
   var raw = settings_(db), cal = calendar_(raw);
   if (submit) {
     var shift = Number(one_(b, 'shift', ['1', '2'])), service = one_(b, 'service', ['dtf', 'sub']), note = opt_(b, 'note', 500);
@@ -714,8 +771,9 @@ function daily_(ctx, submit, b) {
     audit_(ctx, 'shift_report', 'daily', date, { shift: shift, service: service });
     return { status: 201, data: { ok: true } };
   }
-  var shift2 = raw.shift2_start || SHIFT2_DEFAULT, from = dayStart_(date, cal), split = from + (Number(shift2.slice(0, 2)) * 60 + Number(shift2.slice(3))) * 60000;
-  var inside = function (t) { return t >= from && t < from + 864e5; };
+  var shift2 = raw.shift2_start || SHIFT2_DEFAULT, from = dayStart_(date, cal), split = (Number(shift2.slice(0, 2)) * 60 + Number(shift2.slice(3))) * 60000;
+  var inside = function (t) { return t >= from && t < from + length * 864e5; };
+  var shiftOf = function (t) { return (t - from) % 864e5 < split ? 1 : 2; };
   var orders = {}, users = {}, drive = {};
   db.all('orders').forEach(function (o) { orders[o.id] = o; });
   db.all('users').forEach(function (u) { users[u.id] = u.code; });
@@ -729,16 +787,126 @@ function daily_(ctx, submit, b) {
       // Catatan versi lama ('qc') dianggap reject bila ada Log QC pada saat yang sama.
       var isReject = a.action === 'qc_reject' || (a.action === 'qc' && !!match);
       var m = isReject && match ? /([0-9]+(?:\.[0-9]+)?) m /.exec(match.reason) : null;
-      return { order_no: o.order_no, resi: o.track_code, customer: o.customer_name, service: o.service, meter: o.meter, result: isReject ? 'reject' : 'lolos', rejectM: isReject && match ? Number(m ? m[1] : 0) : null, by: users[a.user_id] || null, at: a.at, shift: a.at < split ? 1 : 2 };
+      return { order_no: o.order_no, resi: o.track_code, customer: o.customer_name, service: o.service, meter: o.meter, result: isReject ? 'reject' : 'lolos', rejectM: isReject && match ? Number(m ? m[1] : 0) : null, by: users[a.user_id] || null, at: a.at, shift: shiftOf(a.at), day: localDay_(a.at, cal) };
     });
-  var sent = db.filter('shift_reports', function (s) { return s.day === date; }).sort(function (a, c) { return a.id - c.id; });
+  // Rekap otomatis: semua order yang selesai produksi hari ini, ditambah hasil QC-nya.
+  var items = {}, list = [];
+  function item(no, base) { if (!items[no]) { items[no] = base; list.push(base); } return items[no]; }
+  db.filter('orders', function (o) { return o.finished_at !== null && inside(o.finished_at); }).sort(function (a, c) { return a.finished_at - c.finished_at || a.id - c.id; }).forEach(function (o) {
+    item(o.order_no, { order_no: o.order_no, resi: o.track_code, customer: o.customer_name, service: o.service, meter: o.meter, finishedAt: o.finished_at, result: 'menunggu', rejectM: null, by: null, at: null });
+  });
+  checks.forEach(function (x) {
+    var it = item(x.order_no, { order_no: x.order_no, resi: x.resi, customer: x.customer, service: x.service, meter: x.meter, finishedAt: null, result: 'menunggu', rejectM: null, by: null, at: null });
+    it.result = x.result; it.by = x.by; it.at = x.at;
+    if (x.rejectM !== null) it.rejectM = (it.rejectM || 0) + x.rejectM;
+  });
+  list.forEach(function (i) {
+    i.done = i.finishedAt === null ? i.at : i.finishedAt;
+    if (i.at !== null && i.finishedAt !== null && i.finishedAt > i.at) i.result = 'menunggu';
+    i.shift = shiftOf(i.done);
+    i.day = localDay_(i.done, cal);
+  });
+  list.sort(function (a, c) { return a.done - c.done || (a.order_no < c.order_no ? -1 : 1); });
+  var sent = db.filter('shift_reports', function (s) { return s.day >= date && s.day <= last; }).sort(function (a, c) { return a.id - c.id; });
   return { status: 200, data: {
-    date: date, shift2Start: shift2, checks: checks,
-    submissions: sent.filter(function (s, i) { return !sent.slice(i + 1).some(function (x) { return x.shift === s.shift && x.service === s.service; }); }).map(function (s) { return { shift: s.shift, service: s.service, note: s.note, by: s.by_user, at: s.at }; }),
-    morning: db.filter('qc_reports', function (r) { return r.day === date; }).sort(function (a, c) { return a.id - c.id; }).map(function (r) {
-      return { id: r.id, machine: r.machine, status: r.status, by: r.by_user, at: r.at, approvedBy: r.approved_by, leaderNote: r.leader_note || '', ng: JSON.parse(r.ng), note: r.note || '', action: r.action || '', photos: JSON.parse(r.photos).map(function (p) { return { label: p.label, key: p.key, drive: drive[p.key] || null }; }) };
+    date: date, from: date, to: last, shift2Start: shift2, checks: checks, items: list,
+    submissions: sent.filter(function (s, i) { return !sent.slice(i + 1).some(function (x) { return x.day === s.day && x.shift === s.shift && x.service === s.service; }); }).map(function (s) { return { day: s.day, shift: s.shift, service: s.service, note: s.note, by: s.by_user, at: s.at }; }),
+    morning: db.filter('qc_reports', function (r) { return r.day >= date && r.day <= last; }).sort(function (a, c) { return a.day < c.day ? -1 : a.day > c.day ? 1 : a.id - c.id; }).map(function (r) {
+      return { id: r.id, day: r.day, machine: r.machine, status: r.status, by: r.by_user, at: r.at, approvedBy: r.approved_by, leaderNote: r.leader_note || '', ng: JSON.parse(r.ng), note: r.note || '', action: r.action || '', photos: JSON.parse(r.photos).map(function (p) { return { label: p.label, key: p.key, drive: drive[p.key] || null }; }) };
     })
   } };
+}
+
+// ---------- Database customer (sama dengan src/routes/customers.ts) ----------
+var PAGE_SIZE = 50;
+function activeSince_(today) { return (Number(today.slice(0, 4)) - 1) + today.slice(4); }
+function need_(ctx, roles, pages) {
+  var u = ctx.user;
+  if (u.role === 'master') return;
+  var own = pages_(ctx.db, u.role);
+  if (roles.indexOf(u.role) < 0 || !pages.some(function (p) { return own.indexOf(p) >= 0; })) throw err_(403, 'Tidak punya hak akses');
+}
+function dateOf_(v) { return typeof v === 'string' && /^(19|20)\d\d-\d\d-\d\d$/.test(v) ? v : null; }
+function intOf_(v) { return typeof v === 'number' && v % 1 === 0 && v >= 0 && v < 1e13 ? v : null; }
+function customers_(ctx, action, b) {
+  var db = ctx.db;
+  if (action === 'search') {
+    need_(ctx, ['crm', 'cs', 'store', 'spv', 'manager', 'fat'], ['pelanggan', 'input']);
+    var q = String(opt_(b, 'q', 100) || '').toLowerCase(), status = one_({ status: b.status === undefined ? 'all' : b.status }, 'status', ['all', 'active', 'inactive']);
+    var kind = one_({ kind: b.kind === undefined ? 'all' : b.kind }, 'kind', ['all', 'B2B', 'B2C', 'none']), category = opt_(b, 'category', 60);
+    var page = typeof b.page === 'number' && b.page % 1 === 0 && b.page >= 0 ? b.page : 0;
+    var limit = activeSince_(localDay_(Date.now(), calendar_(settings_(db))));
+    var all = db.all('customers');
+    var isActive = function (c) { var d = c.last_visit || c.since; return !!d && d >= limit; };
+    var found = all.filter(function (c) {
+      if (q && c.name.toLowerCase().indexOf(q) < 0 && c.code.toLowerCase().indexOf(q) < 0 && String(c.wa || '').indexOf(q) < 0) return false;
+      if (status !== 'all' && isActive(c) !== (status === 'active')) return false;
+      if (kind === 'none' ? !!c.kind : kind !== 'all' && c.kind !== kind) return false;
+      return !category || c.category === category;
+    }).sort(function (a, c) { var x = a.name.toLowerCase(), y = c.name.toLowerCase(); return x < y ? -1 : x > y ? 1 : a.id - c.id; });
+    var categories = [];
+    all.forEach(function (c) { if (c.category && categories.indexOf(c.category) < 0) categories.push(c.category); });
+    var count = function (f) { return all.filter(f).length; };
+    return { status: 200, data: {
+      total: found.length, page: page, size: PAGE_SIZE,
+      rows: found.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map(function (c) {
+        return { id: c.id, code: c.code, name: c.name, wa: c.wa || '', source: c.source, status: c.status, kind: c.kind, category: c.category, email: c.email, city: c.city, address: c.address, since: c.since, last_visit: c.last_visit, visits: c.visits, spending: c.spending, active: isActive(c) ? 1 : 0 };
+      }),
+      summary: { total: all.length, active: count(isActive), b2b: count(function (c) { return c.kind === 'B2B'; }), b2c: count(function (c) { return c.kind === 'B2C'; }), nophone: count(function (c) { return !c.wa; }) },
+      categories: categories.sort()
+    } };
+  }
+  if (action === 'bulk') {
+    need_(ctx, ['crm', 'spv'], ['pelanggan']);
+    if (!Array.isArray(b.rows) || !b.rows.length || b.rows.length > 500) throw err_(400, 'Kirim 1 sampai 500 baris');
+    var byName = {}, next = 0;
+    db.all('customers').forEach(function (c) {
+      var k = c.name.toLowerCase(); if (!byName[k]) byName[k] = c;
+      var m = /^CUS-(\d+)$/.exec(c.code); if (m) next = Math.max(next, Number(m[1]));
+    });
+    var rows = db.all('customers'), at = rows.reduce(function (a, r) { return Math.max(a, r._row); }, 1), id = rows.reduce(function (a, r) { return Math.max(a, r.id); }, 0);
+    var parsed = b.rows.map(function (raw) {
+      var text = function (k, size) { return (typeof raw[k] === 'string' ? raw[k].trim().slice(0, size) : '') || null; };
+      return { name: str_(raw, 'name', 150).replace(/\s+/g, ' '), wa: text('wa', 40), email: text('email', 150), city: text('city', 80), address: text('address', 250), since: dateOf_(raw.since), last_visit: dateOf_(raw.last_visit), visits: intOf_(raw.visits), spending: intOf_(raw.spending), kind: text('kind', 3), category: text('category', 60) };
+    });
+    var changed = [], fresh = [], added = 0, updated = 0;
+    parsed.forEach(function (v) {
+      var have = byName[v.name.toLowerCase()];
+      if (have) {
+        Object.keys(v).forEach(function (k) {
+          if (k === 'name' || v[k] === null) return;
+          if (k === 'last_visit' && have.last_visit && have.last_visit > v[k]) return;
+          have[k] = v[k];
+        });
+        if (changed.indexOf(have) < 0 && fresh.indexOf(have) < 0) changed.push(have);
+        updated++;
+      } else {
+        var rec = { _row: ++at, id: ++id, code: 'CUS-' + ('0000' + (++next)).slice(-Math.max(5, String(next).length)), source: 'Database DTF', status: 'aktif', verified_by: null, verified_at: null, created_at: Date.now() };
+        Object.keys(v).forEach(function (k) { rec[k] = v[k]; });
+        if (rec.wa === null) rec.wa = '';
+        rows.push(rec); fresh.push(rec); byName[v.name.toLowerCase()] = rec; added++;
+      }
+    });
+    db.flush('customers', changed);
+    db.flush('customers', fresh);
+    audit_(ctx, 'customers_bulk', 'customer', null, { added: added, updated: updated });
+    return { status: 201, data: { ok: true, added: added, updated: updated } };
+  }
+  need_(ctx, ['crm', 'cs', 'spv'], ['pelanggan']);
+  if (!Array.isArray(b.ids) || !b.ids.length || b.ids.length > PAGE_SIZE || !b.ids.every(function (x) { return typeof x === 'number' && x % 1 === 0; })) throw err_(400, 'Pilih 1 sampai 50 customer');
+  var set = {};
+  if (b.kind !== undefined) set.kind = b.kind ? one_(b, 'kind', ['B2B', 'B2C']) : null;
+  if (b.category !== undefined) set.category = opt_(b, 'category', 60);
+  if (b.ids.length === 1) {
+    if (b.name !== undefined) set.name = str_(b, 'name', 150);
+    if (b.wa !== undefined) set.wa = opt_(b, 'wa', 40) || '';
+    if (b.city !== undefined) set.city = opt_(b, 'city', 80);
+  }
+  if (!Object.keys(set).length) throw err_(400, 'Tidak ada perubahan');
+  var targets = b.ids.map(function (cid) { var c = db.find('customers', function (x) { return x.id === cid; }); if (!c) throw err_(404, 'Customer tidak ditemukan'); return c; });
+  targets.forEach(function (c) { db.update('customers', c, set); });
+  audit_(ctx, 'customers_updated', 'customer', null, { ids: b.ids });
+  return { status: 200, data: { ok: true } };
 }
 
 // ---------- Order ----------
@@ -819,7 +987,7 @@ function createOrder_(ctx, b) {
   var capacity = evaluate_(db, raw, service === 'sub' ? 'sub' : 'dtf', meter, deadline);
   if (!capacity.fits) throw err_(409, capacity.message);
   var customerId = null, name, wa;
-  if (type === 'maklon' && b.customer_code) {
+  if (b.customer_code) {
     var code = str_(b, 'customer_code', 40);
     var cu = db.find('customers', function (c) { return c.code === code; });
     if (!cu || cu.status === 'ditolak') throw err_(400, 'Pelanggan tidak ditemukan atau dinonaktifkan');
@@ -832,6 +1000,8 @@ function createOrder_(ctx, b) {
     }
   }
   var t = Date.now(), svc = service === 'sub' ? 'sub' : 'dtf', track = newResi_();
+  // Order baru dihitung sebagai kunjungan, sehingga customer tetap aktif.
+  if (customerId) { var visitor = db.find('customers', function (c) { return c.id === customerId; }); if (visitor) db.update('customers', visitor, { last_visit: localDay_(t, calendar_(raw)) }); }
   var id = db.all('orders').reduce(function (m, o) { return Math.max(m, o.id); }, 0) + 1;
   var orderNo = 'SDP-' + localDay_(t, calendar_(raw)).slice(2).replace(/-/g, '') + '-' + ('00' + id).slice(-Math.max(3, String(id).length));
   db.insert('orders', {
@@ -935,6 +1105,7 @@ function orderAction_(ctx, id, action, b) {
     } else {
       var reject = num_(b, 'reject_m'), max = o.rework_m == null ? o.meter : o.rework_m;
       if (reject > max) throw err_(400, 'Meter reject tidak boleh melebihi ' + max);
+      reclassify_(ctx, o.order_no, 'Reject', reject, 'Tidak lolos QC');
       db.insert('logs', { order_no: o.order_no, type: 'Reject', reason: 'Tidak lolos QC, ' + reject + ' m dicetak ulang', value: null, counted: 0, by_user: u.code, at: now });
       db.update('orders', o, { status: 'antrian', approved_at: now, stage: o.service === 'dtf' ? 'dtf' : 'subp', rework_m: reject, qc_by: u.code });
     }
@@ -953,7 +1124,7 @@ function orderAction_(ctx, id, action, b) {
 
 // ---------- Inventory per roll / kemasan (sama dengan src/routes/inventory.ts) ----------
 var RECEIVERS_ = ['gudang', 'op', 'cs', 'spv', 'manager'], STOCK_USERS_ = ['gudang', 'op', 'spv'], KEEPERS_ = ['gudang', 'spv'];
-var USAGE_ = [['produksi', 'Produksi'], ['test', 'Test print'], ['reject', 'Reject'], ['waste', 'Waste']];
+var USAGE_ = [['produksi', 'Produksi'], ['test', 'Test print'], ['reject', 'Reject'], ['refund', 'Refund'], ['waste', 'Waste']];
 var CODE_RE = /^[A-Z0-9][A-Z0-9._-]{1,29}$/;
 function round3_(n) { return Math.round(n * 1000) / 1000; }
 function code_(b, k, label) {
@@ -1039,6 +1210,16 @@ function inventory_(ctx, action, b) {
     if (ul.status !== 'tersedia') throw err_(409, ul.status === 'menunggu' ? 'Roll belum di-put away' : 'Roll ini sudah habis');
     if (orderNo && !db.find('orders', function (o) { return o.order_no === orderNo; })) throw err_(400, 'Nomor order tidak ditemukan');
     return { status: 201, data: { ok: true, left: consume_(ctx, ul, parsed.parts, orderNo || 'manual', parsed.note, rk) } };
+  }
+  if (action === 'reclass') {
+    allow_(ctx, STOCK_USERS_, 'stok');
+    var no = str_(b, 'order_no', 40), type = one_(b, 'type', ['Reject', 'Refund']), meter = amount_(b.meter, 'Meter'), reason = str_(b, 'reason', 300);
+    if (!meter) throw err_(400, 'Isi meter lebih dari 0');
+    var can = reclassPlan_(db, no, meter).moved;
+    if (can < meter - 1e-9) throw err_(409, 'Pemakaian produksi order ini hanya ' + can + ' m');
+    reclassify_(ctx, no, type, meter, reason);
+    audit_(ctx, 'stock_reclass', 'order', no, { type: type, meter: meter });
+    return { status: 201, data: { ok: true, moved: meter } };
   }
   if (action === 'empty') {
     allow_(ctx, STOCK_USERS_, 'stok');
@@ -1171,7 +1352,7 @@ function state_(ctx) {
   var pages = master ? GRANTABLE.concat(['atur', 'pengguna', 'akses', 'data', 'akun']) : pages_(db, u.role).concat(['akun']);
   function has() { return Array.prototype.slice.call(arguments).some(function (p) { return pages.indexOf(p) >= 0; }); }
   var raw = settings_(db), cal = calendar_(raw);
-  var out = { api: 9, shift2Start: raw.shift2_start || SHIFT2_DEFAULT, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
+  var out = { api: 11, shift2Start: raw.shift2_start || SHIFT2_DEFAULT, workBlocks: raw.work_blocks || WORK_BLOCKS_DEFAULT, me: { code: u.code, name: u.name, role: u.role, store: u.store }, pages: pages, today: localDay_(Date.now(), cal), calendar: cal, settings: numeric_(raw), orders: [], customers: [], skus: [], ledger: [], loss: [], qcReports: [], users: [], access: {} };
   if (ORDER_PAGES.some(function (p) { return pages.indexOf(p) >= 0; })) {
     var custCode = {};
     db.all('customers').forEach(function (c) { custCode[c.id] = c.code; });
@@ -1189,7 +1370,7 @@ function state_(ctx) {
       };
     });
   }
-  if (has('input', 'pelanggan', 'cs', 'cekfile')) out.customers = db.all('customers').map(function (c) { return { id: c.id, code: c.code, name: c.name, wa: c.wa, source: c.source, status: c.status }; }).sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+  if (has('input', 'pelanggan')) out.customerCount = db.all('customers').length;
   var onRack = {};
   if (has('stok', 'dashboard')) db.all('lots').forEach(function (l) { if (l.status === 'tersedia') onRack[l.sku_code] = (onRack[l.sku_code] || 0) + l.qty_left; });
   if (has('stok', 'dashboard')) out.skus = db.all('skus').map(function (k) { return { code: k.code, name: k.name, svc: k.svc, unit: k.unit, stock: round3_(onRack[k.code] || 0), min: k.min_stock || 0, machine: k.machine }; }).sort(function (a, b) { return a.code < b.code ? -1 : 1; });
@@ -1311,6 +1492,7 @@ function route_(req) {
   if (method === 'POST' && (m = /^\/api\/orders\/(\d+)\/([a-z-]+)$/.exec(path))) return orderAction_(ctx, Number(m[1]), m[2], b);
 
   if (method === 'POST' && path === '/api/analytics') return analytics_(ctx, b);
+  if (method === 'POST' && (m = /^\/api\/customers\/(search|bulk|update)$/.exec(path))) return customers_(ctx, m[1], b);
   if (method === 'POST' && (path === '/api/daily' || path === '/api/daily/submit')) return daily_(ctx, path === '/api/daily/submit', b);
   if (method === 'POST' && (m = /^\/api\/capacity\/(check|loss|overtime)$/.exec(path))) return capacityRoute_(ctx, m[1], b);
 
@@ -1409,7 +1591,7 @@ function route_(req) {
     audit_(ctx, 'customers_imported', 'customer', null, { added: added });
     return { status: 201, data: { ok: true, added: added, skipped: rows.length - added } };
   }
-  if (method === 'POST' && (m = /^\/api\/stock\/(sku|bin|gr|putaway|use|empty|adjust)$/.exec(path))) return inventory_(ctx, m[1], b);
+  if (method === 'POST' && (m = /^\/api\/stock\/(sku|bin|gr|putaway|use|reclass|empty|adjust)$/.exec(path))) return inventory_(ctx, m[1], b);
   if (method === 'PUT' && (m = /^\/api\/stock\/sku\/([A-Za-z0-9._-]+)$/.exec(path))) {
     allow_(ctx, KEEPERS_, 'stok');
     var min = num_(b, 'min', true);
