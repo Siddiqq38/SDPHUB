@@ -264,7 +264,7 @@ async function main() {
   r = await call(anon, 'GET', '/api/public/track/' + resi.toLowerCase());
   check('lacak dengan resi, huruf kecil diterima', r.status === 200 && r.data.status === 'antrian', r);
   check('resi acak lain 404', (await call(anon, 'GET', '/api/public/track/RS-00000-00000')).status === 404);
-  check('versi server dikirim', (await state(C.CS)).api === 7);
+  check('versi server dikirim', (await state(C.CS)).api === 9);
 
   console.log('# Kapasitas produksi');
   let cap = (await state(C.CS)).capacity;
@@ -365,9 +365,40 @@ async function main() {
     r = await ana(C.SPV, p);
     check('rekap ' + p + ' memuat data hari ini', r.status === 200 && r.data.current.summary.orders >= day.summary.orders && r.data.from <= today && r.data.to >= today && r.data.previousTo < r.data.from, r.data?.from);
   }
+  const trends = {};
+  for (const p of ['day', 'week', 'month', 'year']) trends[p] = (await ana(C.SPV, p)).data;
+  check('tren: 14 hari, 7 hari, sebulan, 12 bulan', trends.day.trend.length === 14 && trends.week.trend.length === 7 && trends.month.trend.length >= 28 && trends.year.trend.length === 12, Object.values(trends).map((x) => x.trend?.length));
+  for (const p of ['week', 'month', 'year']) check('tren ' + p + ' berjumlah sama dengan ringkasan', trends[p].trend.reduce((a, x) => a + x.value, 0) === trends[p].current.summary.value && trends[p].trend.reduce((a, x) => a + x.paid, 0) === trends[p].current.summary.paid);
+  check('tren harian berakhir di tanggal terpilih', trends.day.trend.at(-1).key === today && trends.day.trend.at(-1).value === trends.day.current.summary.value);
   check('FAT boleh melihat Analysis', (await ana(C.FAT, 'month')).status === 200);
   check('CS tidak boleh melihat Analysis', (await ana(C.CS, 'day')).status === 403);
   check('tanggal tidak valid ditolak', (await ana(C.MGR, 'day', '2026-13-45')).status === 400);
+
+  console.log('# Laporan Harian');
+  const daily = (cl, date = today) => call(cl, 'POST', '/api/daily', { date });
+  r = await daily(C.STH);
+  const dtf = r.data?.checks?.filter((x) => x.service === 'dtf' && x.result === 'lolos') ?? [];
+  check('order lolos QC masuk laporan harian beserta nama customer', r.status === 200 && dtf.some((x) => x.customer === 'Konveksi Uji' && x.by === 'QC1' && [1, 2].includes(x.shift)), r);
+  check('reject tercatat dengan meternya', r.data.checks.some((x) => x.result === 'reject' && x.service === 'sub' && x.rejectM === 3), r.data.checks);
+  check('QC pagi hari ini masuk laporan', r.data.morning.length >= 3 && r.data.morning.every((q) => q.photos.length >= 1 && (!SHEETS || q.photos.every((p) => p.drive))), r.data.morning.length);
+  check('tanpa nomor telepon dan harga', !/0811|230000|"wa"|total/.test(JSON.stringify(r.data)));
+  check('CS tidak mengirim laporan shift', (await call(C.CS, 'POST', '/api/daily/submit', { date: today, shift: '1', service: 'dtf' })).status === 403);
+  check('petugas QC mengirim laporan shift', (await call(C.QC1, 'POST', '/api/daily/submit', { date: today, shift: '1', service: 'dtf', note: 'awal' })).status === 201);
+  await call(C.SPV, 'POST', '/api/daily/submit', { date: today, shift: '1', service: 'dtf', note: 'sudah sesuai' });
+  r = await daily(C.MGR);
+  check('kirim ulang memakai laporan terbaru', r.data.submissions.length === 1 && r.data.submissions[0].note === 'sudah sesuai' && r.data.submissions[0].by === 'SPV', r.data.submissions);
+  check('tanggal depan ditolak', (await call(C.QC1, 'POST', '/api/daily/submit', { date: '2099-01-01', shift: '1', service: 'dtf' })).status === 400);
+  check('gudang tidak melihat laporan harian', (await daily(C.GDG)).status === 403);
+  check('jam shift tidak valid ditolak', (await call(master, 'PUT', '/api/admin/settings', { shift2_start: '25:00' })).status === 400);
+  await call(master, 'PUT', '/api/admin/settings', { shift2_start: '00:00' });
+  check('jam mulai shift 2 mengubah pembagian', (await daily(C.MGR)).data.checks.every((x) => x.shift === 2));
+  await call(master, 'PUT', '/api/admin/settings', { shift2_start: '16:30' });
+  const extra = [];
+  for (const label of ['Nozzle check', 'Test print', 'Hasil press', 'Bukti tambahan 1', 'Label tak dikenal']) extra.push({ label, key: (await upload(C.QC1, 'qc_photo', 'x.jpg')).data.key });
+  await call(master, 'DELETE', '/api/manage/qc/' + (await state(master)).qcReports.filter((q) => q.machine === 'dtf').at(-1).id);
+  r = await call(C.QC1, 'POST', '/api/qc/morning', { machine: 'dtf', answers: Array(8).fill('OK'), photos: extra });
+  const last = (await daily(C.MGR)).data.morning.filter((q) => q.machine === 'dtf').at(-1);
+  check('bukti tambahan disimpan, label asing diabaikan', r.status === 201 && last.photos.map((p) => p.label).join() === 'Nozzle check,Test print,Hasil press,Bukti tambahan 1', last?.photos);
 
   console.log('# Lacak publik');
   r = await call(anon, 'GET', '/api/public/track/' + trackA);
@@ -406,6 +437,8 @@ async function main() {
   check('data kosong, akun dan harga tetap', st2.orders.length === 0 && st2.customers.length === 0 && st2.qcReports.length === 0 && st2.skus.length === 15 && st2.lots.length === 0 && st2.bins.length === 1 && st2.skus.every((s) => s.stock === 0) && st2.users.length > 5 && st2.settings.priceDtf === 23000, st2);
   r = await call(C.CS, 'POST', '/api/orders', order({ name: 'Setelah Reset', wa: '0800' }));
   check('input order setelah reset berjalan', r.status === 201, r);
+  const fresh = (await call(master, 'POST', '/api/daily', { date: (await state(master)).today })).data;
+  check('riwayat order lama tidak menempel pada order baru', fresh.checks.length === 0 && (await call(master, 'POST', '/api/analytics', { period: 'day', date: fresh.date })).data.current.ready.count === 0, fresh.checks);
   for (let i = 0; i < 5; i++) await login(client(), 'MGR', 'salah-salah-1');
   check('login dibatasi setelah 5 gagal', (await login(client(), 'MGR', PW2)).status === 429);
 

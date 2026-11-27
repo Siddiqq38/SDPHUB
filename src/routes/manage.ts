@@ -150,7 +150,7 @@ manageRoutes.post('/reset', async (c) => {
   const b = await readJson(c);
   if (b.confirm !== 'HAPUS SEMUA') throw bad('Ketik HAPUS SEMUA untuk melanjutkan');
   await c.env.DB.tx(async (db) => {
-    for (const t of ['payments', 'logs', 'stock_ledger', 'lots', 'qc_reports', 'orders', 'files']) await db.prepare(`DELETE FROM ${t}`).run();
+    for (const t of ['payments', 'logs', 'stock_ledger', 'lots', 'qc_reports', 'shift_reports', 'orders', 'files']) await db.prepare(`DELETE FROM ${t}`).run();
     if (b.customers === true) await db.prepare('DELETE FROM customers').run();
     await db.prepare('UPDATE skus SET stock = 0').run();
     await audit(db, c.get('user').id, 'manage_reset', 'all', undefined, { customers: b.customers === true });

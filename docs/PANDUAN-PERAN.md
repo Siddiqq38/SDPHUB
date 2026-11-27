@@ -44,11 +44,18 @@ Login memakai kode pengguna. Password awal atau hasil reset wajib diganti saat l
 - Saat **Selesai curing / cetak / press**, roll saran sudah terisi. Operator menambah test print, reject, atau waste. Memakai roll di luar saran wajib diberi alasan.
 - Bila bahan belum pernah di-GR, produksi tetap bisa diselesaikan tanpa catatan bahan.
 
+## Laporan Harian
+
+- Terisi otomatis: **QC pagi** (checklist, foto, tautan Drive) dan daftar customer yang lolos **QC hasil**, dipisah per layanan dan shift (shift 2 mulai 16.30, dapat diubah di Pengaturan).
+- Operator, QC, atau SPV menekan **Kirim laporan shift** di akhir shift, boleh dengan catatan.
+- **Salin untuk WA** tersedia bila masih perlu dikirim ke grup. QC pagi boleh ditambah sampai tiga foto bukti.
+
 ## Analysis
 
 - Akses: Master, Manager, SPV, dan FAT. Pilih **Daily, Weekly, Monthly, Yearly** dan tanggalnya; angka dibandingkan dengan periode sebelumnya (harian: hari kerja sebelumnya).
 - Target: tepat waktu minimal 95%, reject maksimal 2%, waste maksimal 3%, utilisasi mesin 70 sampai 90%.
 - Tepat waktu: dikemas sebelum deadline, atau sebelum SLA bila tanpa deadline. Meter produksi dihitung saat tahap akhir selesai.
+- Grafik: tren nilai order dan pembayaran, meter selesai DTF/Sublim, penjualan, dan loss sales. Arahkan kursor (di HP: ketuk) untuk angka; **Lihat angka** membuka tabelnya.
 - **Unduh Excel (CSV)** atau **Cetak / PDF**.
 
 ## Monitoring produksi

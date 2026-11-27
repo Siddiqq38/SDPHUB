@@ -31943,17 +31943,17 @@ function validUsername(u) {
 
 // src/domain.ts
 var ROLES = ["master", "manager", "spv", "cs", "crm", "store", "op", "qc", "gudang", "fat"];
-var GRANTABLE = ["dashboard", "laporan", "analysis", "input", "cs", "toko", "pelanggan", "cekfile", "produksi", "qc", "serah", "bayar", "stok", "loss", "layanan", "lacak"];
+var GRANTABLE = ["dashboard", "harian", "laporan", "analysis", "input", "cs", "toko", "pelanggan", "cekfile", "produksi", "qc", "serah", "bayar", "stok", "loss", "layanan", "lacak"];
 var ACCESS_DEFAULT = {
-  manager: ["dashboard", "laporan", "analysis", "pelanggan", "produksi", "bayar", "stok", "loss", "layanan", "lacak"],
-  spv: ["dashboard", "laporan", "analysis", "cs", "cekfile", "produksi", "qc", "serah", "stok", "loss", "layanan", "lacak"],
-  cs: ["dashboard", "input", "cs", "pelanggan", "bayar", "produksi", "serah", "stok", "loss", "layanan", "lacak"],
+  manager: ["dashboard", "harian", "laporan", "analysis", "pelanggan", "produksi", "bayar", "stok", "loss", "layanan", "lacak"],
+  spv: ["dashboard", "harian", "laporan", "analysis", "cs", "cekfile", "produksi", "qc", "serah", "stok", "loss", "layanan", "lacak"],
+  cs: ["dashboard", "harian", "input", "cs", "pelanggan", "bayar", "produksi", "serah", "stok", "loss", "layanan", "lacak"],
   crm: ["pelanggan", "layanan", "lacak"],
-  store: ["input", "toko", "layanan", "lacak"],
-  op: ["cekfile", "produksi", "qc", "stok"],
-  qc: ["qc", "produksi"],
+  store: ["input", "harian", "toko", "layanan", "lacak"],
+  op: ["cekfile", "harian", "produksi", "qc", "stok"],
+  qc: ["qc", "harian", "produksi"],
   gudang: ["stok", "serah"],
-  fat: ["bayar", "laporan", "analysis", "layanan", "lacak"]
+  fat: ["bayar", "harian", "laporan", "analysis", "layanan", "lacak"]
 };
 var ORDER_PAGES = ["dashboard", "laporan", "input", "cs", "toko", "pelanggan", "cekfile", "produksi", "qc", "serah", "bayar"];
 var RETAIL = {
@@ -32015,6 +32015,7 @@ function newResi() {
   const s = [...crypto.getRandomValues(new Uint8Array(10))].map((b) => RESI_CHARS[b & 31]).join("");
   return `RS-${s.slice(0, 5)}-${s.slice(5)}`;
 }
+var EXTRA_PHOTOS = ["Bukti tambahan 1", "Bukti tambahan 2", "Bukti tambahan 3"];
 var RuleError = class extends Error {
 };
 function buildItems(input, settings) {
@@ -33109,6 +33110,12 @@ opsRoutes.post("/qc/morning", async (c) => {
     if (!f) throw bad(`Foto ${s.photo} tidak ditemukan`);
     photos.push({ label: s.photo, key: p.key });
   }
+  for (const label of EXTRA_PHOTOS) {
+    const p = Array.isArray(b.photos) ? b.photos.find((x) => x?.label === label) : null;
+    if (!p) continue;
+    if (typeof p.key !== "string" || !await c.env.DB.prepare("SELECT 1 FROM files WHERE key = ? AND kind = 'qc_photo' AND confirmed = 1 AND uploaded_by = ?").bind(p.key, u.id).first()) throw bad(`Foto ${label} tidak ditemukan`);
+    photos.push({ label, key: p.key });
+  }
   const note = optStr(b, "note", 1500);
   const action = optStr(b, "action", 1500);
   if (ng.length && (!note || !action)) throw bad("Temuan dan tindakan awal wajib diisi");
@@ -33241,17 +33248,19 @@ var validBlocks = (v) => {
     return true;
   });
 };
-var SETTING_KEYS = ["priceDtf", "priceSub120", "priceSub160", "priceSub180", "normDtf", "normSubPrint", "normPress", "capPct", "holdMin", "finDtf", "finSub", "work_blocks"];
+var SETTING_KEYS = ["priceDtf", "priceSub120", "priceSub160", "priceSub180", "normDtf", "normSubPrint", "normPress", "capPct", "holdMin", "finDtf", "finSub", "work_blocks", "shift2_start"];
 opsRoutes.put("/admin/settings", async (c) => {
   await allow(c, []);
   const b = await readJson(c);
   const stmts = [];
   for (const [k, v] of Object.entries(b)) {
     if (!SETTING_KEYS.includes(k)) throw bad(`Pengaturan "${k}" tidak dikenal`);
-    if (k === "work_blocks") {
+    if (k === "shift2_start") {
+      if (typeof v !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw bad("Jam mulai shift 2 ditulis seperti 16:30");
+    } else if (k === "work_blocks") {
       if (typeof v !== "string" || !validBlocks(v)) throw bad("Jam produksi ditulis seperti 09:00-12:00,13:00-21:30");
     } else if (k === "capPct" && v !== null && v > 100) throw bad("Persen kapasitas maksimal 100");
-    if (k !== "work_blocks" && v !== null && !(typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1e9)) throw bad(`Nilai "${k}" harus angka lebih dari 0, atau kosong`);
+    if (k !== "work_blocks" && k !== "shift2_start" && v !== null && !(typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1e9)) throw bad(`Nilai "${k}" harus angka lebih dari 0, atau kosong`);
     if (k === "priceDtf" && v === null) throw bad("Harga DTF tidak boleh kosong");
     if (k.startsWith("price") && v !== null && !Number.isInteger(v)) throw bad("Harga rupiah harus bilangan bulat");
     stmts.push(c.env.DB.prepare("INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").bind(k, v === null ? "" : String(v)));
@@ -33260,6 +33269,89 @@ opsRoutes.put("/admin/settings", async (c) => {
   await c.env.DB.batch(stmts);
   await audit(c.env.DB, c.get("user").id, "settings_updated", "settings", void 0, b);
   return c.json({ ok: true });
+});
+
+// src/routes/daily.ts
+var VIEWERS = ["manager", "spv", "op", "qc", "cs", "store", "fat"];
+var SHIFT2_DEFAULT = "16:30";
+function dayOf(b) {
+  const date = reqStr(b, "date", 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date + "T00:00:00Z"))) throw bad("Tanggal tidak valid");
+  return date;
+}
+var dailyRoutes = new Hono3();
+dailyRoutes.use("*", authn);
+dailyRoutes.post("/", async (c) => {
+  await allow(c, VIEWERS, "harian");
+  const date = dayOf(await readJson(c));
+  const db = c.env.DB;
+  const raw2 = await loadSettings(db);
+  const cal = calendarOf(raw2);
+  const shift2Start = raw2.shift2_start || SHIFT2_DEFAULT;
+  const from = Date.parse(date + "T00:00:00Z") - cal.offsetMin * 6e4;
+  const split = from + (Number(shift2Start.slice(0, 2)) * 60 + Number(shift2Start.slice(3))) * 6e4;
+  const all = async (sql, ...args) => (await db.prepare(sql).bind(...args).all()).results;
+  const morning = await all("SELECT * FROM qc_reports WHERE day = ? ORDER BY id", date);
+  const rows = await all(
+    `SELECT a.action, a.at, u.code AS by, o.order_no, o.track_code, o.customer_name, o.service, o.meter
+     FROM audit_log a JOIN orders o ON o.id = a.entity_id::bigint LEFT JOIN users u ON u.id = a.user_id
+     WHERE a.action IN ('qc_pass','qc_reject') AND a.at >= o.created_at AND a.at >= ? AND a.at < ? ORDER BY a.at, a.id`,
+    from,
+    from + 864e5
+  );
+  const rejects = await all("SELECT order_no, reason, at FROM logs WHERE type = 'Reject' AND at >= ? AND at < ?", from, from + 864e5);
+  const checks = rows.map((r) => {
+    const reject = r.action === "qc_reject" ? rejects.find((x) => x.order_no === r.order_no && Math.abs(x.at - r.at) < 5e3) : null;
+    return {
+      order_no: r.order_no,
+      resi: r.track_code,
+      customer: r.customer_name,
+      service: r.service,
+      meter: r.meter,
+      result: r.action === "qc_pass" ? "lolos" : "reject",
+      rejectM: reject ? Number(/([0-9]+(?:\.[0-9]+)?) m /.exec(reject.reason)?.[1] ?? 0) : null,
+      by: r.by,
+      at: r.at,
+      shift: r.at < split ? 1 : 2
+    };
+  });
+  const sent = await all("SELECT shift, service, note, by_user AS by, at FROM shift_reports WHERE day = ? ORDER BY id", date);
+  c.header("Cache-Control", "private, no-store");
+  return c.json({
+    date,
+    shift2Start,
+    checks,
+    submissions: sent.filter((s, i) => !sent.slice(i + 1).some((x) => x.shift === s.shift && x.service === s.service)),
+    morning: morning.map((r) => ({
+      id: r.id,
+      machine: r.machine,
+      status: r.status,
+      by: r.by_user,
+      at: r.at,
+      approvedBy: r.approved_by,
+      leaderNote: r.leader_note ?? "",
+      ng: JSON.parse(r.ng),
+      note: r.note ?? "",
+      action: r.action ?? "",
+      photos: JSON.parse(r.photos).map((p) => ({ label: p.label, key: p.key, drive: null }))
+      // tautan Drive hanya pada mode spreadsheet
+    }))
+  });
+});
+dailyRoutes.post("/submit", async (c) => {
+  await allow(c, ["op", "qc", "spv"], "harian");
+  const b = await readJson(c);
+  const date = dayOf(b);
+  const shift = Number(oneOf(b, "shift", ["1", "2"]));
+  const service = oneOf(b, "service", ["dtf", "sub"]);
+  const note = optStr(b, "note", 500);
+  const u = c.get("user");
+  await c.env.DB.tx(async (db) => {
+    if (date > localDay(now(), calendarOf(await loadSettings(db)))) throw bad("Tanggal belum berjalan");
+    await db.prepare("INSERT INTO shift_reports (day, shift, service, note, by_user, at) VALUES (?,?,?,?,?,?)").bind(date, shift, service, note, u.code, now()).run();
+    await audit(db, u.id, "shift_report", "daily", date, { shift, service });
+  });
+  return c.json({ ok: true }, 201);
 });
 
 // src/routes/state.ts
@@ -33273,7 +33365,7 @@ stateRoutes.get("/", async (c) => {
   const has = (...p) => p.some((x) => pages.includes(x));
   const raw2 = await loadSettings(db);
   const out = {
-    api: 7,
+    api: 9,
     // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
@@ -33344,6 +33436,7 @@ stateRoutes.get("/", async (c) => {
     };
   }
   out.workBlocks = raw2.work_blocks || WORK_BLOCKS_DEFAULT;
+  out.shift2Start = raw2.shift2_start || SHIFT2_DEFAULT;
   if (has("input", "pelanggan", "cs", "cekfile")) {
     out.customers = (await db.prepare("SELECT id, code, name, wa, source, status FROM customers ORDER BY name LIMIT 5000").all()).results;
   }
@@ -33524,7 +33617,7 @@ manageRoutes.post("/reset", async (c) => {
   const b = await readJson(c);
   if (b.confirm !== "HAPUS SEMUA") throw bad("Ketik HAPUS SEMUA untuk melanjutkan");
   await c.env.DB.tx(async (db) => {
-    for (const t of ["payments", "logs", "stock_ledger", "lots", "qc_reports", "orders", "files"]) await db.prepare(`DELETE FROM ${t}`).run();
+    for (const t of ["payments", "logs", "stock_ledger", "lots", "qc_reports", "shift_reports", "orders", "files"]) await db.prepare(`DELETE FROM ${t}`).run();
     if (b.customers === true) await db.prepare("DELETE FROM customers").run();
     await db.prepare("UPDATE skus SET stock = 0").run();
     await audit(db, c.get("user").id, "manage_reset", "all", void 0, { customers: b.customers === true });
@@ -33705,7 +33798,7 @@ function summarize(data, range, now2, cfg) {
     return { machine: m, meter, capacity, util: capacity ? pct(meter, capacity) : null };
   });
   const byId = new Map(data.orders.map((o) => [o.id, o]));
-  const done = data.ready.filter((r) => inside(r.at) && byId.has(r.id)).map((r) => ({ o: byId.get(r.id), at: r.at }));
+  const done = data.ready.filter((r) => inside(r.at) && byId.has(r.id) && r.at >= byId.get(r.id).created_at).map((r) => ({ o: byId.get(r.id), at: r.at }));
   const onTime = done.filter(({ o, at }) => at <= (o.deadline ? deadlineTime(o.deadline, cfg.cal) : slaDue(o.approved_at ?? o.created_at, cfg.cal))).length;
   const leads = done.filter(({ o }) => o.approved_at).map(({ o, at }) => (at - o.approved_at) / 36e5);
   const ready = { count: done.length, ontime: onTime, pct: pct(onTime, done.length), leadHours: leads.length ? round1(sum(leads, (x) => x) / leads.length) : null };
@@ -33734,6 +33827,37 @@ function summarize(data, range, now2, cfg) {
   const loss = { count: lost.length, value: sum(lost, (l) => l.value ?? 0), reasons };
   return { summary, machines, ready, quality, sales, loss };
 }
+function buckets(period, date, cal) {
+  const { from, to } = ranges(period, date, cal).current;
+  const out = [];
+  if (period === "year") {
+    const year = Number(date.slice(0, 4));
+    for (let m = 0; m < 12; m++) {
+      const first = iso(Date.UTC(year, m, 1));
+      out.push({ key: first.slice(0, 7), from: dayStart2(first, cal), to: dayStart2(iso(Date.UTC(year, m + 1, 1)), cal) });
+    }
+  } else {
+    for (let t = period === "day" ? from - 13 * DAY3 : from; t < to; t += DAY3) out.push({ key: localDay(t, cal), from: t, to: t + DAY3 });
+  }
+  return out;
+}
+function trend(data, list) {
+  const sum = (items, f) => items.reduce((a, x) => a + f(x), 0);
+  return list.map((b) => {
+    const inside = (t) => t != null && t >= b.from && t < b.to;
+    const created = data.orders.filter((o) => inside(o.created_at) && o.status !== "ditolak");
+    const finished = data.orders.filter((o) => inside(o.finished_at));
+    const meter = (service) => round1(sum(finished.filter((o) => o.service === service), (o) => o.meter));
+    return {
+      key: b.key,
+      orders: created.length,
+      value: sum(created, (o) => o.total),
+      paid: sum(data.payments.filter((p) => inside(p.at)), (p) => p.amount),
+      dtf: meter("dtf"),
+      sub: meter("sub")
+    };
+  });
+}
 function report(data, period, date, now2, cfg) {
   const r = ranges(period, date, cfg.cal);
   return {
@@ -33745,7 +33869,8 @@ function report(data, period, date, now2, cfg) {
     previousFrom: localDay(r.previous.from, cfg.cal),
     previousTo: localDay(r.previous.to - 1, cfg.cal),
     current: summarize(data, r.current, now2, cfg),
-    previous: summarize(data, r.previous, now2, cfg)
+    previous: summarize(data, r.previous, now2, cfg),
+    trend: trend(data, buckets(period, date, cfg.cal))
   };
 }
 
@@ -33760,7 +33885,7 @@ analyticsRoutes.post("/", async (c) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date + "T00:00:00Z"))) throw bad("Tanggal tidak valid");
   const db = c.env.DB;
   const cfg = planConfig(await loadSettings(db));
-  const since = ranges(period, date, cfg.cal).previous.from;
+  const since = Math.min(ranges(period, date, cfg.cal).previous.from, buckets(period, date, cfg.cal)[0].from);
   const all = async (sql, ...args) => (await db.prepare(sql).bind(...args).all()).results;
   const ready = (await all("SELECT entity_id, at FROM audit_log WHERE action IN ('packed','pack') AND at >= ?", since)).map((r) => ({ id: Number(r.entity_id), at: r.at }));
   const data = {
@@ -33805,6 +33930,7 @@ function createApp(getEnv) {
   app2.route("/api/capacity", capacityRoutes);
   app2.route("/api/stock", inventoryRoutes);
   app2.route("/api/analytics", analyticsRoutes);
+  app2.route("/api/daily", dailyRoutes);
   app2.route("/api/files", fileRoutes);
   app2.route("/api/manage", manageRoutes);
   app2.route("/api", opsRoutes);

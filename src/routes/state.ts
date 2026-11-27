@@ -3,6 +3,7 @@ import { localDay } from '../lib/calendar.ts';
 import { days, plan, slaDue } from '../lib/capacity.ts';
 import { activeJobs, planConfig } from './capacity.ts';
 import { materialPlan } from './inventory.ts';
+import { SHIFT2_DEFAULT } from './daily.ts';
 import { candidates, freeOf } from '../lib/materials.ts';
 import { WORK_BLOCKS_DEFAULT, authn, calendarOf, loadSettings, now, numericSettings, overtimeOf, pagesOf, type AppEnv } from '../core.ts';
 import { ACCESS_DEFAULT, GRANTABLE, ORDER_PAGES, type Page } from '../domain.ts';
@@ -19,7 +20,7 @@ stateRoutes.get('/', async (c) => {
   const has = (...p: Page[]) => p.some((x) => pages.includes(x));
   const raw = await loadSettings(db);
   const out: Record<string, unknown> = {
-    api: 7, // versi kontrak; layar memberi peringatan bila server belum diperbarui
+    api: 9, // versi kontrak; layar memberi peringatan bila server belum diperbarui
     me: { code: u.code, name: u.name, role: u.role, store: u.store },
     pages,
     today: localDay(now(), calendarOf(raw)),
@@ -60,6 +61,7 @@ stateRoutes.get('/', async (c) => {
     };
   }
   out.workBlocks = raw.work_blocks || WORK_BLOCKS_DEFAULT;
+  out.shift2Start = raw.shift2_start || SHIFT2_DEFAULT;
   if (has('input', 'pelanggan', 'cs', 'cekfile')) {
     out.customers = (await db.prepare('SELECT id, code, name, wa, source, status FROM customers ORDER BY name LIMIT 5000').all()).results;
   }

@@ -74,7 +74,7 @@ export function summarize(data: Data, range: { from: number; to: number }, now: 
   });
 
   const byId = new Map(data.orders.map((o) => [o.id, o]));
-  const done = data.ready.filter((r) => inside(r.at) && byId.has(r.id)).map((r) => ({ o: byId.get(r.id)!, at: r.at }));
+  const done = data.ready.filter((r) => inside(r.at) && byId.has(r.id) && r.at >= byId.get(r.id)!.created_at).map((r) => ({ o: byId.get(r.id)!, at: r.at }));
   const onTime = done.filter(({ o, at }) => at <= (o.deadline ? deadlineTime(o.deadline, cfg.cal) : slaDue(o.approved_at ?? o.created_at, cfg.cal))).length;
   const leads = done.filter(({ o }) => o.approved_at).map(({ o, at }) => (at - o.approved_at!) / 3600000);
   const ready = { count: done.length, ontime: onTime, pct: pct(onTime, done.length), leadHours: leads.length ? round1(sum(leads, (x) => x) / leads.length) : null };
@@ -108,6 +108,36 @@ export function summarize(data: Data, range: { from: number; to: number }, now: 
   return { summary, machines, ready, quality, sales, loss };
 }
 
+/** Kelompok waktu untuk grafik tren: harian = 14 hari sampai tanggal itu; mingguan dan bulanan = per hari; tahunan = per bulan. */
+export function buckets(period: Period, date: string, cal: CalendarConfig) {
+  const { from, to } = ranges(period, date, cal).current;
+  const out: { key: string; from: number; to: number }[] = [];
+  if (period === 'year') {
+    const year = Number(date.slice(0, 4));
+    for (let m = 0; m < 12; m++) {
+      const first = iso(Date.UTC(year, m, 1));
+      out.push({ key: first.slice(0, 7), from: dayStart(first, cal), to: dayStart(iso(Date.UTC(year, m + 1, 1)), cal) });
+    }
+  } else {
+    for (let t = period === 'day' ? from - 13 * DAY : from; t < to; t += DAY) out.push({ key: localDay(t, cal), from: t, to: t + DAY });
+  }
+  return out;
+}
+
+export function trend(data: Data, list: ReturnType<typeof buckets>) {
+  const sum = <T>(items: T[], f: (x: T) => number) => items.reduce((a, x) => a + f(x), 0);
+  return list.map((b) => {
+    const inside = (t: number | null) => t != null && t >= b.from && t < b.to;
+    const created = data.orders.filter((o) => inside(o.created_at) && o.status !== 'ditolak');
+    const finished = data.orders.filter((o) => inside(o.finished_at));
+    const meter = (service: string) => round1(sum(finished.filter((o) => o.service === service), (o) => o.meter));
+    return {
+      key: b.key, orders: created.length, value: sum(created, (o) => o.total), paid: sum(data.payments.filter((p) => inside(p.at)), (p) => p.amount),
+      dtf: meter('dtf'), sub: meter('sub'),
+    };
+  });
+}
+
 export function report(data: Data, period: Period, date: string, now: number, cfg: Cfg) {
   const r = ranges(period, date, cfg.cal);
   return {
@@ -115,5 +145,6 @@ export function report(data: Data, period: Period, date: string, now: number, cf
     from: localDay(r.current.from, cfg.cal), to: localDay(r.current.to - 1, cfg.cal),
     previousFrom: localDay(r.previous.from, cfg.cal), previousTo: localDay(r.previous.to - 1, cfg.cal),
     current: summarize(data, r.current, now, cfg), previous: summarize(data, r.previous, now, cfg),
+    trend: trend(data, buckets(period, date, cfg.cal)),
   };
 }

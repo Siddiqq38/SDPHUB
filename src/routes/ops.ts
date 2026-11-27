@@ -4,7 +4,7 @@ import { localDay } from '../lib/calendar.ts';
 import {
   allow, audit, authn, bad, calendarOf, conflict, forbidden, intParam, loadSettings, notFound, now, oneOf, optStr, readJson, reqNum, reqStr, type AppEnv,
 } from '../core.ts';
-import { GRANTABLE, MORNING, ROLES, type Machine } from '../domain.ts';
+import { EXTRA_PHOTOS, GRANTABLE, MORNING, ROLES, type Machine } from '../domain.ts';
 
 export const opsRoutes = new Hono<AppEnv>();
 opsRoutes.use('*', authn);
@@ -29,6 +29,12 @@ opsRoutes.post('/qc/morning', async (c) => {
     const f = await c.env.DB.prepare("SELECT 1 FROM files WHERE key = ? AND kind = 'qc_photo' AND confirmed = 1 AND uploaded_by = ?").bind(p.key, u.id).first();
     if (!f) throw bad(`Foto ${s.photo} tidak ditemukan`);
     photos.push({ label: s.photo, key: p.key });
+  }
+  for (const label of EXTRA_PHOTOS) {
+    const p = Array.isArray(b.photos) ? b.photos.find((x: any) => x?.label === label) : null;
+    if (!p) continue;
+    if (typeof p.key !== 'string' || !(await c.env.DB.prepare("SELECT 1 FROM files WHERE key = ? AND kind = 'qc_photo' AND confirmed = 1 AND uploaded_by = ?").bind(p.key, u.id).first())) throw bad(`Foto ${label} tidak ditemukan`);
+    photos.push({ label, key: p.key });
   }
   const note = optStr(b, 'note', 1500);
   const action = optStr(b, 'action', 1500);
@@ -161,17 +167,19 @@ const validBlocks = (v: string) => {
     return true;
   });
 };
-const SETTING_KEYS = ['priceDtf', 'priceSub120', 'priceSub160', 'priceSub180', 'normDtf', 'normSubPrint', 'normPress', 'capPct', 'holdMin', 'finDtf', 'finSub', 'work_blocks'];
+const SETTING_KEYS = ['priceDtf', 'priceSub120', 'priceSub160', 'priceSub180', 'normDtf', 'normSubPrint', 'normPress', 'capPct', 'holdMin', 'finDtf', 'finSub', 'work_blocks', 'shift2_start'];
 opsRoutes.put('/admin/settings', async (c) => {
   await allow(c, []);
   const b = await readJson(c);
   const stmts = [];
   for (const [k, v] of Object.entries(b)) {
     if (!SETTING_KEYS.includes(k)) throw bad(`Pengaturan "${k}" tidak dikenal`);
-    if (k === 'work_blocks') {
+    if (k === 'shift2_start') {
+      if (typeof v !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw bad('Jam mulai shift 2 ditulis seperti 16:30');
+    } else if (k === 'work_blocks') {
       if (typeof v !== 'string' || !validBlocks(v)) throw bad('Jam produksi ditulis seperti 09:00-12:00,13:00-21:30');
     } else if (k === 'capPct' && v !== null && (v as number) > 100) throw bad('Persen kapasitas maksimal 100');
-    if (k !== 'work_blocks' && v !== null && !(typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 1e9)) throw bad(`Nilai "${k}" harus angka lebih dari 0, atau kosong`);
+    if (k !== 'work_blocks' && k !== 'shift2_start' && v !== null && !(typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 1e9)) throw bad(`Nilai "${k}" harus angka lebih dari 0, atau kosong`);
     if (k === 'priceDtf' && v === null) throw bad('Harga DTF tidak boleh kosong');
     if (k.startsWith('price') && v !== null && !Number.isInteger(v)) throw bad('Harga rupiah harus bilangan bulat');
     stmts.push(c.env.DB.prepare('INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').bind(k, v === null ? '' : String(v)));

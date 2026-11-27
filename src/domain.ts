@@ -3,19 +3,19 @@
 export const ROLES = ['master', 'manager', 'spv', 'cs', 'crm', 'store', 'op', 'qc', 'gudang', 'fat'] as const;
 export type Role = (typeof ROLES)[number];
 
-export const GRANTABLE = ['dashboard', 'laporan', 'analysis', 'input', 'cs', 'toko', 'pelanggan', 'cekfile', 'produksi', 'qc', 'serah', 'bayar', 'stok', 'loss', 'layanan', 'lacak'] as const;
+export const GRANTABLE = ['dashboard', 'harian', 'laporan', 'analysis', 'input', 'cs', 'toko', 'pelanggan', 'cekfile', 'produksi', 'qc', 'serah', 'bayar', 'stok', 'loss', 'layanan', 'lacak'] as const;
 export type Page = (typeof GRANTABLE)[number] | 'atur' | 'pengguna' | 'akses' | 'data' | 'akun';
 
 export const ACCESS_DEFAULT: Record<Exclude<Role, 'master'>, Page[]> = {
-  manager: ['dashboard', 'laporan', 'analysis', 'pelanggan', 'produksi', 'bayar', 'stok', 'loss', 'layanan', 'lacak'],
-  spv: ['dashboard', 'laporan', 'analysis', 'cs', 'cekfile', 'produksi', 'qc', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
-  cs: ['dashboard', 'input', 'cs', 'pelanggan', 'bayar', 'produksi', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
+  manager: ['dashboard', 'harian', 'laporan', 'analysis', 'pelanggan', 'produksi', 'bayar', 'stok', 'loss', 'layanan', 'lacak'],
+  spv: ['dashboard', 'harian', 'laporan', 'analysis', 'cs', 'cekfile', 'produksi', 'qc', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
+  cs: ['dashboard', 'harian', 'input', 'cs', 'pelanggan', 'bayar', 'produksi', 'serah', 'stok', 'loss', 'layanan', 'lacak'],
   crm: ['pelanggan', 'layanan', 'lacak'],
-  store: ['input', 'toko', 'layanan', 'lacak'],
-  op: ['cekfile', 'produksi', 'qc', 'stok'],
-  qc: ['qc', 'produksi'],
+  store: ['input', 'harian', 'toko', 'layanan', 'lacak'],
+  op: ['cekfile', 'harian', 'produksi', 'qc', 'stok'],
+  qc: ['qc', 'harian', 'produksi'],
   gudang: ['stok', 'serah'],
-  fat: ['bayar', 'laporan', 'analysis', 'layanan', 'lacak'],
+  fat: ['bayar', 'harian', 'laporan', 'analysis', 'layanan', 'lacak'],
 };
 
 // Menu yang menampilkan data order. Tanpa salah satunya, data order tidak dikirim ke browser.
@@ -94,6 +94,9 @@ export function newResi(): string {
   const s = [...crypto.getRandomValues(new Uint8Array(10))].map((b) => RESI_CHARS[b & 31]).join('');
   return `RS-${s.slice(0, 5)}-${s.slice(5)}`;
 }
+
+/** Foto QC pagi tambahan yang boleh dilampirkan (opsional). */
+export const EXTRA_PHOTOS = ['Bukti tambahan 1', 'Bukti tambahan 2', 'Bukti tambahan 3'];
 
 export class RuleError extends Error {}
 

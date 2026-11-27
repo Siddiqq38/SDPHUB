@@ -10,6 +10,7 @@ import { publicRoutes } from './routes/public.ts';
 import { capacityRoutes } from './routes/capacity.ts';
 import { inventoryRoutes } from './routes/inventory.ts';
 import { analyticsRoutes } from './routes/analytics.ts';
+import { dailyRoutes } from './routes/daily.ts';
 
 /** Aplikasi dibuat dengan penyedia lingkungan (DB, storage, secret) agar sama untuk Vercel, server dev, dan uji. */
 export function createApp(getEnv: () => Promise<Env>) {
@@ -36,6 +37,7 @@ app.route('/api/orders', orderRoutes);
 app.route('/api/capacity', capacityRoutes);
 app.route('/api/stock', inventoryRoutes);
 app.route('/api/analytics', analyticsRoutes);
+app.route('/api/daily', dailyRoutes);
 app.route('/api/files', fileRoutes);
 app.route('/api/manage', manageRoutes);
 app.route('/api', opsRoutes);
